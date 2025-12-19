@@ -8,18 +8,25 @@ type VisEdge = any
 export function GraphCanvas({ nodes, edges }: { nodes: VisNode[]; edges: VisEdge[] }) {
   const ref = useRef<HTMLDivElement>(null)
   const networkRef = useRef<Network | null>(null)
+  const fittedRef = useRef(false)
 
   useEffect(() => {
     if (!ref.current) return
 
+    // Mobile Safari can init the canvas while the element reports 0px height.
+    // Give it a concrete height at init time (CSS still controls layout).
+    if (!ref.current.style.height) ref.current.style.height = '70vh'
+    if (!ref.current.style.minHeight) ref.current.style.minHeight = '420px'
+
     networkRef.current?.destroy()
+    fittedRef.current = false
 
     const data = {
       nodes: new DataSet(nodes),
       edges: new DataSet(edges),
     }
 
-    networkRef.current = new Network(ref.current, data, {
+    const network = new Network(ref.current, data, {
       autoResize: true,
       layout: { improvedLayout: true },
       interaction: {
@@ -30,13 +37,13 @@ export function GraphCanvas({ nodes, edges }: { nodes: VisNode[]; edges: VisEdge
         keyboard: true,
       },
       physics: {
-        stabilization: { iterations: 150 },
+        stabilization: { iterations: 200, fit: true },
         barnesHut: {
-          gravitationalConstant: -8000,
-          springLength: 140,
+          gravitationalConstant: -9000,
+          springLength: 150,
           springConstant: 0.04,
-          damping: 0.2,
-          avoidOverlap: 0.4,
+          damping: 0.25,
+          avoidOverlap: 0.5,
         },
       },
       nodes: {
@@ -69,15 +76,37 @@ export function GraphCanvas({ nodes, edges }: { nodes: VisNode[]; edges: VisEdge
       },
     })
 
-    setTimeout(() => {
+    networkRef.current = network
+
+    const fitOnce = () => {
+      if (fittedRef.current) return
+      fittedRef.current = true
       try {
-        networkRef.current?.fit({ animation: { duration: 350, easingFunction: 'easeInOutQuad' } })
+        network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } })
       } catch {
         // ignore
       }
-    }, 50)
+    }
 
-    return () => networkRef.current?.destroy()
+    // More reliable than setTimeout on mobile
+    network.on('stabilizationIterationsDone', fitOnce)
+    network.on('afterDrawing', fitOnce)
+
+    // Handle viewport/address-bar resize on mobile
+    const ro = new ResizeObserver(() => {
+      try {
+        network.redraw()
+        network.fit({ animation: false })
+      } catch {
+        // ignore
+      }
+    })
+    ro.observe(ref.current)
+
+    return () => {
+      ro.disconnect()
+      network.destroy()
+    }
   }, [nodes, edges])
 
   return <div ref={ref} className="graph" />
