@@ -4,12 +4,47 @@ import { GraphCanvas, Selection } from './components/GraphCanvas'
 import { toVisData, VisData } from './adapters/toVisData'
 import sample from './samples/sample-oidsee-graph.json?raw'
 import { DetailsPanel } from './components/DetailsPanel'
+import { FilterBar } from './components/FilterBar'
+import { parseQuery, evalClause } from './filters/query'
+
+function applyQuery(data: VisData, query: string) {
+  const parsed = parseQuery(query)
+  const clauses = parsed.clauses
+
+  const nodeClauses = clauses.filter((c) => c.target === 'node' || c.target === 'both')
+  const edgeClauses = clauses.filter((c) => c.target === 'edge' || c.target === 'both')
+
+  const nodePass = new Set<string>()
+  for (const n of data.nodes) {
+    const raw = n.__oidsee ?? n
+    const ok = nodeClauses.every((c) => evalClause(raw, c))
+    if (ok) nodePass.add(n.id)
+  }
+
+  const edgesOut: any[] = []
+  for (const e of data.edges) {
+    const raw = e.__oidsee ?? e
+    const ok = edgeClauses.every((c) => evalClause(raw, c))
+    if (!ok) continue
+    edgesOut.push(e)
+    // always keep endpoints for matched edges (keeps relationships readable)
+    nodePass.add(e.from)
+    nodePass.add(e.to)
+  }
+
+  const nodesOut = data.nodes.filter((n) => nodePass.has(n.id))
+  const nodeSet = new Set(nodesOut.map((n) => n.id))
+  const edgesFinal = edgesOut.filter((e) => nodeSet.has(e.from) && nodeSet.has(e.to))
+
+  return { nodes: nodesOut, edges: edgesFinal, parsed }
+}
 
 export default function App() {
   const [raw, setRaw] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<VisData | null>(null)
   const [selection, setSelection] = useState<Selection | null>(null)
+  const [query, setQuery] = useState<string>('')
 
   const placeholder = useMemo(() => {
     return `Paste an OID-See export (oidsee-graph v1.x) here…\n\nTip: Click “Load sample” to see the expected shape.`
@@ -41,6 +76,22 @@ export default function App() {
     if (file) void readFile(file)
   }
 
+  const filtered = useMemo(() => {
+    if (!data) return null
+    if (!query.trim()) return { nodes: data.nodes, edges: data.edges, parsed: parseQuery('') }
+    return applyQuery(data, query)
+  }, [data, query])
+
+  const counts = useMemo(() => {
+    if (!data || !filtered) return undefined
+    return {
+      nodes: filtered.nodes.length,
+      edges: filtered.edges.length,
+      totalNodes: data.nodes.length,
+      totalEdges: data.edges.length,
+    }
+  }, [data, filtered])
+
   return (
     <div className="app">
       <header className="topbar">
@@ -53,7 +104,13 @@ export default function App() {
         </div>
 
         <div className="topbar__actions">
-          <button className="btn btn--ghost" onClick={() => { setRaw(sample); render(sample) }}>
+          <button
+            className="btn btn--ghost"
+            onClick={() => {
+              setRaw(sample)
+              render(sample)
+            }}
+          >
             Load sample
           </button>
           <button className="btn" onClick={() => render(raw)}>
@@ -75,12 +132,7 @@ export default function App() {
       </header>
 
       <main className="main">
-        <section
-          className="panel"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={onDrop}
-          title="Drop a .json file here"
-        >
+        <section className="panel" onDragOver={(e) => e.preventDefault()} onDrop={onDrop} title="Drop a .json file here">
           <div className="panel__title">Input</div>
           <textarea
             className="json-input"
@@ -89,9 +141,7 @@ export default function App() {
             onChange={(e) => setRaw(e.target.value)}
             spellCheck={false}
           />
-          <div className="hint">
-            Drop a JSON file anywhere in this panel, or paste JSON above. Nothing is uploaded to a server.
-          </div>
+          <div className="hint">Drop a JSON file anywhere in this panel, or paste JSON above. Nothing is uploaded to a server.</div>
 
           {error && (
             <div className="error">
@@ -103,8 +153,9 @@ export default function App() {
 
         <section className="panel panel--graph">
           <div className="panel__title">Graph</div>
-          {data ? (
-            <GraphCanvas nodes={data.nodes} edges={data.edges} onSelection={setSelection} />
+          <FilterBar query={query} onChange={setQuery} counts={counts} />
+          {filtered ? (
+            <GraphCanvas nodes={filtered.nodes} edges={filtered.edges} onSelection={setSelection} />
           ) : (
             <div className="empty">
               <div className="empty__title">No graph yet</div>

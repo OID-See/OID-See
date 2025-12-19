@@ -29,3 +29,28 @@ npm run dev
 1. Push to GitHub
 2. Netlify → **New site from Git**
 3. `netlify.toml` handles build + publish
+
+
+## Filtering (property query)
+
+Use the filter box above the graph. Clauses are space-separated.
+
+Prefix clauses with:
+- `n.` for node
+- `e.` for edge
+
+Operators:
+- `=` equals, `!=` not equals
+- `~` contains, `!~` not contains
+- `> >= < <=` numeric comparisons
+- `?` exists (or just a bare path)
+
+Examples:
+- `n.type=User`
+- `e.type!=INSTANCE_OF`
+- `e.properties.scopes~offline_access`
+- `n.risk.score>=70`
+- `n.properties.appId?`
+- `n.displayName~"Contoso Portal"`
+
+Clauses evaluate against your raw export objects (node/edge), so you can filter on any property you emit.
