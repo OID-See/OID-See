@@ -2,10 +2,22 @@
 import { useEffect, useRef } from 'react'
 import { DataSet, Network } from 'vis-network/standalone'
 
+export type Selection =
+  | { kind: 'node'; id: string; oidsee?: any }
+  | { kind: 'edge'; id: string; oidsee?: any }
+
 type VisNode = any
 type VisEdge = any
 
-export function GraphCanvas({ nodes, edges }: { nodes: VisNode[]; edges: VisEdge[] }) {
+export function GraphCanvas({
+  nodes,
+  edges,
+  onSelection,
+}: {
+  nodes: VisNode[]
+  edges: VisEdge[]
+  onSelection?: (s: Selection | null) => void
+}) {
   const ref = useRef<HTMLDivElement>(null)
   const networkRef = useRef<Network | null>(null)
   const fittedRef = useRef(false)
@@ -13,20 +25,16 @@ export function GraphCanvas({ nodes, edges }: { nodes: VisNode[]; edges: VisEdge
   useEffect(() => {
     if (!ref.current) return
 
-    // Mobile Safari can init the canvas while the element reports 0px height.
-    // Give it a concrete height at init time (CSS still controls layout).
     if (!ref.current.style.height) ref.current.style.height = '70vh'
     if (!ref.current.style.minHeight) ref.current.style.minHeight = '420px'
 
     networkRef.current?.destroy()
     fittedRef.current = false
 
-    const data = {
-      nodes: new DataSet(nodes),
-      edges: new DataSet(edges),
-    }
+    const nodeDs = new DataSet(nodes)
+    const edgeDs = new DataSet(edges)
 
-    const network = new Network(ref.current, data, {
+    const network = new Network(ref.current, { nodes: nodeDs, edges: edgeDs }, {
       autoResize: true,
       layout: { improvedLayout: true },
       interaction: {
@@ -35,16 +43,6 @@ export function GraphCanvas({ nodes, edges }: { nodes: VisNode[]; edges: VisEdge
         multiselect: true,
         navigationButtons: true,
         keyboard: true,
-      },
-      physics: {
-        stabilization: { iterations: 200, fit: true },
-        barnesHut: {
-          gravitationalConstant: -9000,
-          springLength: 150,
-          springConstant: 0.04,
-          damping: 0.25,
-          avoidOverlap: 0.5,
-        },
       },
       nodes: {
         shape: 'dot',
@@ -62,6 +60,16 @@ export function GraphCanvas({ nodes, edges }: { nodes: VisNode[]; edges: VisEdge
         font: { color: 'rgba(234,242,255,0.9)', strokeWidth: 0 },
         color: { color: 'rgba(155,92,255,0.70)', highlight: 'rgba(66,232,224,0.95)' },
         selectionWidth: 2,
+      },
+      physics: {
+        stabilization: { iterations: 200, fit: true },
+        barnesHut: {
+          gravitationalConstant: -9000,
+          springLength: 150,
+          springConstant: 0.04,
+          damping: 0.25,
+          avoidOverlap: 0.5,
+        },
       },
       groups: {
         OAuthApp: { color: { border: 'rgba(66,232,224,0.95)', background: 'rgba(66,232,224,0.18)' } },
@@ -83,23 +91,33 @@ export function GraphCanvas({ nodes, edges }: { nodes: VisNode[]; edges: VisEdge
       fittedRef.current = true
       try {
         network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } })
-      } catch {
-        // ignore
-      }
+      } catch {}
     }
 
-    // More reliable than setTimeout on mobile
     network.on('stabilizationIterationsDone', fitOnce)
     network.on('afterDrawing', fitOnce)
 
-    // Handle viewport/address-bar resize on mobile
+    // Selection => Details panel (avoids HTML tooltip issues on iOS)
+    network.on('selectNode', (p: any) => {
+      const id = p.nodes?.[0]
+      if (!id) return
+      const n = nodeDs.get(id) as any
+      onSelection?.({ kind: 'node', id, oidsee: n?.__oidsee ?? n })
+    })
+    network.on('selectEdge', (p: any) => {
+      const id = p.edges?.[0]
+      if (!id) return
+      const e = edgeDs.get(id) as any
+      onSelection?.({ kind: 'edge', id, oidsee: e?.__oidsee ?? e })
+    })
+    network.on('deselectNode', () => onSelection?.(null))
+    network.on('deselectEdge', () => onSelection?.(null))
+
     const ro = new ResizeObserver(() => {
       try {
         network.redraw()
         network.fit({ animation: false })
-      } catch {
-        // ignore
-      }
+      } catch {}
     })
     ro.observe(ref.current)
 
@@ -107,7 +125,7 @@ export function GraphCanvas({ nodes, edges }: { nodes: VisNode[]; edges: VisEdge
       ro.disconnect()
       network.destroy()
     }
-  }, [nodes, edges])
+  }, [nodes, edges, onSelection])
 
   return <div ref={ref} className="graph" />
 }

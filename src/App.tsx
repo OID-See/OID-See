@@ -1,13 +1,15 @@
 
 import { useMemo, useState } from 'react'
-import { GraphCanvas } from './components/GraphCanvas'
-import { toVisData } from './adapters/toVisData'
+import { GraphCanvas, Selection } from './components/GraphCanvas'
+import { toVisData, VisData } from './adapters/toVisData'
 import sample from './samples/sample-oidsee-graph.json?raw'
+import { DetailsPanel } from './components/DetailsPanel'
 
 export default function App() {
   const [raw, setRaw] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
-  const [data, setData] = useState<{ nodes: any[]; edges: any[] } | null>(null)
+  const [data, setData] = useState<VisData | null>(null)
+  const [selection, setSelection] = useState<Selection | null>(null)
 
   const placeholder = useMemo(() => {
     return `Paste an OID-See export (oidsee-graph v1.x) here…\n\nTip: Click “Load sample” to see the expected shape.`
@@ -22,11 +24,13 @@ export default function App() {
   function render(input: string) {
     try {
       setError(null)
+      setSelection(null)
       const parsed = JSON.parse(input)
       const vis = toVisData(parsed)
       setData(vis)
     } catch (e: any) {
       setData(null)
+      setSelection(null)
       setError(e?.message ?? String(e))
     }
   }
@@ -100,13 +104,18 @@ export default function App() {
         <section className="panel panel--graph">
           <div className="panel__title">Graph</div>
           {data ? (
-            <GraphCanvas nodes={data.nodes} edges={data.edges} />
+            <GraphCanvas nodes={data.nodes} edges={data.edges} onSelection={setSelection} />
           ) : (
             <div className="empty">
               <div className="empty__title">No graph yet</div>
               <div className="empty__msg">Paste or upload an OID-See export JSON and click Render.</div>
             </div>
           )}
+        </section>
+
+        <section className="panel panel--details">
+          <div className="panel__title">Details</div>
+          <DetailsPanel selection={selection} />
         </section>
       </main>
 
