@@ -60,6 +60,7 @@ export function GraphCanvas({
         font: { color: 'rgba(234,242,255,0.9)', strokeWidth: 0 },
         color: { color: 'rgba(155,92,255,0.70)', highlight: 'rgba(66,232,224,0.95)' },
         selectionWidth: 2,
+        dashes: (edge: any) => edge?.label === 'INSTANCE_OF',
       },
       physics: {
         stabilization: { iterations: 200, fit: true },

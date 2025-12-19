@@ -45,6 +45,7 @@ export type OidSeeEdgeType =
   | 'GOVERNS'
   | 'EFFECTIVE_IMPERSONATION_PATH'
   | 'PERSISTENCE_PATH'
+  | 'INSTANCE_OF'
 
 export type OidSeeEdge = {
   id: string
