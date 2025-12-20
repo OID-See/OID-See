@@ -225,7 +225,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <div className="brand__mark" aria-hidden="true">
-            ◁
+            <img className="brand__logo" src="/icons/oidsee_logo.png" alt="OID-See" />
           </div>
           <div className="brand__text">
             <div className="brand__name">OID-See</div>

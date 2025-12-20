@@ -48,6 +48,12 @@ body{
   font-weight:800;
   letter-spacing:.04em;
 }
+.brand__logo{
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35));
+}
 .brand__name{ font-size: 1.15rem; font-weight: 800; }
 .brand__tag{ font-size: .85rem; color: var(--muted); margin-top: .1rem; }
 

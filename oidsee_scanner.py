@@ -40,6 +40,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import requests
+import random
 from azure.identity import ClientSecretCredential, DeviceCodeCredential
 
 
@@ -58,6 +59,11 @@ class GraphClient:
         self.credential = None
         self._token: Optional[str] = None
         self._token_expires: float = 0.0
+        self.max_retries: int = 6
+        self.base_delay: float = 0.8
+
+    class GraphNotFound(Exception):
+        pass
 
     def authenticate_device_code(self, client_id: str) -> None:
         self.credential = DeviceCodeCredential(
@@ -95,14 +101,56 @@ class GraphClient:
     def _headers(self) -> Dict[str, str]:
         return {"Authorization": f"Bearer {self._get_token()}", "Content-Type": "application/json"}
 
+    def _request(self, method: str, url: str, *, params: Optional[Dict[str, Any]] = None, json: Optional[Dict[str, Any]] = None, timeout: int = 60) -> Dict[str, Any]:
+        last_err: Optional[str] = None
+        for attempt in range(self.max_retries):
+            try:
+                r = requests.request(method, url, headers=self._headers(), params=params, json=json, timeout=timeout)
+            except requests.RequestException as e:
+                last_err = f"{type(e).__name__}: {e}"
+                # network/transient error -> backoff
+                delay = self.base_delay * (2 ** attempt) + random.uniform(0, 0.3)
+                time.sleep(delay)
+                continue
+
+            if r.status_code in (429, 503):
+                # throttle/backoff with Retry-After when present
+                ra = r.headers.get("Retry-After")
+                try:
+                    delay = float(ra) if ra is not None else (self.base_delay * (2 ** attempt))
+                except Exception:
+                    delay = self.base_delay * (2 ** attempt)
+                delay = max(delay, self.base_delay) + random.uniform(0, 0.5)
+                time.sleep(delay)
+                continue
+
+            if r.status_code == 404:
+                raise GraphClient.GraphNotFound(f"404 Not Found: {url}")
+
+            if r.status_code >= 400:
+                last_err = f"HTTP {r.status_code}: {r.text[:500]}"
+                # retry other 5xx
+                if 500 <= r.status_code < 600 and attempt < self.max_retries - 1:
+                    delay = self.base_delay * (2 ** attempt) + random.uniform(0, 0.3)
+                    time.sleep(delay)
+                    continue
+                raise RuntimeError(f"Graph {method} failed: {last_err}")
+
+            try:
+                return r.json()
+            except ValueError:
+                return {}
+
+        raise RuntimeError(f"Graph {method} failed after retries: {last_err or 'unknown error'}")
+
     def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        r = requests.get(url, headers=self._headers(), params=params, timeout=60)
-        if r.status_code >= 400:
-            raise RuntimeError(f"Graph GET failed {r.status_code}: {r.text[:500]}")
-        return r.json()
+        return self._request("GET", url, params=params)
+
+    def post(self, url: str, json: Optional[Dict[str, Any]] = None, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        return self._request("POST", url, params=params, json=json)
 
     def get_paged(self, url: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """Follow @odata.nextLink and return aggregated 'value'."""
+        """Follow @odata.nextLink and return aggregated 'value'. Handles throttling."""
         out: List[Dict[str, Any]] = []
         next_url = url
         next_params = params
@@ -205,15 +253,12 @@ class DirectoryCache:
         # /directoryObjects/getByIds supports up to 1000 ids but keep it conservative
         for batch in chunked(unknown, 500):
             body = {"ids": batch, "types": ["user", "group", "servicePrincipal", "directoryRole"]}
-            data = requests.post(
-                f"{GRAPH_V1}/directoryObjects/getByIds",
-                headers=self.graph._headers(),
-                json=body,
-                timeout=60,
-            )
-            if data.status_code >= 400:
-                raise RuntimeError(f"Graph POST getByIds failed {data.status_code}: {data.text[:500]}")
-            for obj in data.json().get("value", []):
+            try:
+                data = self.graph.post(f"{GRAPH_V1}/directoryObjects/getByIds", json=body)
+            except GraphClient.GraphNotFound:
+                # getByIds won't 404 on batch; ignore
+                data = {"value": []}
+            for obj in data.get("value", []):
                 oid = obj.get("id")
                 if oid:
                     self._cache[oid] = obj
@@ -648,12 +693,15 @@ class OidSeeCollector:
     # ---- graph build
 
     def build(self) -> Dict[str, Any]:
+        print("→ Fetching tenant metadata...", file=sys.stderr)
         tenant = self.fetch_tenant()
         tenant_id = tenant.get("tenantId")
         if not tenant_id:
             raise RuntimeError("Could not determine tenantId from /organization")
 
+        print("→ Listing service principals...", file=sys.stderr)
         sps = self.list_service_principals()
+        print(f"  found {len(sps)} service principals (pre-filter)", file=sys.stderr)
         # cache all quickly (id->sp)
         for sp in sps:
             sid = sp.get("id")
@@ -665,9 +713,12 @@ class OidSeeCollector:
 
         # filter
         target_sps = [sp for sp in sps if self.should_include_sp(sp, tenant_id)]
+        print(f"→ Targeting {len(target_sps)} service principals (post-filter)", file=sys.stderr)
 
         # best-effort application objects
+        print("→ Fetching in-tenant application objects (best-effort)...", file=sys.stderr)
         self.fetch_applications_for_sps(target_sps)
+        print(f"  application cache populated for {len(self.app_cache_by_appid)} appIds", file=sys.stderr)
 
         # First pass: gather grants, assignments, owners, role assignments and collect referenced IDs
         sp_delegated_scopes: Dict[str, Dict[str, Set[str]]] = {}  # spId -> resourceId -> scopes set
@@ -678,6 +729,7 @@ class OidSeeCollector:
         owners_by_sp: Dict[str, List[Dict[str, Any]]] = {}
         dir_roles_by_sp: Dict[str, List[Dict[str, Any]]] = {}
 
+        print("→ Collecting delegated grants, app permissions, assignments, owners, and directory roles...", file=sys.stderr)
         for sp in target_sps:
             sp_id = sp["id"]
             # Delegated grants
@@ -749,12 +801,27 @@ class OidSeeCollector:
                 if rid:
                     self._role_def_ids_needed.add(rid)
 
+        # Summaries
+        grants_total = sum(len(v) for v in grants_by_sp.values())
+        app_perms_total = sum(len(v) for v in app_perms_by_sp.values())
+        assigned_total = sum(len(v) for v in assigned_to_by_sp.values())
+        owners_total = sum(len(v) for v in owners_by_sp.values())
+        dir_roles_total = sum(len(v) for v in dir_roles_by_sp.values())
+        print(f"  collected: {grants_total} grants, {app_perms_total} app-perms, {assigned_total} assignments, {owners_total} owners, {dir_roles_total} role assignments", file=sys.stderr)
+
         # Resolve referenced directory objects and resource SPs
+        print(f"→ Resolving {len(self._principal_ids_needed)} principals via getByIds...", file=sys.stderr)
         self.dir_cache.get_many(self._principal_ids_needed)
+        missing_before = len([rid for rid in self._resource_sp_needed if rid not in self.sp_cache])
+        print(f"→ Loading {missing_before} resource service principals...", file=sys.stderr)
         self.ensure_resource_sps_loaded()
+        missing_after = len([rid for rid in self._resource_sp_needed if rid not in self.sp_cache])
+        print(f"  loaded {missing_before - missing_after} resources (remaining {missing_after})", file=sys.stderr)
+        print(f"→ Fetching {len(self._role_def_ids_needed)} role definitions...", file=sys.stderr)
         self.fetch_role_definitions(self._role_def_ids_needed)
 
         # Second pass: emit nodes and edges
+        print("→ Emitting nodes and edges...", file=sys.stderr)
         for sp in target_sps:
             sp_id = sp["id"]
             sp_display = sp.get("displayName") or sp.get("appDisplayName")
@@ -1010,6 +1077,48 @@ class OidSeeCollector:
                 })
                 self.add_edge(sp_nid, rnid, "HAS_ROLE", {"directoryScopeId": ra.get("directoryScopeId")})
 
+        # Final pass: apply governance offsets if any GOVERNS edges exist
+        # Deduct risk on ServicePrincipal nodes based on governance strength
+        governs_by_sp: Dict[str, List[Dict[str, Any]]] = {}
+        for e in self.edges:
+            if e.get("type") == "GOVERNS" and isinstance(e.get("to"), str) and e["to"].startswith("sp:"):
+                governs_by_sp.setdefault(e["to"], []).append(e)
+
+        for sp_nid, gov_edges in governs_by_sp.items():
+            node = self.nodes.get(sp_nid)
+            if not node:
+                continue
+            existing = node.get("risk") or {"score": 0, "level": "info", "reasons": []}
+            deduction_total = 0
+            descs: List[str] = []
+            for ge in gov_edges:
+                props = ge.get("properties", {})
+                strength = (props.get("strength") or "moderate").lower()
+                if strength in ("strong", "strict"):
+                    deduction = 30
+                elif strength in ("moderate", "medium"):
+                    deduction = 15
+                else:
+                    deduction = 5
+                deduction_total += deduction
+                desc = props.get("description") or props.get("control") or strength
+                if desc:
+                    descs.append(str(desc))
+
+            if deduction_total > 0:
+                new_score = max(0, int(existing.get("score") or 0) - deduction_total)
+                node["risk"] = {
+                    "score": new_score,
+                    "level": _level_from_score(new_score),
+                    "reasons": (existing.get("reasons") or []) + [{
+                        "code": "GOVERNS",
+                        "message": f"Governance controls applied ({', '.join(descs)})",
+                        "weight": -deduction_total,
+                    }],
+                }
+        if governs_by_sp:
+            print(f"→ Applied governance deductions to {len(governs_by_sp)} apps", file=sys.stderr)
+
         export = {
             "format": {
                 "name": "oidsee-graph",
@@ -1041,6 +1150,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--include-first-party", action="store_true", help="Include Microsoft-first-party apps (heuristic)")
     p.add_argument("--include-single-tenant", action="store_true", help="Include AzureADMyOrg signInAudience apps")
     p.add_argument("--include-all-sps", action="store_true", help="Include all service principals (overrides filters)")
+    p.add_argument("--max-retries", type=int, default=6, help="Max HTTP retries for Graph requests (throttling/transient)")
+    p.add_argument("--retry-base-delay", type=float, default=0.8, help="Base delay (seconds) for exponential backoff")
     return p.parse_args()
 
 
@@ -1048,6 +1159,9 @@ def main() -> int:
     args = parse_args()
 
     graph = GraphClient(args.tenant_id)
+    # Configure HTTP retry/backoff behavior
+    graph.max_retries = max(1, int(args.max_retries))
+    graph.base_delay = max(0.1, float(args.retry_base_delay))
     if args.client_secret:
         cid = args.client_id or AZURE_CLI_CLIENT_ID
         graph.authenticate_client_secret(cid, args.client_secret)

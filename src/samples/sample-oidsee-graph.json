@@ -186,6 +186,15 @@
       }
     },
     {
+      "id": "e-offline-contoso-graph",
+      "type": "HAS_OFFLINE_ACCESS",
+      "from": "sp:contoso-portal",
+      "to": "api:msgraph",
+      "properties": {
+        "resourceId": "00000003-0000-0000-c000-000000000000"
+      }
+    },
+    {
       "id": "e-role",
       "type": "HAS_ROLE",
       "from": "user:bob",

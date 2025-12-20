@@ -3,7 +3,7 @@
     "name": "oidsee-graph",
     "version": "1.1"
   },
-  "generatedAt": "2025-12-20T20:01:18Z",
+  "generatedAt": "2025-12-20T20:47:15Z",
   "tenant": {
     "tenantId": "254d3d84-0a52-49b7-bb23-03b3557e25ac",
     "displayName": "Cirriustech",
@@ -49,18 +49,33 @@
         "passwordCredentials": []
       },
       "risk": {
-        "score": 20,
-        "level": "low",
+        "score": 55,
+        "level": "medium",
         "reasons": [
           {
-            "code": "MULTITENANT_AUDIENCE",
-            "title": "Multi-tenant sign-in audience",
-            "details": "signInAudience=AzureADandPersonalMicrosoftAccount"
+            "code": "HAS_TOO_MANY_SCOPES",
+            "message": "Delegated consent is overly broad",
+            "weight": 15
           },
           {
-            "code": "OFFLINE_ACCESS",
-            "title": "Refresh-token persistence",
-            "details": "Delegated grants include offline_access."
+            "code": "PERSISTENCE",
+            "message": "offline_access delegated grant allows refresh tokens",
+            "weight": 15
+          },
+          {
+            "code": "ASSIGNED_TO",
+            "message": "App is assigned to principals approximating ~1 users",
+            "weight": 5
+          },
+          {
+            "code": "NO_OWNERS",
+            "message": "No owners found for application",
+            "weight": 15
+          },
+          {
+            "code": "GOVERNANCE",
+            "message": "Assignments not required for app",
+            "weight": 5
           }
         ]
       }
@@ -170,23 +185,33 @@
         "passwordCredentials": []
       },
       "risk": {
-        "score": 25,
-        "level": "low",
+        "score": 55,
+        "level": "medium",
         "reasons": [
           {
-            "code": "MULTITENANT_AUDIENCE",
-            "title": "Multi-tenant sign-in audience",
-            "details": "signInAudience=AzureADandPersonalMicrosoftAccount"
+            "code": "HAS_TOO_MANY_SCOPES",
+            "message": "Delegated consent is overly broad",
+            "weight": 15
           },
           {
-            "code": "OFFLINE_ACCESS",
-            "title": "Refresh-token persistence",
-            "details": "Delegated grants include offline_access."
+            "code": "PERSISTENCE",
+            "message": "offline_access delegated grant allows refresh tokens",
+            "weight": 15
           },
           {
-            "code": "HIGH_RISK_SCOPES",
-            "title": "High-risk delegated scopes",
-            "details": "Directory.ReadWrite.All"
+            "code": "ASSIGNED_TO",
+            "message": "App is assigned to principals approximating ~1 users",
+            "weight": 5
+          },
+          {
+            "code": "NO_OWNERS",
+            "message": "No owners found for application",
+            "weight": 15
+          },
+          {
+            "code": "GOVERNANCE",
+            "message": "Assignments not required for app",
+            "weight": 5
           }
         ]
       }
@@ -281,18 +306,28 @@
         "passwordCredentials": []
       },
       "risk": {
-        "score": 20,
-        "level": "low",
+        "score": 40,
+        "level": "medium",
         "reasons": [
           {
-            "code": "MULTITENANT_AUDIENCE",
-            "title": "Multi-tenant sign-in audience",
-            "details": "signInAudience=AzureADandPersonalMicrosoftAccount"
+            "code": "PERSISTENCE",
+            "message": "offline_access delegated grant allows refresh tokens",
+            "weight": 15
           },
           {
-            "code": "OFFLINE_ACCESS",
-            "title": "Refresh-token persistence",
-            "details": "Delegated grants include offline_access."
+            "code": "ASSIGNED_TO",
+            "message": "App is assigned to principals approximating ~1 users",
+            "weight": 5
+          },
+          {
+            "code": "NO_OWNERS",
+            "message": "No owners found for application",
+            "weight": 15
+          },
+          {
+            "code": "GOVERNANCE",
+            "message": "Assignments not required for app",
+            "weight": 5
           }
         ]
       }
@@ -402,18 +437,28 @@
         "passwordCredentials": []
       },
       "risk": {
-        "score": 35,
-        "level": "low",
+        "score": 45,
+        "level": "medium",
         "reasons": [
           {
-            "code": "UNVERIFIED_PUBLISHER",
-            "title": "Unverified publisher",
-            "details": "Service principal has no verifiedPublisherId."
+            "code": "ASSIGNED_TO",
+            "message": "App is assigned to principals approximating ~1 users",
+            "weight": 5
           },
           {
-            "code": "MULTITENANT_AUDIENCE",
-            "title": "Multi-tenant sign-in audience",
-            "details": "signInAudience=AzureADandPersonalMicrosoftAccount"
+            "code": "DECEPTION",
+            "message": "Unverified publisher with name mismatch between publisher and display name",
+            "weight": 20
+          },
+          {
+            "code": "NO_OWNERS",
+            "message": "No owners found for application",
+            "weight": 15
+          },
+          {
+            "code": "GOVERNANCE",
+            "message": "Assignments not required for app",
+            "weight": 5
           }
         ]
       }
