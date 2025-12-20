@@ -6,6 +6,7 @@ import sampleObj from './samples/sample-oidsee-graph.json'
 import { DetailsPanel } from './components/DetailsPanel'
 import { FilterBar, Lens } from './components/FilterBar'
 import { parseQuery, evalClause, getPath, isNumericOp, Clause } from './filters/query'
+import { JSONEditor } from './components/JSONEditor'
 
 type SavedQuery = { name: string; query: string }
 
@@ -283,12 +284,10 @@ export default function App() {
               </button>
             </div>
           </div>
-          <textarea
-            className="json-input"
+          <JSONEditor
             value={raw}
+            onChange={setRaw}
             placeholder={placeholder}
-            onChange={(e) => setRaw(e.target.value)}
-            spellCheck={false}
           />
           <div className="hint">Drop a JSON file anywhere in this panel, or paste JSON above. Nothing is uploaded to a server.</div>
 

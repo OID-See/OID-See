@@ -372,3 +372,61 @@ body{
   background-color: rgba(155, 92, 255, 0.95);
   filter: drop-shadow(0 0 8px rgba(155, 92, 255, 0.35));
 }
+
+/* ===== JSON Editor Syntax Highlighting ===== */
+.json-editor {
+  width: 100%;
+  min-height: 360px;
+  background: rgba(0,0,0,0.30);
+  border-radius: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.json-editor__input {
+  position: relative;
+  width: 100%;
+  min-height: 360px;
+  background: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12.5px;
+  line-height: 1.35rem;
+}
+
+.json-editor__pre {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  margin: 0;
+  padding: 1rem;
+  pointer-events: none;
+  background: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12.5px;
+  line-height: 1.35rem;
+  color: transparent;
+}
+
+.json-editor__textarea {
+  position: relative;
+  background: transparent;
+  color: var(--fg0);
+  caret-color: var(--teal);
+  border: none;
+  outline: none;
+  resize: vertical;
+  padding: 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12.5px;
+  line-height: 1.35rem;
+}
+
+/* Syntax highlighting colors */
+.hljs { background: transparent; color: var(--fg0); }
+.hljs-attr { color: #42E8E0; } /* teal for keys */
+.hljs-string { color: #85E89D; } /* green for strings */
+.hljs-number { color: #79B8FF; } /* blue for numbers */
+.hljs-literal { color: #F97583; } /* pink for true/false/null */
+.hljs-punctuation { color: rgba(234,242,255,0.62); } /* muted for brackets/commas */
