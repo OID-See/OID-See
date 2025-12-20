@@ -108,7 +108,8 @@
         "permissionType": "delegated",
         "scopes": [
           "User.Read",
-          "offline_access"
+          "offline_access",
+          "user_impersonation"
         ],
         "hasOfflineAccess": true
       }
@@ -125,6 +126,21 @@
     {
       "id": "e-impersonate",
       "type": "EFFECTIVE_IMPERSONATION_PATH",
+      "from": "sp:contoso-portal",
+      "to": "user:bob",
+      "properties": {},
+      "derived": {
+        "isDerived": true,
+        "algorithm": "token_abuse_path",
+        "inputs": [
+          "e-scope",
+          "e-role"
+        ]
+      }
+    },
+    {
+      "id": "e-persistence",
+      "type": "PERSISTENCE_PATH",
       "from": "sp:contoso-portal",
       "to": "user:bob",
       "properties": {},
