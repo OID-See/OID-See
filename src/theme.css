@@ -83,7 +83,7 @@ body{
 @media (max-width: 980px){
   .main{ grid-template-columns: 1fr; }
   .panel--details{ grid-column: auto; }
-} }
+}
 
 .panel{
   background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
