@@ -80,7 +80,7 @@ function FilterInput({ value, onChange, hasErrors }: { value: string; onChange: 
   }
 
   return (
-    <div style={{ position: 'relative', flex: 1 }}>
+    <div style={{ position: 'relative', flex: 1, width: '100%' }}>
       <input
         ref={inputRef}
         className={'filterbar__input' + (hasErrors ? ' filterbar__input--bad' : '')}

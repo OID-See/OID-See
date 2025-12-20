@@ -195,6 +195,7 @@ body{
   display:flex;
   gap:.6rem;
   align-items:center;
+  width: 100%;
 }
 .filterbar__input{
   flex:1;
@@ -204,6 +205,8 @@ body{
   background: rgba(0,0,0,0.25);
   color: var(--fg0);
   outline: none;
+  position: relative;
+  z-index: 1;
 }
 .filterbar__input--bad{
   border-color: rgba(255,107,107,0.45);
@@ -287,25 +290,29 @@ body{
   padding: .45rem .55rem;
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(0,0,0,0.25);
+  background: rgba(0,0,0,0.35);
   color: rgba(234,242,255,0.90);
   outline: none;
+}
+.saved__sel option{
+  background: rgba(11,14,18,0.95);
+  color: rgba(234,242,255,0.90);
 }
 
 /* Autocomplete dropdown */
 .filterbar__autocomplete {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 4px);
   left: 0;
   right: 0;
-  margin-top: 4px;
-  background: rgba(0,0,0,0.45);
-  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.65);
+  border: 1px solid rgba(255,255,255,0.15);
   border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
   max-height: 200px;
   overflow-y: auto;
-  z-index: 1000;
+  z-index: 2000;
+  pointer-events: auto;
 }
 
 .filterbar__suggestion {
