@@ -260,14 +260,14 @@ export default function App() {
         <div className="brand">
           <img className="brand__logo" src="/icons/oidsee_logo.png" alt="OID-See" />
           <div className="brand__text">
-            <div className="brand__name">OID-See</div>
-            <div className="brand__tag">Render OIDC/OAuth graphs from JSON — in your browser</div>
+            <div className="brand__name">OID-See Viewer</div>
+            <div className="brand__tag">Render OIDC/OAuth graphs from JSON</div>
           </div>
         </div>
 
         <div className="topbar__actions">
           <button
-            className="btn btn--ghost"
+            className="btn"
             onClick={() => {
               const pretty = JSON.stringify(sampleObj, null, 2)
               setRaw(pretty)
@@ -280,7 +280,7 @@ export default function App() {
             Render
           </button>
 
-          <label className="btn btn--ghost file">
+          <label className="btn file">
             <input
               type="file"
               accept="application/json,.json"
