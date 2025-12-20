@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { parseQuery, Clause } from '../filters/query'
 
 export type Lens = 'full' | 'risk' | 'structure'
+type SavedQuery = { name: string; query: string }
 
 function Chip({ c }: { c: Clause }) {
   return (
@@ -24,7 +25,10 @@ export function FilterBar({
   onLens,
   pathAware,
   onPathAware,
-  onOpenSaved,
+  saved,
+  onSave,
+  onDelete,
+  onLoad,
 }: {
   query: string
   onChange: (q: string) => void
@@ -34,7 +38,10 @@ export function FilterBar({
   onLens: (l: Lens) => void
   pathAware: boolean
   onPathAware: (v: boolean) => void
-  onOpenSaved: () => void
+  saved: SavedQuery[]
+  onSave: () => void
+  onDelete: () => void
+  onLoad: (name: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const parsed = useMemo(() => parseQuery(query), [query])
@@ -52,27 +59,23 @@ export function FilterBar({
           placeholder='Filter… e.g. e.properties.scopes~offline_access n.risk.score>=70'
           spellCheck={false}
         />
-        <button type="button" className="btn btn--ghost" onClick={() => onChange('')} title="Clear filter">
+        <button className="btn btn--ghost" onClick={() => onChange('')} title="Clear filter">
           Clear
         </button>
-        <button type="button" className="btn btn--ghost" onClick={onOpenSaved} title="Saved queries">
-          Saved…
-        </button>
-        <button type="button" className="btn btn--ghost" onClick={() => setOpen((v) => !v)} title="Help">
+        <button className="btn btn--ghost" onClick={() => setOpen((v) => !v)} title="Help">
           ?
         </button>
       </div>
 
       <div className="filterbar__row2">
         <div className="seg" aria-label="Lens">
-          <button type="button" className={'seg__btn' + (lens === 'full' ? ' seg__btn--on' : '')} onClick={() => onLens('full')}>
+          <button className={'seg__btn' + (lens === 'full' ? ' seg__btn--on' : '')} onClick={() => onLens('full')}>
             Full
           </button>
-          <button type="button" className={'seg__btn' + (lens === 'risk' ? ' seg__btn--on' : '')} onClick={() => onLens('risk')}>
+          <button className={'seg__btn' + (lens === 'risk' ? ' seg__btn--on' : '')} onClick={() => onLens('risk')}>
             Risk
           </button>
           <button
-            type="button"
             className={'seg__btn' + (lens === 'structure' ? ' seg__btn--on' : '')}
             onClick={() => onLens('structure')}
           >
@@ -84,6 +87,25 @@ export function FilterBar({
           <input type="checkbox" checked={pathAware} onChange={(e) => onPathAware(e.target.checked)} />
           <span>Path-aware</span>
         </label>
+
+        <div className="saved">
+          <select className="saved__sel" onChange={(e) => onLoad(e.target.value)} value="">
+            <option value="" disabled>
+              Saved…
+            </option>
+            {saved.map((s) => (
+              <option key={s.name} value={s.name}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          <button className="btn btn--ghost" onClick={onSave} title="Save current query">
+            Save
+          </button>
+          <button className="btn btn--ghost" onClick={onDelete} title="Delete a saved query">
+            Delete
+          </button>
+        </div>
       </div>
 
       {parsed.clauses.length > 0 && (
