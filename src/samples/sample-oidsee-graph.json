@@ -1,43 +1,22 @@
 {
   "format": {
     "name": "oidsee-graph",
-    "version": "1.0"
+    "version": "1.1"
   },
   "generatedAt": "2025-12-19T00:00:00Z",
   "tenant": {
-    "tenantId": "11111111-1111-1111-1111-111111111111",
-    "displayName": "Example Tenant",
+    "tenantId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "displayName": "Contoso Ltd",
     "cloud": "Public"
   },
   "nodes": [
     {
-      "id": "user:alice",
-      "type": "User",
-      "displayName": "Alice Example",
-      "properties": {
-        "userPrincipalName": "alice@example.com"
-      }
-    },
-    {
       "id": "app:contoso-portal",
-      "type": "OAuthApp",
+      "type": "Application",
       "displayName": "Contoso Portal",
       "properties": {
-        "appId": "22222222-2222-2222-2222-222222222222",
-        "replyUrls": [
-          "https://contoso.example/callback"
-        ]
-      },
-      "risk": {
-        "score": 72,
-        "level": "high",
-        "reasons": [
-          {
-            "code": "OFFLINE_ACCESS",
-            "message": "offline_access present",
-            "weight": 15
-          }
-        ]
+        "appId": "11111111-1111-1111-1111-111111111111",
+        "isMultiTenant": false
       }
     },
     {
@@ -45,7 +24,8 @@
       "type": "ServicePrincipal",
       "displayName": "Contoso Portal (SP)",
       "properties": {
-        "servicePrincipalId": "33333333-3333-3333-3333-333333333333"
+        "servicePrincipalId": "22222222-2222-2222-2222-222222222222",
+        "requiresAssignment": false
       }
     },
     {
@@ -55,18 +35,72 @@
       "properties": {
         "appId": "00000003-0000-0000-c000-000000000000"
       }
+    },
+    {
+      "id": "user:alice",
+      "type": "User",
+      "displayName": "Alice Example",
+      "properties": {
+        "userPrincipalName": "alice@contoso.com"
+      }
+    },
+    {
+      "id": "user:bob",
+      "type": "User",
+      "displayName": "Bob Admin",
+      "properties": {
+        "userPrincipalName": "bob@contoso.com"
+      },
+      "risk": {
+        "level": "high",
+        "score": 85,
+        "reasons": [
+          {
+            "code": "GLOBAL_ADMIN",
+            "message": "User is Global Administrator"
+          }
+        ]
+      }
+    },
+    {
+      "id": "role:global-admin",
+      "type": "Role",
+      "displayName": "Global Administrator",
+      "properties": {
+        "roleTemplateId": "62e90394-69f5-4237-9190-012177145e10"
+      }
+    },
+    {
+      "id": "group:portal-owners",
+      "type": "Group",
+      "displayName": "Portal Owners",
+      "properties": {}
     }
   ],
   "edges": [
     {
-      "id": "e1",
-      "type": "OWNS",
-      "from": "user:alice",
+      "id": "e-instance",
+      "type": "INSTANCE_OF",
+      "from": "sp:contoso-portal",
       "to": "app:contoso-portal",
       "properties": {}
     },
     {
-      "id": "e2",
+      "id": "e-own",
+      "type": "OWNS",
+      "from": "group:portal-owners",
+      "to": "app:contoso-portal",
+      "properties": {}
+    },
+    {
+      "id": "e-member",
+      "type": "MEMBER_OF",
+      "from": "user:alice",
+      "to": "group:portal-owners",
+      "properties": {}
+    },
+    {
+      "id": "e-scope",
       "type": "HAS_SCOPE",
       "from": "sp:contoso-portal",
       "to": "api:msgraph",
@@ -76,8 +110,31 @@
           "User.Read",
           "offline_access"
         ],
-        "hasOfflineAccess": true,
-        "effectivePrivilege": "medium"
+        "hasOfflineAccess": true
+      }
+    },
+    {
+      "id": "e-role",
+      "type": "HAS_ROLE",
+      "from": "user:bob",
+      "to": "role:global-admin",
+      "properties": {
+        "effectivePrivilege": "critical"
+      }
+    },
+    {
+      "id": "e-impersonate",
+      "type": "EFFECTIVE_IMPERSONATION_PATH",
+      "from": "sp:contoso-portal",
+      "to": "user:bob",
+      "properties": {},
+      "derived": {
+        "isDerived": true,
+        "algorithm": "token_abuse_path",
+        "inputs": [
+          "e-scope",
+          "e-role"
+        ]
       }
     }
   ]
