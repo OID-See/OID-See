@@ -258,9 +258,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <div className="brand__mark" aria-hidden="true">
-            <img className="brand__logo" src="/icons/oidsee_logo.png" alt="OID-See" />
-          </div>
+          <img className="brand__logo" src="/icons/oidsee_logo.png" alt="OID-See" />
           <div className="brand__text">
             <div className="brand__name">OID-See</div>
             <div className="brand__tag">Render OIDC/OAuth graphs from JSON — in your browser</div>
@@ -296,6 +294,23 @@ export default function App() {
         </div>
       </header>
 
+      <section className="panel panel--filter">
+        <FilterBar
+          query={query}
+          onChange={setQuery}
+          counts={counts}
+          warnings={warnings}
+          lens={lens}
+          onLens={setLens}
+          pathAware={pathAware}
+          onPathAware={setPathAware}
+          saved={saved}
+          onSave={saveCurrentQuery}
+          onDelete={deleteSavedQuery}
+          onLoad={loadSavedQuery}
+        />
+      </section>
+
       <main className="main">
         <section className="panel" onDragOver={(e) => e.preventDefault()} onDrop={onDrop} title="Drop a .json file here">
           <div className="panel__title">
@@ -323,20 +338,6 @@ export default function App() {
 
         <section className="panel panel--graph">
           <div className="panel__title">Graph</div>
-          <FilterBar
-            query={query}
-            onChange={setQuery}
-            counts={counts}
-            warnings={warnings}
-            lens={lens}
-            onLens={setLens}
-            pathAware={pathAware}
-            onPathAware={setPathAware}
-            saved={saved}
-            onSave={saveCurrentQuery}
-            onDelete={deleteSavedQuery}
-            onLoad={loadSavedQuery}
-          />
           {filtered ? (
             <GraphCanvas nodes={filtered.nodes} edges={filtered.edges} onSelection={setSelection} />
           ) : (

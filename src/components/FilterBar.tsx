@@ -87,6 +87,8 @@ function FilterInput({ value, onChange, hasErrors }: { value: string; onChange: 
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
+        onKeyPress={(e) => e.stopPropagation()}
+        onKeyUp={(e) => e.stopPropagation()}
         onFocus={() => {
           const opts = getAutocompleteOptions(value)
           setSuggestions(opts.slice(0, 8))
@@ -159,16 +161,6 @@ export function FilterBar({
 
   return (
     <div className="filterbar">
-      <div className="filterbar__row">
-        <FilterInput value={query} onChange={onChange} hasErrors={hasErrors} />
-        <button className="btn btn--ghost" onClick={() => onChange('')} title="Clear filter">
-          Clear
-        </button>
-        <button className="btn btn--ghost" onClick={() => setOpen((v) => !v)} title="Help">
-          ?
-        </button>
-      </div>
-
       <div className="filterbar__row2">
         <div className="seg" aria-label="Lens">
           <button className={'seg__btn' + (lens === 'full' ? ' seg__btn--on' : '')} onClick={() => onLens('full')}>
@@ -208,6 +200,16 @@ export function FilterBar({
             Delete
           </button>
         </div>
+      </div>
+
+      <div className="filterbar__row">
+        <FilterInput value={query} onChange={onChange} hasErrors={hasErrors} />
+        <button className="btn btn--ghost" onClick={() => onChange('')} title="Clear filter">
+          Clear
+        </button>
+        <button className="btn btn--ghost" onClick={() => setOpen((v) => !v)} title="Help">
+          ?
+        </button>
       </div>
 
       {parsed.clauses.length > 0 && (
