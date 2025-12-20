@@ -1,4 +1,3 @@
-
 :root{
   --bg0:#06080B;
   --bg1:#0B0E12;
@@ -57,7 +56,24 @@ body{
   border-radius: 12px;
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(0,0,0,0.28);
+  
+  /* Consistency Fixes */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  font-size: 0.9rem;
+  transition: filter 0.2s ease, transform 0.1s ease;
 }
+
+.btn:hover {
+  filter: brightness(1.15);
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
 .btn--ghost{
   background: rgba(255,255,255,0.04);
   border-color: rgba(255,255,255,0.10);

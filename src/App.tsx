@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useState } from 'react'
 import { GraphCanvas, Selection } from './components/GraphCanvas'
 import { toVisData, VisData } from './adapters/toVisData'
@@ -32,7 +31,6 @@ function loadSaved(): SavedQuery[] {
       }
     }
     
-    // On first load (empty storage), add presets
     if (arr.length === 0) {
       arr = PRESET_QUERIES
       saveSaved(arr)
@@ -170,7 +168,7 @@ export default function App() {
   }, [])
 
   const placeholder = useMemo(() => {
-    return `Paste an OID-See export (oidsee-graph v1.x) here…\n\nTip: Click “Load sample” to see the expected shape.`
+    return `Paste an OID-See export (oidsee-graph v1.x) here…\n\nTip: Click "Load sample" to see the expected shape.`
   }, [])
 
   async function readFile(file: File) {
@@ -267,7 +265,7 @@ export default function App() {
 
         <div className="topbar__actions">
           <button
-            className="btn"
+            className="btn file"
             onClick={() => {
               const pretty = JSON.stringify(sampleObj, null, 2)
               setRaw(pretty)
@@ -276,13 +274,14 @@ export default function App() {
           >
             Load sample
           </button>
-          <button className="btn" onClick={() => render(raw)}>
+          <button className="btn file" onClick={() => render(raw)}>
             Render
           </button>
 
           <label className="btn file">
             <input
               type="file"
+              hidden
               accept="application/json,.json"
               onChange={(e) => {
                 const file = e.target.files?.[0]
