@@ -37,7 +37,6 @@ export function GraphCanvas({
   const edgeDsRef = useRef<DataSet<any> | null>(null)
   const fittedRef = useRef(false)
   const pinned = useRef<Set<string>>(new Set())
-  const isolated = useRef<boolean>(false)
 
   useEffect(() => {
     if (!ref.current) return
@@ -146,7 +145,6 @@ export function GraphCanvas({
         const keepEdges = new Set<string>(net.getConnectedEdges(id) as string[])
         dsN.update(dsN.get().map((n: any) => ({ id: n.id, hidden: !neigh.has(n.id) })))
         dsE.update(dsE.get().map((e: any) => ({ id: e.id, hidden: !keepEdges.has(e.id) })))
-        isolated.current = true
         try {
           net.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } })
         } catch {}
@@ -161,7 +159,6 @@ export function GraphCanvas({
         const keepNodes = new Set<string>([e.from, e.to])
         dsN.update(dsN.get().map((n: any) => ({ id: n.id, hidden: !keepNodes.has(n.id) })))
         dsE.update(dsE.get().map((x: any) => ({ id: x.id, hidden: x.id !== id })))
-        isolated.current = true
         try {
           net.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } })
         } catch {}
@@ -173,7 +170,6 @@ export function GraphCanvas({
         if (!dsN || !dsE || !net) return
         dsN.update(dsN.get().map((n: any) => ({ id: n.id, hidden: false })))
         dsE.update(dsE.get().map((e: any) => ({ id: e.id, hidden: false })))
-        isolated.current = false
         try {
           net.fit({ animation: { duration: 250, easingFunction: 'easeInOutQuad' } })
         } catch {}
@@ -218,14 +214,13 @@ export function GraphCanvas({
     network.on('deselectNode', () => onSelection?.(null))
     network.on('deselectEdge', () => onSelection?.(null))
 
-    // Convenience: double-click node to isolate (tap-friendly on desktop)
     network.on('doubleClick', (p: any) => {
       const id = p.nodes?.[0]
       if (!id) return
       api.isolateNode(id)
     })
 
-    // Subtle pulse for derived edges
+    // Derived edge pulse
     const derivedIds = edgeDs
       .get()
       .filter((e: any) => (e.__oidsee?.derived?.isDerived ?? false) === true)
@@ -246,16 +241,25 @@ export function GraphCanvas({
           }, 850)
         : null
 
+    // IMPORTANT: throttle ResizeObserver; on some browsers redrawing can trigger a resize loop.
+    let raf = 0
+    let pending = false
     const ro = new ResizeObserver(() => {
-      try {
-        network.redraw()
-      } catch {}
+      if (pending) return
+      pending = true
+      raf = window.requestAnimationFrame(() => {
+        pending = false
+        try {
+          network.redraw()
+        } catch {}
+      })
     })
     ro.observe(ref.current)
 
     return () => {
       if (timer) window.clearInterval(timer)
       ro.disconnect()
+      if (raf) window.cancelAnimationFrame(raf)
       network.destroy()
     }
   }, [nodes, edges, onSelection, onApiReady])
