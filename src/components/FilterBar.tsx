@@ -44,7 +44,7 @@ function getAutocompleteOptions(input: string): string[] {
   return []
 }
 
-function FilterInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function FilterInput({ value, onChange, hasErrors }: { value: string; onChange: (v: string) => void; hasErrors: boolean }) {
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -83,7 +83,7 @@ function FilterInput({ value, onChange }: { value: string; onChange: (v: string)
     <div style={{ position: 'relative', flex: 1 }}>
       <input
         ref={inputRef}
-        className="filterbar__input"
+        className={'filterbar__input' + (hasErrors ? ' filterbar__input--bad' : '')}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -109,6 +109,17 @@ function FilterInput({ value, onChange }: { value: string; onChange: (v: string)
         </div>
       )}
     </div>
+  )
+}
+
+function Chip({ c }: { c: Clause }) {
+  return (
+    <span className="chip" title={c.raw}>
+      <span className="chip__t">{c.target === 'both' ? '•' : c.target === 'node' ? 'n' : 'e'}</span>
+      <span className="mono">{c.path}</span>
+      <span className="chip__op">{c.op}</span>
+      {c.op !== 'exists' && <span className="mono">{String(c.value)}</span>}
+    </span>
   )
 }
 
@@ -149,7 +160,7 @@ export function FilterBar({
   return (
     <div className="filterbar">
       <div className="filterbar__row">
-        <FilterInput value={query} onChange={onChange} />
+        <FilterInput value={query} onChange={onChange} hasErrors={hasErrors} />
         <button className="btn btn--ghost" onClick={() => onChange('')} title="Clear filter">
           Clear
         </button>
