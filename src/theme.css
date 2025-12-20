@@ -196,9 +196,10 @@ body{
   gap:.6rem;
   align-items:center;
   width: 100%;
+  position: relative;
 }
 .filterbar__input{
-  flex:1;
+  flex:0 1 calc(100% - 140px);
   padding: .55rem .7rem;
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.10);
@@ -301,10 +302,7 @@ body{
 
 /* Autocomplete dropdown */
 .filterbar__autocomplete {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
+  position: fixed;
   background: rgba(6,8,11,0.98);
   border: 1px solid rgba(66,232,224,0.25);
   border-radius: 12px;
@@ -313,6 +311,9 @@ body{
   overflow-y: auto;
   z-index: 2000;
   pointer-events: auto;
+  width: calc(100% - 22px);
+  left: 10px;
+  top: 160px;
 }
 
 .filterbar__suggestion {
