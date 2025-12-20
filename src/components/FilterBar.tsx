@@ -1,20 +1,117 @@
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import { parseQuery, Clause } from '../filters/query'
 
 export type Lens = 'full' | 'risk' | 'structure'
 type SavedQuery = { name: string; query: string }
 
-function Chip({ c }: { c: Clause }) {
+const AUTOCOMPLETE_SUGGESTIONS = {
+  targets: ['n.', 'e.'],
+  operators: ['=', '!=', '~', '!~', '>=', '<=', '>', '<', '?'],
+  commonPaths: {
+    node: ['type', 'displayName', 'risk.score', 'risk.level', 'properties.appId', 'properties.scopes', 'id'],
+    edge: ['type', 'properties.scopes', 'properties.strength', 'label', 'derived.isDerived'],
+  },
+  commonValues: ['User', 'Application', 'Group', 'Role', 'offline_access', 'true', 'false'],
+}
+
+function getAutocompleteOptions(input: string): string[] {
+  if (!input) return ['n.', 'e.']
+  
+  const lastWord = input.split(/[\s]/g).pop() || ''
+  if (!lastWord) return ['n.', 'e.']
+
+  const options: string[] = []
+  
+  // If starts with prefix but no target yet
+  if (lastWord.match(/^[ne]\.$/) && lastWord.length === 2) {
+    const isNode = lastWord[0] === 'n'
+    const paths = isNode ? AUTOCOMPLETE_SUGGESTIONS.commonPaths.node : AUTOCOMPLETE_SUGGESTIONS.commonPaths.edge
+    return paths.map(p => input.slice(0, -0) + p)
+  }
+
+  // Suggest operators
+  if (lastWord.match(/^[ne]\.[a-z.]+$/i)) {
+    return AUTOCOMPLETE_SUGGESTIONS.operators.map(op => input + op)
+  }
+
+  // Suggest values
+  if (lastWord.match(/[=~]/)) {
+    return AUTOCOMPLETE_SUGGESTIONS.commonValues.filter(v => v.toLowerCase().includes(lastWord.toLowerCase()))
+      .map(v => input + '"' + v + '"')
+  }
+
+  return []
+}
+
+function FilterInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [selectedIndex, setSelectedIndex] = useState(-1)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const opts = getAutocompleteOptions(value)
+    setSuggestions(opts.slice(0, 8))
+    setSelectedIndex(-1)
+  }, [value])
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation()
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setSelectedIndex(Math.min(selectedIndex + 1, suggestions.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setSelectedIndex(Math.max(selectedIndex - 1, -1))
+    } else if (e.key === 'Enter' && selectedIndex >= 0) {
+      e.preventDefault()
+      onChange(suggestions[selectedIndex])
+      setSuggestions([])
+    } else if (e.key === 'Escape') {
+      setSuggestions([])
+    }
+  }
+
+  const applySuggestion = (suggestion: string) => {
+    onChange(suggestion)
+    setSuggestions([])
+    inputRef.current?.focus()
+  }
+
   return (
-    <span className="chip" title={c.raw}>
-      <span className="chip__t">{c.target === 'both' ? '•' : c.target === 'node' ? 'n' : 'e'}</span>
-      <span className="mono">{c.path}</span>
-      <span className="chip__op">{c.op}</span>
-      {c.op !== 'exists' && <span className="mono">{String(c.value)}</span>}
-    </span>
+    <div style={{ position: 'relative', flex: 1 }}>
+      <input
+        ref={inputRef}
+        className="filterbar__input"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onFocus={() => {
+          const opts = getAutocompleteOptions(value)
+          setSuggestions(opts.slice(0, 8))
+        }}
+        onBlur={() => setTimeout(() => setSuggestions([]), 150)}
+        placeholder="Filter… e.g. e.properties.scopes~offline_access n.risk.score>=70"
+        spellCheck={false}
+      />
+      {suggestions.length > 0 && (
+        <div className="filterbar__autocomplete">
+          {suggestions.map((s, i) => (
+            <div
+              key={i}
+              className={'filterbar__suggestion' + (i === selectedIndex ? ' filterbar__suggestion--selected' : '')}
+              onClick={() => applySuggestion(s)}
+            >
+              <span className="mono">{s}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
+
 
 export function FilterBar({
   query,
@@ -52,13 +149,7 @@ export function FilterBar({
   return (
     <div className="filterbar">
       <div className="filterbar__row">
-        <input
-          className={'filterbar__input' + (hasErrors ? ' filterbar__input--bad' : '')}
-          value={query}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder='Filter… e.g. e.properties.scopes~offline_access n.risk.score>=70'
-          spellCheck={false}
-        />
+        <FilterInput value={query} onChange={onChange} />
         <button className="btn btn--ghost" onClick={() => onChange('')} title="Clear filter">
           Clear
         </button>

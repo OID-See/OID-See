@@ -10,15 +10,37 @@ import { JSONEditor } from './components/JSONEditor'
 
 type SavedQuery = { name: string; query: string }
 
+const PRESET_QUERIES: SavedQuery[] = [
+  { name: '🔴 High Risk Apps', query: 'n.risk.score>=70' },
+  { name: '🔐 Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
+  { name: '⚡ Can Impersonate', query: 'e.type=CAN_IMPERSONATE' },
+  { name: '📊 Too Many Scopes', query: 'e.type=HAS_TOO_MANY_SCOPES' },
+  { name: '🛡️ Privileged Scopes', query: 'e.type=HAS_PRIVILEGED_SCOPES' },
+  { name: '🔄 Persistence Paths', query: 'e.type=PERSISTENCE_PATH' },
+  { name: '👤 Users Only', query: 'n.type=User' },
+  { name: '🔑 Applications', query: 'n.type=Application' },
+]
+
 function loadSaved(): SavedQuery[] {
   try {
     const raw = localStorage.getItem('oidsee.savedQueries')
-    if (!raw) return []
-    const arr = JSON.parse(raw)
-    if (!Array.isArray(arr)) return []
-    return arr.filter((x) => x && typeof x.name === 'string' && typeof x.query === 'string')
+    let arr: SavedQuery[] = []
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        arr = parsed.filter((x) => x && typeof x.name === 'string' && typeof x.query === 'string')
+      }
+    }
+    
+    // On first load (empty storage), add presets
+    if (arr.length === 0) {
+      arr = PRESET_QUERIES
+      saveSaved(arr)
+    }
+    
+    return arr
   } catch {
-    return []
+    return PRESET_QUERIES
   }
 }
 function saveSaved(arr: SavedQuery[]) {
