@@ -1,7 +1,7 @@
 {
   "name": "oid-see",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.6.1-icons",
   "type": "module",
   "scripts": {
     "dev": "vite",

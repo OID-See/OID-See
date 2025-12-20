@@ -33,9 +33,7 @@ export function GraphCanvas({
 
     const nodeDs = new DataSet(nodes)
     const edgeDs = new DataSet(edges)
-    const isTouch =
-      'ontouchstart' in window ||
-      navigator.maxTouchPoints > 0
+
     const network = new Network(
       ref.current,
       { nodes: nodeDs, edges: edgeDs },
