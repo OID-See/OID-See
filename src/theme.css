@@ -328,3 +328,36 @@ body{
   color: rgba(234,242,255,0.92);
   font-size: .85rem;
 }
+
+/* ===== vis-network navigation buttons ===== */
+
+.vis-navigation {
+  bottom: 1.2rem;
+  left: 1.2rem;
+}
+
+/* Base button */
+.vis-button {
+  background: rgba(0, 0, 0, 0.45) !important;
+  border: 1px solid rgba(66, 232, 224, 0.55) !important;
+  border-radius: 999px !important;
+  width: 36px !important;
+  height: 36px !important;
+  box-shadow: 0 0 0 1px rgba(155, 92, 255, 0.25);
+}
+
+/* Icon colour */
+.vis-button::before {
+  filter: brightness(1.6) saturate(1.4);
+}
+
+/* Hover */
+.vis-button:hover {
+  background: rgba(66, 232, 224, 0.25) !important;
+  border-color: rgba(66, 232, 224, 0.95) !important;
+}
+
+/* Active / pressed */
+.vis-button:active {
+  background: rgba(155, 92, 255, 0.35) !important;
+}
