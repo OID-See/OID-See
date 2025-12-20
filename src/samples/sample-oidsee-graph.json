@@ -16,7 +16,10 @@
       "displayName": "Contoso Portal",
       "properties": {
         "appId": "11111111-1111-1111-1111-111111111111",
-        "isMultiTenant": false
+        "isMultiTenant": false,
+        "replyUrls": [
+          "https://portal.contoso.com/signin"
+        ]
       }
     },
     {
@@ -25,7 +28,18 @@
       "displayName": "Contoso Portal (SP)",
       "properties": {
         "servicePrincipalId": "22222222-2222-2222-2222-222222222222",
-        "requiresAssignment": false
+        "appId": "11111111-1111-1111-1111-111111111111",
+        "publisherName": "Contoso",
+        "signInAudience": "AzureADMyOrg",
+        "requiresAssignment": false,
+        "verifiedPublisher": {
+          "displayName": "Contoso Ltd",
+          "verifiedPublisherId": "9999999",
+          "addedDateTime": "2025-01-01T00:00:00Z"
+        },
+        "replyUrls": [
+          "https://portal.contoso.com/signin"
+        ]
       }
     },
     {
@@ -75,6 +89,64 @@
       "type": "Group",
       "displayName": "Portal Owners",
       "properties": {}
+    },
+    {
+      "id": "app:fabrikam-analytics",
+      "type": "Application",
+      "displayName": "Fabrikam Analytics",
+      "properties": {
+        "appId": "33333333-3333-3333-3333-333333333333",
+        "isMultiTenant": true
+      }
+    },
+    {
+      "id": "sp:fabrikam-analytics",
+      "type": "ServicePrincipal",
+      "displayName": "Fabrikam Analytics (SP)",
+      "properties": {
+        "servicePrincipalId": "44444444-4444-4444-4444-444444444444",
+        "appId": "33333333-3333-3333-3333-333333333333",
+        "publisherName": "Fabrikam",
+        "signInAudience": "AzureADMultipleOrgs",
+        "requiresAssignment": false,
+        "verifiedPublisher": {
+          "displayName": "Fabrikam",
+          "verifiedPublisherId": "1234500",
+          "addedDateTime": "2025-06-01T00:00:00Z"
+        }
+      },
+      "risk": {
+        "score": 35,
+        "level": "low",
+        "reasons": [
+          {
+            "code": "MULTITENANT_AUDIENCE",
+            "title": "Multi-tenant sign-in audience",
+            "details": "signInAudience=AzureADMultipleOrgs"
+          }
+        ]
+      }
+    },
+    {
+      "id": "app:wingtip-reports",
+      "type": "Application",
+      "displayName": "Wingtip Reports",
+      "properties": {
+        "appId": "55555555-5555-5555-5555-555555555555",
+        "isMultiTenant": true
+      }
+    },
+    {
+      "id": "sp:wingtip-reports",
+      "type": "ServicePrincipal",
+      "displayName": "Wingtip Reports (SP)",
+      "properties": {
+        "servicePrincipalId": "66666666-6666-6666-6666-666666666666",
+        "appId": "55555555-5555-5555-5555-555555555555",
+        "publisherName": "Wingtip",
+        "signInAudience": "AzureADMultipleOrgs",
+        "requiresAssignment": false
+      }
     }
   ],
   "edges": [
@@ -100,18 +172,17 @@
       "properties": {}
     },
     {
-      "id": "e-scope",
-      "type": "HAS_SCOPE",
+      "id": "e-scope-contoso",
+      "type": "HAS_SCOPES",
       "from": "sp:contoso-portal",
       "to": "api:msgraph",
       "properties": {
         "permissionType": "delegated",
         "scopes": [
           "User.Read",
-          "offline_access",
-          "user_impersonation"
+          "offline_access"
         ],
-        "hasOfflineAccess": true
+        "classification": "regular"
       }
     },
     {
@@ -133,7 +204,7 @@
         "isDerived": true,
         "algorithm": "token_abuse_path",
         "inputs": [
-          "e-scope",
+          "e-scope-contoso",
           "e-role"
         ]
       }
@@ -148,9 +219,82 @@
         "isDerived": true,
         "algorithm": "token_abuse_path",
         "inputs": [
-          "e-scope",
+          "e-scope-contoso",
           "e-role"
         ]
+      }
+    },
+    {
+      "id": "e-instance-fabrikam",
+      "type": "INSTANCE_OF",
+      "from": "sp:fabrikam-analytics",
+      "to": "app:fabrikam-analytics",
+      "properties": {}
+    },
+    {
+      "id": "e-too-many-fabrikam-graph",
+      "type": "HAS_TOO_MANY_SCOPES",
+      "from": "sp:fabrikam-analytics",
+      "to": "api:msgraph",
+      "properties": {
+        "permissionType": "delegated",
+        "scopes": [
+          "Directory.Read.All",
+          "Directory.ReadWrite.All",
+          "User.Read",
+          "offline_access"
+        ],
+        "classification": "too_broad",
+        "tooBroadScopes": [
+          "Directory.Read.All",
+          "Directory.ReadWrite.All"
+        ],
+        "privilegedScopes": [
+          "Directory.ReadWrite.All"
+        ]
+      }
+    },
+    {
+      "id": "e-offline-fabrikam-graph",
+      "type": "HAS_OFFLINE_ACCESS",
+      "from": "sp:fabrikam-analytics",
+      "to": "api:msgraph",
+      "properties": {
+        "resourceId": "00000003-0000-0000-c000-000000000000"
+      }
+    },
+    {
+      "id": "e-instance-wingtip",
+      "type": "INSTANCE_OF",
+      "from": "sp:wingtip-reports",
+      "to": "app:wingtip-reports",
+      "properties": {}
+    },
+    {
+      "id": "e-privileged-wingtip-graph",
+      "type": "HAS_PRIVILEGED_SCOPES",
+      "from": "sp:wingtip-reports",
+      "to": "api:msgraph",
+      "properties": {
+        "permissionType": "delegated",
+        "scopes": [
+          "Reports.Read.All",
+          "Mail.ReadWrite",
+          "User.Read"
+        ],
+        "classification": "privileged",
+        "privilegedScopes": [
+          "Mail.ReadWrite"
+        ]
+      }
+    },
+    {
+      "id": "e-assigned-alice-wingtip",
+      "type": "ASSIGNED_TO",
+      "from": "user:alice",
+      "to": "sp:wingtip-reports",
+      "properties": {
+        "appRoleId": "00000000-0000-0000-0000-000000000001"
       }
     }
   ]

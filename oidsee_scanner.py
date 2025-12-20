@@ -240,6 +240,40 @@ HIGH_RISK_DELEGATED = {
 IMPERSONATION_MARKERS = {"user_impersonation", "access_as_user"}
 
 
+def classify_app_role_value(name: Optional[str]) -> int:
+    if not name:
+        return 35
+    n = name.lower()
+    high_write_markers = [
+        "directory.readwrite",
+        "directory.access",
+        "rolemanagement.readwrite",
+        "mail.readwrite",
+        "files.readwrite",
+        "sites.fullcontrol",
+        "sites.readwrite",
+        "group.readwrite",
+        "reports.readwrite",
+        "device.readwrite",
+        "user.readwrite",
+    ]
+    high_read_markers = [
+        "directory.read.all",
+        "auditlog.read",
+        "mail.read",
+        "files.read",
+        "sites.read",
+        "group.read.all",
+        "reports.read.all",
+        "user.read.all",
+    ]
+    if any(m in n for m in high_write_markers):
+        return 50
+    if any(m in n for m in high_read_markers):
+        return 25
+    return 35
+
+
 def classify_scopes(scopes: Set[str]) -> Dict[str, Any]:
     """Classify scopes and determine appropriate edge type."""
     too_broad = []
@@ -277,60 +311,176 @@ def classify_scopes(scopes: Set[str]) -> Dict[str, Any]:
     }
 
 
+def _parse_iso_datetime(value: Optional[str]) -> Optional[dt.datetime]:
+    if not value:
+        return None
+    try:
+        val = value.replace("Z", "+00:00")
+        return dt.datetime.fromisoformat(val)
+    except Exception:
+        return None
+
+
+def _level_from_score(score: int) -> str:
+    if score >= 85:
+        return "critical"
+    if score >= 60:
+        return "high"
+    if score >= 35:
+        return "medium"
+    if score >= 15:
+        return "low"
+    return "info"
+
+
 def compute_risk_for_sp(
     sp: Dict[str, Any],
+    has_impersonation: bool,
+    has_offline_access: bool,
+    app_role_max_weight: int,
+    has_privileged_scopes: bool,
+    has_too_many_scopes: bool,
     delegated_scopes_by_resource: Dict[str, Set[str]],
-    has_app_perms: bool,
+    assignments: List[Dict[str, Any]],
+    owners: List[Dict[str, Any]],
+    requires_assignment: Optional[bool],
+    dir_role_assignments: List[Dict[str, Any]],
+    sp_display: str,
+    dir_cache: DirectoryCache,
 ) -> Dict[str, Any]:
     score = 0
     reasons: List[Dict[str, Any]] = []
 
-    # Unverified publisher
-    if not is_verified_publisher(sp.get("verifiedPublisher")):
-        score += 25
-        reasons.append({"code": "UNVERIFIED_PUBLISHER", "title": "Unverified publisher", "details": "Service principal has no verifiedPublisherId."})
+    if has_impersonation:
+        score += 40
+        reasons.append({
+            "code": "CAN_IMPERSONATE",
+            "message": "Delegated impersonation markers present (access_as_user/user_impersonation)",
+            "weight": 40,
+        })
 
-    # Multi-tenant / MSA audiences
-    aud = sp.get("signInAudience")
-    if aud and aud != "AzureADMyOrg":
-        score += 10
-        reasons.append({"code": "MULTITENANT_AUDIENCE", "title": "Multi-tenant sign-in audience", "details": f"signInAudience={aud}"})
+    if app_role_max_weight > 0:
+        weight = max(35, app_role_max_weight)
+        score += weight
+        reasons.append({
+            "code": "HAS_APP_ROLE",
+            "message": "Application permissions (app roles) granted",
+            "weight": weight,
+        })
 
-    # Secrets present (hidden SP secrets risk)
-    if sp.get("passwordCredentials"):
+    if has_privileged_scopes:
         score += 20
-        reasons.append({"code": "HAS_CLIENT_SECRETS", "title": "Client secrets present", "details": "passwordCredentials contains one or more entries."})
-    if sp.get("keyCredentials"):
-        score += 10
-        reasons.append({"code": "HAS_CERT_CREDENTIALS", "title": "Certificate credentials present", "details": "keyCredentials contains one or more entries."})
+        reasons.append({
+            "code": "HAS_PRIVILEGED_SCOPES",
+            "message": "Privileged delegated scopes granted",
+            "weight": 20,
+        })
 
-    # Offline access -> persistence
-    if any("offline_access" in scopes for scopes in delegated_scopes_by_resource.values()):
-        score += 10
-        reasons.append({"code": "OFFLINE_ACCESS", "title": "Refresh-token persistence", "details": "Delegated grants include offline_access."})
-
-    # High risk scopes (delegated)
-    risky = []
-    for scopes in delegated_scopes_by_resource.values():
-        for s in scopes:
-            if s in HIGH_RISK_DELEGATED and s != "offline_access":
-                risky.append(s)
-    if risky:
-        score += min(30, 5 * len(set(risky)))
-        reasons.append({"code": "HIGH_RISK_SCOPES", "title": "High-risk delegated scopes", "details": ", ".join(sorted(set(risky)))})
-
-    # App permissions present
-    if has_app_perms:
+    if has_too_many_scopes:
         score += 15
-        reasons.append({"code": "HAS_APP_PERMISSIONS", "title": "Application permissions granted", "details": "App role assignments exist (application permissions)."})
+        reasons.append({
+            "code": "HAS_TOO_MANY_SCOPES",
+            "message": "Delegated consent is overly broad",
+            "weight": 15,
+        })
 
-    # Cap 0..100
+    if has_offline_access:
+        score += 15
+        reasons.append({
+            "code": "PERSISTENCE",
+            "message": "offline_access delegated grant allows refresh tokens",
+            "weight": 15,
+        })
+
+    reachable_users = 0
+    for a in assignments:
+        pid = a.get("principalId")
+        pobj = dir_cache.get(pid) if pid else None
+        otype = (pobj.get("@odata.type") or "").lower() if pobj else ""
+        if "user" in otype:
+            reachable_users += 1
+        elif "group" in otype:
+            reachable_users += 5
+    if reachable_users > 0:
+        if reachable_users > 100:
+            weight = 25
+        elif reachable_users > 20:
+            weight = 15
+        elif reachable_users > 5:
+            weight = 10
+        else:
+            weight = 5
+        score += weight
+        reasons.append({
+            "code": "ASSIGNED_TO",
+            "message": f"App is assigned to principals approximating ~{reachable_users} users",
+            "weight": weight,
+        })
+    elif requires_assignment is False:
+        score += 15
+        reasons.append({
+            "code": "BROAD_REACHABILITY",
+            "message": "No assignments but appRoleAssignmentRequired=false implies broad reach",
+            "weight": 15,
+        })
+
+    roles_reachable = len(dir_role_assignments or [])
+    if roles_reachable > 0:
+        weight = min(10 + 5 * roles_reachable, 30)
+        score += weight
+        reasons.append({
+            "code": "PRIVILEGE",
+            "message": f"Directory roles reachable from app ({roles_reachable} assignments)",
+            "weight": weight,
+        })
+
+    verified = is_verified_publisher(sp.get("verifiedPublisher"))
+    publisher = sp.get("publisherName") or ""
+    display_name = sp_display or sp.get("appDisplayName") or ""
+    deception = (not verified) and publisher and display_name and publisher.lower() != display_name.lower()
+    if deception:
+        score += 20
+        reasons.append({
+            "code": "DECEPTION",
+            "message": "Unverified publisher with name mismatch between publisher and display name",
+            "weight": 20,
+        })
+
+    created = _parse_iso_datetime(sp.get("createdDateTime"))
+    legacy_cutoff = dt.datetime(2025, 7, 1, tzinfo=dt.timezone.utc)
+    if created and created < legacy_cutoff:
+        score += 10
+        reasons.append({
+            "code": "LEGACY",
+            "message": "App created before July 2025",
+            "weight": 10,
+        })
+
+    if owners is None or len(owners) == 0:
+        score += 15
+        reasons.append({
+            "code": "NO_OWNERS",
+            "message": "No owners found for application",
+            "weight": 15,
+        })
+
+    if requires_assignment is False:
+        score += 5
+        reasons.append({
+            "code": "GOVERNANCE",
+            "message": "Assignments not required for app",
+            "weight": 5,
+        })
+    elif requires_assignment is None:
+        score += 3
+        reasons.append({
+            "code": "GOVERNANCE_UNKNOWN",
+            "message": "Assignment requirement unknown",
+            "weight": 3,
+        })
+
     score = max(0, min(100, score))
-    level = "low"
-    if score >= 70:
-        level = "high"
-    elif score >= 40:
-        level = "medium"
+    level = _level_from_score(score)
 
     return {"score": score, "level": level, "reasons": reasons}
 
@@ -521,7 +671,6 @@ class OidSeeCollector:
 
         # First pass: gather grants, assignments, owners, role assignments and collect referenced IDs
         sp_delegated_scopes: Dict[str, Dict[str, Set[str]]] = {}  # spId -> resourceId -> scopes set
-        sp_has_app_perms: Dict[str, bool] = {}
 
         grants_by_sp: Dict[str, List[Dict[str, Any]]] = {}
         app_perms_by_sp: Dict[str, List[Dict[str, Any]]] = {}
@@ -558,7 +707,6 @@ class OidSeeCollector:
                 print(f"⚠️  appRoleAssignments failed for {sp_id}: {e}", file=sys.stderr)
                 app_perms = []
             app_perms_by_sp[sp_id] = app_perms
-            sp_has_app_perms[sp_id] = bool(app_perms)
 
             for a in app_perms:
                 rid = a.get("resourceId")
@@ -612,8 +760,55 @@ class OidSeeCollector:
             sp_display = sp.get("displayName") or sp.get("appDisplayName")
             sp_nid = node_id("sp", sp_id, sp_display)
 
+            # Aggregate flags for risk scoring
+            has_impersonation = False
+            has_offline_access = False
+            has_privileged_scopes = False
+            has_too_many_scopes = False
+            app_role_max_weight = 0
+            # App role weights from application permissions
+            for a in app_perms_by_sp.get(sp_id, []):
+                rid = a.get("resourceId")
+                arid = a.get("appRoleId")
+                res_sp = self.sp_cache.get(rid, {})
+                app_roles = res_sp.get("appRoles") or []
+                roles_by_id = {r.get("id"): r for r in app_roles if r.get("id")}
+                rmeta = roles_by_id.get(arid, {}) if arid else {}
+                role_name = rmeta.get("value") or rmeta.get("displayName") or ""
+                app_role_max_weight = max(app_role_max_weight, classify_app_role_value(role_name))
+
+            for scopes in sp_delegated_scopes.get(sp_id, {}).values():
+                lower_set = {s.lower() for s in scopes}
+                if lower_set & IMPERSONATION_MARKERS:
+                    has_impersonation = True
+                if "offline_access" in lower_set:
+                    has_offline_access = True
+                classified = classify_scopes(scopes)
+                if classified["classification"] == "privileged":
+                    has_privileged_scopes = True
+                if classified["classification"] == "too_broad":
+                    has_too_many_scopes = True
+
+            has_app_roles = bool(app_perms_by_sp.get(sp_id))
+            owners = owners_by_sp.get(sp_id, [])
+            requires_assignment = sp.get("appRoleAssignmentRequired")
+
             # service principal node
-            risk = compute_risk_for_sp(sp, sp_delegated_scopes.get(sp_id, {}), sp_has_app_perms.get(sp_id, False))
+            risk = compute_risk_for_sp(
+                sp,
+                has_impersonation,
+                has_offline_access,
+                app_role_max_weight,
+                has_privileged_scopes,
+                has_too_many_scopes,
+                sp_delegated_scopes.get(sp_id, {}),
+                assigned_to_by_sp.get(sp_id, []),
+                owners,
+                requires_assignment,
+                dir_roles_by_sp.get(sp_id, []),
+                sp_display,
+                self.dir_cache,
+            )
             props = {
                 "servicePrincipalId": sp_id,
                 "appId": sp.get("appId"),
