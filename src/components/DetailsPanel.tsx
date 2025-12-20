@@ -43,25 +43,25 @@ export function DetailsPanel({
         <div className="details__actions">
           {isNode && (
             <>
-              <button className="btn btn--ghost" onClick={() => onFocus?.(selection.id)}>
+              <button type="button" className="btn btn--ghost" onClick={() => onFocus?.(selection.id)}>
                 Focus
               </button>
-              <button className="btn btn--ghost" onClick={() => onPin?.(selection.id)}>
+              <button type="button" className="btn btn--ghost" onClick={() => onPin?.(selection.id)}>
                 Pin
               </button>
-              <button className="btn btn--ghost" onClick={() => onIsolate?.('node', selection.id)}>
+              <button type="button" className="btn btn--ghost" onClick={() => onIsolate?.('node', selection.id)}>
                 Isolate
               </button>
             </>
           )}
           {isEdge && (
             <>
-              <button className="btn btn--ghost" onClick={() => onIsolate?.('edge', selection.id)}>
+              <button type="button" className="btn btn--ghost" onClick={() => onIsolate?.('edge', selection.id)}>
                 Isolate
               </button>
             </>
           )}
-          <button className="btn btn--ghost" onClick={() => onClearIsolation?.()}>
+          <button type="button" className="btn btn--ghost" onClick={() => onClearIsolation?.()}>
             Reset view
           </button>
         </div>
@@ -119,7 +119,7 @@ export function DetailsPanel({
                       <div key={id} className="path__item">
                         <span className="mono">{id}</span>
                         <div className="path__actions">
-                          <button className="btn btn--ghost" onClick={() => onJumpEdge?.(id)}>
+                          <button type="button" className="btn btn--ghost" onClick={() => onJumpEdge?.(id)}>
                             Jump
                           </button>
                         </div>

@@ -55,7 +55,7 @@ export function SavedQueriesManager({
             placeholder="Name (e.g. offline_access)"
             spellCheck={false}
           />
-          <button className="btn" onClick={save}>
+          <button type="button" className="btn" onClick={save}>
             Save current
           </button>
         </div>
@@ -69,10 +69,10 @@ export function SavedQueriesManager({
                 <div className="sq__name">{s.name}</div>
                 <div className="sq__query mono">{s.query || <span className="muted">(empty)</span>}</div>
                 <div className="sq__actions">
-                  <button className="btn btn--ghost" onClick={() => onLoad(s.query)}>
+                  <button type="button" className="btn btn--ghost" onClick={() => onLoad(s.query)}>
                     Load
                   </button>
-                  <button className="btn btn--ghost" onClick={() => del(s.name)}>
+                  <button type="button" className="btn btn--ghost" onClick={() => del(s.name)}>
                     Delete
                   </button>
                 </div>
@@ -83,7 +83,7 @@ export function SavedQueriesManager({
 
         <div className="sq__footer">
           <div className="muted">Stored locally in your browser (localStorage).</div>
-          <button className="btn btn--ghost" onClick={onClose}>
+          <button type="button" className="btn btn--ghost" onClick={onClose}>
             Close
           </button>
         </div>

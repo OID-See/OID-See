@@ -219,6 +219,7 @@ export default function App() {
 
         <div className="topbar__actions">
           <button
+            type="button"
             className="btn btn--ghost"
             onClick={() => {
               setRaw(sample)
@@ -227,7 +228,7 @@ export default function App() {
           >
             Load sample
           </button>
-          <button className="btn" onClick={() => render(raw)}>
+          <button type="button" className="btn" onClick={() => render(raw)}>
             Render
           </button>
 

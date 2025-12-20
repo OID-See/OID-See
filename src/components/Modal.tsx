@@ -23,7 +23,7 @@ export function Modal({
       <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal__head">
           <div className="modal__title">{title}</div>
-          <button className="btn btn--ghost" onClick={onClose} aria-label="Close">
+          <button type="button" className="btn btn--ghost" onClick={onClose} aria-label="Close">
             ✕
           </button>
         </div>

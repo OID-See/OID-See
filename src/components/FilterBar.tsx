@@ -52,26 +52,27 @@ export function FilterBar({
           placeholder='Filter… e.g. e.properties.scopes~offline_access n.risk.score>=70'
           spellCheck={false}
         />
-        <button className="btn btn--ghost" onClick={() => onChange('')} title="Clear filter">
+        <button type="button" className="btn btn--ghost" onClick={() => onChange('')} title="Clear filter">
           Clear
         </button>
-        <button className="btn btn--ghost" onClick={onOpenSaved} title="Saved queries">
+        <button type="button" className="btn btn--ghost" onClick={onOpenSaved} title="Saved queries">
           Saved…
         </button>
-        <button className="btn btn--ghost" onClick={() => setOpen((v) => !v)} title="Help">
+        <button type="button" className="btn btn--ghost" onClick={() => setOpen((v) => !v)} title="Help">
           ?
         </button>
       </div>
 
       <div className="filterbar__row2">
         <div className="seg" aria-label="Lens">
-          <button className={'seg__btn' + (lens === 'full' ? ' seg__btn--on' : '')} onClick={() => onLens('full')}>
+          <button type="button" className={'seg__btn' + (lens === 'full' ? ' seg__btn--on' : '')} onClick={() => onLens('full')}>
             Full
           </button>
-          <button className={'seg__btn' + (lens === 'risk' ? ' seg__btn--on' : '')} onClick={() => onLens('risk')}>
+          <button type="button" className={'seg__btn' + (lens === 'risk' ? ' seg__btn--on' : '')} onClick={() => onLens('risk')}>
             Risk
           </button>
           <button
+            type="button"
             className={'seg__btn' + (lens === 'structure' ? ' seg__btn--on' : '')}
             onClick={() => onLens('structure')}
           >

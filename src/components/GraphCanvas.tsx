@@ -52,59 +52,68 @@ export function GraphCanvas({
     nodeDsRef.current = nodeDs
     edgeDsRef.current = edgeDs
 
-    const network = new Network(
-      ref.current,
-      { nodes: nodeDs, edges: edgeDs },
-      {
-        autoResize: true,
-        layout: { improvedLayout: true },
-        interaction: {
-          hover: true,
-          tooltipDelay: 120,
-          multiselect: true,
-          navigationButtons: true,
-          keyboard: true,
-        },
-        nodes: {
-          shape: 'dot',
-          borderWidth: 2,
-          font: { color: '#EAF2FF', face: 'system-ui' },
-          color: {
-            background: 'rgba(66,232,224,0.15)',
-            border: 'rgba(66,232,224,0.95)',
-            highlight: { background: 'rgba(155,92,255,0.20)', border: 'rgba(155,92,255,0.95)' },
+    let network: Network
+    try {
+      network = new Network(
+        ref.current,
+        { nodes: nodeDs, edges: edgeDs },
+        {
+          autoResize: true,
+          layout: { improvedLayout: true },
+          interaction: {
+            hover: true,
+            tooltipDelay: 120,
+            multiselect: true,
+            navigationButtons: true,
+            keyboard: false, // iOS Safari can get weird with keyboard handlers
+            hideEdgesOnDrag: true,
           },
-        },
-        edges: {
-          smooth: { type: 'dynamic' },
-          arrows: { to: { enabled: true, scaleFactor: 0.7 } },
-          font: { color: 'rgba(234,242,255,0.9)', strokeWidth: 0 },
-          color: { color: 'rgba(155,92,255,0.70)', highlight: 'rgba(66,232,224,0.95)' },
-          selectionWidth: 2,
-        },
-        physics: {
-          stabilization: { iterations: 200, fit: true },
-          barnesHut: {
-            gravitationalConstant: -9000,
-            springLength: 150,
-            springConstant: 0.04,
-            damping: 0.25,
-            avoidOverlap: 0.5,
+          nodes: {
+            shape: 'dot',
+            borderWidth: 2,
+            font: { color: '#EAF2FF', face: 'system-ui' },
+            color: {
+              background: 'rgba(66,232,224,0.15)',
+              border: 'rgba(66,232,224,0.95)',
+              highlight: { background: 'rgba(155,92,255,0.20)', border: 'rgba(155,92,255,0.95)' },
+            },
           },
-        },
-        groups: {
-          OAuthApp: { color: { border: 'rgba(66,232,224,0.95)', background: 'rgba(66,232,224,0.18)' } },
-          ServicePrincipal: { color: { border: 'rgba(155,92,255,0.95)', background: 'rgba(155,92,255,0.16)' } },
-          Application: { color: { border: 'rgba(66,232,224,0.95)', background: 'rgba(66,232,224,0.12)' } },
-          User: { color: { border: 'rgba(234,242,255,0.9)', background: 'rgba(234,242,255,0.10)' } },
-          Group: { color: { border: 'rgba(234,242,255,0.75)', background: 'rgba(234,242,255,0.08)' } },
-          Role: { color: { border: 'rgba(255,196,0,0.95)', background: 'rgba(255,196,0,0.12)' } },
-          TenantPolicy: { color: { border: 'rgba(255,107,107,0.95)', background: 'rgba(255,107,107,0.10)' } },
-          Organization: { color: { border: 'rgba(66,232,224,0.75)', background: 'rgba(66,232,224,0.10)' } },
-          ResourceApi: { color: { border: 'rgba(155,92,255,0.85)', background: 'rgba(155,92,255,0.10)' } },
-        },
-      }
-    )
+          edges: {
+            smooth: { type: 'dynamic' },
+            arrows: { to: { enabled: true, scaleFactor: 0.7 } },
+            font: { color: 'rgba(234,242,255,0.9)', strokeWidth: 0 },
+            color: { color: 'rgba(155,92,255,0.70)', highlight: 'rgba(66,232,224,0.95)' },
+            selectionWidth: 2,
+          },
+          physics: {
+            enabled: true,
+            stabilization: { iterations: 80, fit: true }, // lower to reduce iOS load
+            barnesHut: {
+              gravitationalConstant: -8000,
+              springLength: 150,
+              springConstant: 0.04,
+              damping: 0.30,
+              avoidOverlap: 0.6,
+            },
+          },
+          groups: {
+            OAuthApp: { color: { border: 'rgba(66,232,224,0.95)', background: 'rgba(66,232,224,0.18)' } },
+            ServicePrincipal: { color: { border: 'rgba(155,92,255,0.95)', background: 'rgba(155,92,255,0.16)' } },
+            Application: { color: { border: 'rgba(66,232,224,0.95)', background: 'rgba(66,232,224,0.12)' } },
+            User: { color: { border: 'rgba(234,242,255,0.9)', background: 'rgba(234,242,255,0.10)' } },
+            Group: { color: { border: 'rgba(234,242,255,0.75)', background: 'rgba(234,242,255,0.08)' } },
+            Role: { color: { border: 'rgba(255,196,0,0.95)', background: 'rgba(255,196,0,0.12)' } },
+            TenantPolicy: { color: { border: 'rgba(255,107,107,0.95)', background: 'rgba(255,107,107,0.10)' } },
+            Organization: { color: { border: 'rgba(66,232,224,0.75)', background: 'rgba(66,232,224,0.10)' } },
+            ResourceApi: { color: { border: 'rgba(155,92,255,0.85)', background: 'rgba(155,92,255,0.10)' } },
+          },
+        }
+      )
+    } catch (e) {
+      // Fail safe: if vis-network explodes (iOS), avoid crashing the whole app.
+      console.error('vis-network init failed', e)
+      return
+    }
 
     networkRef.current = network
 
@@ -192,11 +201,17 @@ export function GraphCanvas({
       if (fittedRef.current) return
       fittedRef.current = true
       try {
-        network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } })
+        network.fit({ animation: { duration: 350, easingFunction: 'easeInOutQuad' } })
       } catch {}
     }
 
-    network.on('stabilizationIterationsDone', fitOnce)
+    network.on('stabilizationIterationsDone', () => {
+      fitOnce()
+      // Stop physics after stabilize to avoid iOS CPU runaway.
+      try {
+        network.setOptions({ physics: { enabled: false } })
+      } catch {}
+    })
     network.on('afterDrawing', fitOnce)
 
     network.on('selectNode', (p: any) => {
@@ -220,7 +235,6 @@ export function GraphCanvas({
       api.isolateNode(id)
     })
 
-    // Derived edge pulse
     const derivedIds = edgeDs
       .get()
       .filter((e: any) => (e.__oidsee?.derived?.isDerived ?? false) === true)
@@ -238,10 +252,10 @@ export function GraphCanvas({
                 color: { color: `rgba(66,232,224,${alpha})`, highlight: 'rgba(66,232,224,1.0)' },
               }))
             )
-          }, 850)
+          }, 950)
         : null
 
-    // IMPORTANT: throttle ResizeObserver; on some browsers redrawing can trigger a resize loop.
+    // Throttled ResizeObserver
     let raf = 0
     let pending = false
     const ro = new ResizeObserver(() => {
