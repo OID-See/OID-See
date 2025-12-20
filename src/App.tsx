@@ -220,6 +220,17 @@ export default function App() {
     if (found) setQuery(found.query)
   }
 
+  function formatJSON() {
+    try {
+      const parsed = JSON.parse(raw)
+      const pretty = JSON.stringify(parsed, null, 2)
+      setRaw(pretty)
+      setError(null)
+    } catch (e: any) {
+      setError(`Format failed: ${e?.message ?? String(e)}`)
+    }
+  }
+
   return (
     <div className="app">
       <header className="topbar">
@@ -264,7 +275,14 @@ export default function App() {
 
       <main className="main">
         <section className="panel" onDragOver={(e) => e.preventDefault()} onDrop={onDrop} title="Drop a .json file here">
-          <div className="panel__title">Input</div>
+          <div className="panel__title">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Input</span>
+              <button className="btn btn--ghost" onClick={formatJSON} style={{ padding: '.35rem .55rem', fontSize: '.85rem' }}>
+                Format
+              </button>
+            </div>
+          </div>
           <textarea
             className="json-input"
             value={raw}
