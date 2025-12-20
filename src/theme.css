@@ -31,16 +31,16 @@ body{
   align-items:center;
   justify-content:space-between;
   gap:1rem;
-  padding: 1rem 1.1rem;
+  padding: .75rem 1.1rem;
   border-bottom: 1px solid rgba(255,255,255,0.06);
   background: rgba(6,8,11,0.55);
   backdrop-filter: blur(12px);
 }
 
-.brand{ display:flex; align-items:center; gap:.9rem; }
+.brand{ display:flex; align-items:center; gap:1.2rem; }
 .brand__mark{
-  width:44px; height:44px; display:grid; place-items:center;
-  border-radius: 12px;
+  width:100px; height:100px; display:grid; place-items:center;
+  border-radius: 20px;
   background: linear-gradient(135deg, rgba(66,232,224,0.22), rgba(155,92,255,0.22));
   border: 1px solid rgba(255,255,255,0.08);
   box-shadow: var(--shadow);
@@ -49,13 +49,13 @@ body{
   letter-spacing:.04em;
 }
 .brand__logo{
-  width: 28px;
-  height: 28px;
+  width: 100px;
+  height: 100px;
   object-fit: contain;
   filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35));
 }
-.brand__name{ font-size: 1.15rem; font-weight: 800; }
-.brand__tag{ font-size: .85rem; color: var(--muted); margin-top: .1rem; }
+.brand__name{ font-size: 1.25rem; font-weight: 800; }
+.brand__tag{ font-size: .9rem; color: rgba(234,242,255,0.86); margin-top: .05rem; font-weight: 600; }
 
 .topbar__actions{ display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
 

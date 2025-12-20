@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { GraphCanvas, Selection } from './components/GraphCanvas'
 import { toVisData, VisData } from './adapters/toVisData'
-import sample from './samples/sample-oidsee-graph.json?raw'
+import sampleObj from './samples/sample-oidsee-graph.json'
 import { DetailsPanel } from './components/DetailsPanel'
 import { FilterBar, Lens } from './components/FilterBar'
 import { parseQuery, evalClause, getPath, isNumericOp, Clause } from './filters/query'
@@ -237,8 +237,9 @@ export default function App() {
           <button
             className="btn btn--ghost"
             onClick={() => {
-              setRaw(sample)
-              render(sample)
+              const pretty = JSON.stringify(sampleObj, null, 2)
+              setRaw(pretty)
+              render(pretty)
             }}
           >
             Load sample
