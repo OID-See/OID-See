@@ -1,29 +1,62 @@
 
 import { useMemo, useState } from 'react'
-import { parseQuery } from '../filters/query'
+import { parseQuery, Clause } from '../filters/query'
+
+export type Lens = 'full' | 'risk' | 'structure'
+type SavedQuery = { name: string; query: string }
+
+function Chip({ c }: { c: Clause }) {
+  return (
+    <span className="chip" title={c.raw}>
+      <span className="chip__t">{c.target === 'both' ? '•' : c.target === 'node' ? 'n' : 'e'}</span>
+      <span className="mono">{c.path}</span>
+      <span className="chip__op">{c.op}</span>
+      {c.op !== 'exists' && <span className="mono">{String(c.value)}</span>}
+    </span>
+  )
+}
 
 export function FilterBar({
   query,
   onChange,
   counts,
+  warnings,
+  lens,
+  onLens,
+  pathAware,
+  onPathAware,
+  saved,
+  onSave,
+  onDelete,
+  onLoad,
 }: {
   query: string
   onChange: (q: string) => void
   counts?: { nodes: number; edges: number; totalNodes: number; totalEdges: number }
+  warnings?: string[]
+  lens: Lens
+  onLens: (l: Lens) => void
+  pathAware: boolean
+  onPathAware: (v: boolean) => void
+  saved: SavedQuery[]
+  onSave: () => void
+  onDelete: () => void
+  onLoad: (name: string) => void
 }) {
   const [open, setOpen] = useState(false)
-
   const parsed = useMemo(() => parseQuery(query), [query])
   const hasErrors = parsed.errors.length > 0
+  const warn = warnings ?? []
+  const hasWarn = warn.length > 0
 
   return (
     <div className="filterbar">
       <div className="filterbar__row">
         <input
-          className={"filterbar__input" + (hasErrors ? " filterbar__input--bad" : "")}
+          className={'filterbar__input' + (hasErrors ? ' filterbar__input--bad' : '')}
           value={query}
           onChange={(e) => onChange(e.target.value)}
-          placeholder='Filter… e.g. e.properties.scopes~offline_access n.type=User'
+          placeholder='Filter… e.g. e.properties.scopes~offline_access n.risk.score>=70'
           spellCheck={false}
         />
         <button className="btn btn--ghost" onClick={() => onChange('')} title="Clear filter">
@@ -33,6 +66,55 @@ export function FilterBar({
           ?
         </button>
       </div>
+
+      <div className="filterbar__row2">
+        <div className="seg" aria-label="Lens">
+          <button className={'seg__btn' + (lens === 'full' ? ' seg__btn--on' : '')} onClick={() => onLens('full')}>
+            Full
+          </button>
+          <button className={'seg__btn' + (lens === 'risk' ? ' seg__btn--on' : '')} onClick={() => onLens('risk')}>
+            Risk
+          </button>
+          <button
+            className={'seg__btn' + (lens === 'structure' ? ' seg__btn--on' : '')}
+            onClick={() => onLens('structure')}
+          >
+            Structure
+          </button>
+        </div>
+
+        <label className="toggle" title="Include underlying inputs for derived edges (derived.inputs)">
+          <input type="checkbox" checked={pathAware} onChange={(e) => onPathAware(e.target.checked)} />
+          <span>Path-aware</span>
+        </label>
+
+        <div className="saved">
+          <select className="saved__sel" onChange={(e) => onLoad(e.target.value)} value="">
+            <option value="" disabled>
+              Saved…
+            </option>
+            {saved.map((s) => (
+              <option key={s.name} value={s.name}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          <button className="btn btn--ghost" onClick={onSave} title="Save current query">
+            Save
+          </button>
+          <button className="btn btn--ghost" onClick={onDelete} title="Delete a saved query">
+            Delete
+          </button>
+        </div>
+      </div>
+
+      {parsed.clauses.length > 0 && (
+        <div className="chips">
+          {parsed.clauses.map((c, i) => (
+            <Chip key={i} c={c} />
+          ))}
+        </div>
+      )}
 
       {counts && (
         <div className="filterbar__meta">
@@ -45,6 +127,14 @@ export function FilterBar({
         <div className="filterbar__errors">
           {parsed.errors.map((e, i) => (
             <div key={i}>{e}</div>
+          ))}
+        </div>
+      )}
+
+      {!hasErrors && hasWarn && (
+        <div className="filterbar__warn">
+          {warn.slice(0, 6).map((w, i) => (
+            <div key={i}>{w}</div>
           ))}
         </div>
       )}
@@ -73,7 +163,8 @@ export function FilterBar({
             </li>
           </ul>
           <div className="help__text muted">
-            Paths are evaluated against the original objects from your JSON export (node/edge), e.g. <span className="mono">properties.scopes</span>.
+            Lenses: <b>Risk</b> hides structural edges, <b>Structure</b> hides derived/privilege edges. Path-aware keeps the inputs for derived
+            edges (via <span className="mono">derived.inputs</span>).
           </div>
         </div>
       )}

@@ -54,3 +54,21 @@ Examples:
 - `n.displayName~"Contoso Portal"`
 
 Clauses evaluate against your raw export objects (node/edge), so you can filter on any property you emit.
+
+
+## Lenses
+
+Use the lens switch above the graph:
+
+- **Full**: show everything
+- **Risk**: privilege/abuse edges only (e.g. HAS_SCOPE, HAS_ROLE, derived paths)
+- **Structure**: structural edges only (e.g. INSTANCE_OF, MEMBER_OF, OWNS)
+
+## Path-aware filtering
+
+When enabled, if a *derived* edge matches your filter (e.g. EFFECTIVE_IMPERSONATION_PATH),
+OID-See will also include the underlying `derived.inputs` edges so the path remains explainable.
+
+## Saved queries
+
+Save/load/delete filter queries locally (stored in `localStorage`).

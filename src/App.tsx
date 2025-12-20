@@ -1,13 +1,82 @@
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { GraphCanvas, Selection } from './components/GraphCanvas'
 import { toVisData, VisData } from './adapters/toVisData'
 import sample from './samples/sample-oidsee-graph.json?raw'
 import { DetailsPanel } from './components/DetailsPanel'
-import { FilterBar } from './components/FilterBar'
-import { parseQuery, evalClause } from './filters/query'
+import { FilterBar, Lens } from './components/FilterBar'
+import { parseQuery, evalClause, getPath, isNumericOp, Clause } from './filters/query'
 
-function applyQuery(data: VisData, query: string) {
+type SavedQuery = { name: string; query: string }
+
+function loadSaved(): SavedQuery[] {
+  try {
+    const raw = localStorage.getItem('oidsee.savedQueries')
+    if (!raw) return []
+    const arr = JSON.parse(raw)
+    if (!Array.isArray(arr)) return []
+    return arr.filter((x) => x && typeof x.name === 'string' && typeof x.query === 'string')
+  } catch {
+    return []
+  }
+}
+function saveSaved(arr: SavedQuery[]) {
+  try {
+    localStorage.setItem('oidsee.savedQueries', JSON.stringify(arr))
+  } catch {
+    // ignore
+  }
+}
+
+function lensEdgeAllowed(lens: Lens, edgeType: string): boolean {
+  if (lens === 'full') return true
+
+  if (lens === 'risk') {
+    const allow = new Set([
+      'HAS_SCOPE',
+      'HAS_ROLE',
+      'CAN_IMPERSONATE',
+      'EFFECTIVE_IMPERSONATION_PATH',
+      'PERSISTENCE_PATH',
+      'ASSIGNED_TO',
+    ])
+    return allow.has(edgeType)
+  }
+
+  const allow = new Set(['INSTANCE_OF', 'MEMBER_OF', 'OWNS', 'GOVERNS', 'ASSIGNED_TO'])
+  return allow.has(edgeType)
+}
+
+function computeWarnings(data: VisData, clauses: Clause[]): string[] {
+  const warns: string[] = []
+  const nodeObjs = data.nodes.map((n) => n.__oidsee ?? n)
+  const edgeObjs = data.edges.map((e) => e.__oidsee ?? e)
+
+  for (const c of clauses) {
+    const pool = c.target === 'node' ? nodeObjs : c.target === 'edge' ? edgeObjs : nodeObjs.concat(edgeObjs)
+
+    const anyHas = pool.some((o) => getPath(o, c.path) !== undefined)
+    if (!anyHas) {
+      warns.push(`No matches for path "${c.path}" (${c.target}). Possible typo or field not present in this export.`)
+      continue
+    }
+
+    if (isNumericOp(c.op)) {
+      const samples = pool
+        .map((o) => getPath(o, c.path))
+        .filter((v) => v !== undefined && v !== null)
+        .slice(0, 25)
+      const nonNum = samples.some((v) => typeof v !== 'number' && Number.isNaN(Number(v)))
+      if (nonNum) {
+        warns.push(`Numeric operator used on non-numeric values at "${c.path}". This clause may filter out everything.`)
+      }
+    }
+  }
+
+  return warns
+}
+
+function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean) {
   const parsed = parseQuery(query)
   const clauses = parsed.clauses
 
@@ -21,15 +90,39 @@ function applyQuery(data: VisData, query: string) {
     if (ok) nodePass.add(n.id)
   }
 
+  const edgeById = new Map<string, any>()
+  for (const e of data.edges) edgeById.set(e.id, e)
+
   const edgesOut: any[] = []
+  const edgesKept = new Set<string>()
+
   for (const e of data.edges) {
     const raw = e.__oidsee ?? e
+    const edgeType = raw.type ?? e.label ?? ''
+    if (!lensEdgeAllowed(lens, edgeType)) continue
+
     const ok = edgeClauses.every((c) => evalClause(raw, c))
     if (!ok) continue
-    edgesOut.push(e)
-    // always keep endpoints for matched edges (keeps relationships readable)
+
+    if (!edgesKept.has(e.id)) {
+      edgesOut.push(e)
+      edgesKept.add(e.id)
+    }
+
     nodePass.add(e.from)
     nodePass.add(e.to)
+
+    if (pathAware && raw?.derived?.isDerived && Array.isArray(raw.derived.inputs)) {
+      for (const id of raw.derived.inputs) {
+        const inp = edgeById.get(id)
+        if (inp && !edgesKept.has(inp.id)) {
+          edgesOut.push(inp)
+          edgesKept.add(inp.id)
+          nodePass.add(inp.from)
+          nodePass.add(inp.to)
+        }
+      }
+    }
   }
 
   const nodesOut = data.nodes.filter((n) => nodePass.has(n.id))
@@ -45,6 +138,13 @@ export default function App() {
   const [data, setData] = useState<VisData | null>(null)
   const [selection, setSelection] = useState<Selection | null>(null)
   const [query, setQuery] = useState<string>('')
+  const [lens, setLens] = useState<Lens>('full')
+  const [pathAware, setPathAware] = useState<boolean>(true)
+  const [saved, setSaved] = useState<SavedQuery[]>([])
+
+  useEffect(() => {
+    setSaved(loadSaved())
+  }, [])
 
   const placeholder = useMemo(() => {
     return `Paste an OID-See export (oidsee-graph v1.x) here…\n\nTip: Click “Load sample” to see the expected shape.`
@@ -78,9 +178,8 @@ export default function App() {
 
   const filtered = useMemo(() => {
     if (!data) return null
-    if (!query.trim()) return { nodes: data.nodes, edges: data.edges, parsed: parseQuery('') }
-    return applyQuery(data, query)
-  }, [data, query])
+    return applyQuery(data, query.trim(), lens, pathAware)
+  }, [data, query, lens, pathAware])
 
   const counts = useMemo(() => {
     if (!data || !filtered) return undefined
@@ -92,11 +191,42 @@ export default function App() {
     }
   }, [data, filtered])
 
+  const warnings = useMemo(() => {
+    if (!data) return []
+    const p = parseQuery(query)
+    if (p.errors.length) return []
+    return computeWarnings(data, p.clauses)
+  }, [data, query])
+
+  function saveCurrentQuery() {
+    const name = prompt('Save query as…')
+    if (!name) return
+    const next = saved.filter((s) => s.name !== name).concat([{ name, query }])
+    setSaved(next)
+    saveSaved(next)
+  }
+
+  function deleteSavedQuery() {
+    if (!saved.length) return
+    const name = prompt('Delete which saved query? Enter exact name:\n' + saved.map((s) => `- ${s.name}`).join('\n'))
+    if (!name) return
+    const next = saved.filter((s) => s.name !== name)
+    setSaved(next)
+    saveSaved(next)
+  }
+
+  function loadSavedQuery(name: string) {
+    const found = saved.find((s) => s.name === name)
+    if (found) setQuery(found.query)
+  }
+
   return (
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <div className="brand__mark" aria-hidden="true">◁</div>
+          <div className="brand__mark" aria-hidden="true">
+            ◁
+          </div>
           <div className="brand__text">
             <div className="brand__name">OID-See</div>
             <div className="brand__tag">Render OIDC/OAuth graphs from JSON — in your browser</div>
@@ -153,7 +283,20 @@ export default function App() {
 
         <section className="panel panel--graph">
           <div className="panel__title">Graph</div>
-          <FilterBar query={query} onChange={setQuery} counts={counts} />
+          <FilterBar
+            query={query}
+            onChange={setQuery}
+            counts={counts}
+            warnings={warnings}
+            lens={lens}
+            onLens={setLens}
+            pathAware={pathAware}
+            onPathAware={setPathAware}
+            saved={saved}
+            onSave={saveCurrentQuery}
+            onDelete={deleteSavedQuery}
+            onLoad={loadSavedQuery}
+          />
           {filtered ? (
             <GraphCanvas nodes={filtered.nodes} edges={filtered.edges} onSelection={setSelection} />
           ) : (

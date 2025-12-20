@@ -182,3 +182,8 @@ export function evalClause(obj: any, clause: Clause): boolean {
       return true
   }
 }
+
+
+export function isNumericOp(op: Op) {
+  return op === '>' || op === '>=' || op === '<' || op === '<='
+}
