@@ -336,6 +336,13 @@ body{
 }
 
 /* IMPORTANT: use background-color, NOT background (shorthand) */
+/* Keep vis-network's background-image icons visible */
+.vis-navigation {
+  bottom: 1.25rem;
+  left: 1.25rem;
+}
+
+/* IMPORTANT: use background-color, NOT background (shorthand) */
 .vis-button {
   width: 38px !important;
   height: 38px !important;
@@ -384,4 +391,4 @@ body{
   box-shadow:
     0 10px 24px rgba(0, 0, 0, 0.35),
     0 0 18px rgba(155, 92, 255, 0.22);
-}
+        }
