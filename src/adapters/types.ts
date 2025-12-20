@@ -38,9 +38,14 @@ export type OidSeeNode = {
 export type OidSeeEdgeType =
   | 'CAN_IMPERSONATE'
   | 'ASSIGNED_TO'
-  | 'HAS_SCOPE'
+  | 'HAS_SCOPES'
+  | 'HAS_PRIVILEGED_SCOPES'
+  | 'HAS_TOO_MANY_SCOPES'
+  | 'HAS_SCOPE' // legacy, keeping for backwards compat
   | 'MEMBER_OF'
   | 'HAS_ROLE'
+  | 'HAS_APP_ROLE'
+  | 'HAS_OFFLINE_ACCESS'
   | 'OWNS'
   | 'GOVERNS'
   | 'EFFECTIVE_IMPERSONATION_PATH'

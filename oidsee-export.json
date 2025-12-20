@@ -1,29 +1,22 @@
 {
-  "format": "oidsee-graph-export@1",
-  "generatedAt": "2025-12-20T18:53:15Z",
+  "format": {
+    "name": "oidsee-graph",
+    "version": "1.1"
+  },
+  "generatedAt": "2025-12-20T20:01:18Z",
   "tenant": {
     "tenantId": "254d3d84-0a52-49b7-bb23-03b3557e25ac",
     "displayName": "Cirriustech",
-    "tenantType": "AAD",
-    "defaultDomain": "Cirriustech.onmicrosoft.com"
-  },
-  "collection": {
-    "graphOnly": true,
-    "placeholders": {
-      "whois": true,
-      "dns": true,
-      "etlDPlusOne": true,
-      "signInLogsCorrelation": true
-    }
+    "cloud": "Public"
   },
   "nodes": [
     {
-      "id": "sp:2d41e3f0-0fa6-42da-a820-abecfb0d71a6",
-      "type": "SERVICE_PRINCIPAL",
+      "id": "sp:microsoft-graph-command-line-tools",
+      "type": "ServicePrincipal",
+      "displayName": "Microsoft Graph Command Line Tools",
       "properties": {
-        "objectId": "2d41e3f0-0fa6-42da-a820-abecfb0d71a6",
+        "servicePrincipalId": "2d41e3f0-0fa6-42da-a820-abecfb0d71a6",
         "appId": "14d82eec-204b-4c2f-b7e8-296a70dab67e",
-        "displayName": "Microsoft Graph Command Line Tools",
         "appDisplayName": "Microsoft Graph Command Line Tools",
         "publisherName": "PRDTRS01",
         "signInAudience": "AzureADandPersonalMicrosoftAccount",
@@ -36,15 +29,15 @@
         ],
         "homepage": "https://docs.microsoft.com/en-us/graph/powershell/get-started",
         "logoutUrl": null,
-        "tags": [
-          "WindowsAzureActiveDirectoryIntegratedApp"
-        ],
-        "appRoleAssignmentRequired": false,
+        "requiresAssignment": false,
         "verifiedPublisher": {
           "displayName": "Microsoft Corporation",
           "verifiedPublisherId": "5206095",
           "addedDateTime": "2024-05-13T21:14:05Z"
         },
+        "tags": [
+          "WindowsAzureActiveDirectoryIntegratedApp"
+        ],
         "info": {
           "termsOfServiceUrl": "https://docs.microsoft.com/en-us/legal/microsoft-apis/terms-of-use?context=graph/context",
           "supportUrl": null,
@@ -53,36 +46,32 @@
           "logoUrl": null
         },
         "keyCredentials": [],
-        "passwordCredentials": [],
-        "risk": {
-          "score": 20,
-          "level": "low",
-          "reasons": [
-            {
-              "code": "MULTITENANT_AUDIENCE",
-              "title": "Multi-tenant sign-in audience",
-              "details": "signInAudience=AzureADandPersonalMicrosoftAccount"
-            },
-            {
-              "code": "OFFLINE_ACCESS",
-              "title": "Refresh-token persistence",
-              "details": "Delegated grants include offline_access."
-            }
-          ]
-        },
-        "externalSignals": {
-          "whois": null,
-          "etldPlusOne": null,
-          "dns": null
-        }
+        "passwordCredentials": []
+      },
+      "risk": {
+        "score": 20,
+        "level": "low",
+        "reasons": [
+          {
+            "code": "MULTITENANT_AUDIENCE",
+            "title": "Multi-tenant sign-in audience",
+            "details": "signInAudience=AzureADandPersonalMicrosoftAccount"
+          },
+          {
+            "code": "OFFLINE_ACCESS",
+            "title": "Refresh-token persistence",
+            "details": "Delegated grants include offline_access."
+          }
+        ]
       }
     },
     {
-      "id": "app:14d82eec-204b-4c2f-b7e8-296a70dab67e",
-      "type": "APPLICATION",
+      "id": "app:microsoft-graph-command-line-tools",
+      "type": "Application",
+      "displayName": "Microsoft Graph Command Line Tools",
       "properties": {
         "appId": "14d82eec-204b-4c2f-b7e8-296a70dab67e",
-        "displayName": "Microsoft Graph Command Line Tools",
+        "isMultiTenant": false,
         "createdDateTime": null,
         "signInAudience": "AzureADandPersonalMicrosoftAccount",
         "replyUrls": [
@@ -90,48 +79,46 @@
           "http://localhost",
           "https://login.microsoftonline.com/common/oauth2/nativeclient"
         ],
-        "placeholders": {
-          "createdBy": null,
-          "lastModifiedDateTime": null
-        }
+        "web": null,
+        "spa": null,
+        "publicClient": null,
+        "requiredResourceAccess": null
       }
     },
     {
-      "id": "sp:8749cf44-2fc9-4fee-bc76-cbaac00bae98",
-      "type": "SERVICE_PRINCIPAL",
+      "id": "sp:microsoft-graph",
+      "type": "ResourceApi",
+      "displayName": "Microsoft Graph",
       "properties": {
-        "objectId": "8749cf44-2fc9-4fee-bc76-cbaac00bae98",
         "appId": "00000003-0000-0000-c000-000000000000",
-        "displayName": "Microsoft Graph",
+        "servicePrincipalId": "8749cf44-2fc9-4fee-bc76-cbaac00bae98",
         "publisherName": "Microsoft Services",
         "verifiedPublisher": {
           "displayName": null,
           "verifiedPublisherId": null,
           "addedDateTime": null
         },
-        "risk": {
-          "score": 0,
-          "level": "low",
-          "reasons": []
-        }
+        "appRoles": null,
+        "publishedPermissionScopes": null,
+        "replyUrls": []
       }
     },
     {
-      "id": "user:5ef040da-fada-4fa2-9398-c0adb46af0d3",
-      "type": "USER",
+      "id": "user:graham-gold",
+      "type": "User",
+      "displayName": "Graham Gold",
       "properties": {
-        "objectId": "5ef040da-fada-4fa2-9398-c0adb46af0d3",
-        "displayName": "Graham Gold",
+        "azureObjectId": "5ef040da-fada-4fa2-9398-c0adb46af0d3",
         "userPrincipalName": "CirriusGG@Cirriustech.onmicrosoft.com"
       }
     },
     {
-      "id": "sp:42510949-ada1-4587-9c66-7cd091aab9ae",
-      "type": "SERVICE_PRINCIPAL",
+      "id": "sp:graph-explorer",
+      "type": "ServicePrincipal",
+      "displayName": "Graph Explorer",
       "properties": {
-        "objectId": "42510949-ada1-4587-9c66-7cd091aab9ae",
+        "servicePrincipalId": "42510949-ada1-4587-9c66-7cd091aab9ae",
         "appId": "de8bc8b5-d9f9-48b1-a8ad-b748da725064",
-        "displayName": "Graph Explorer",
         "appDisplayName": "Graph Explorer",
         "publisherName": "PRDTRS01",
         "signInAudience": "AzureADandPersonalMicrosoftAccount",
@@ -163,15 +150,15 @@
         ],
         "homepage": "https://developer.microsoft.com/graph/graph-explorer",
         "logoutUrl": "https://developer.microsoft.com/en-us/graph/graph-explorer/logout",
-        "tags": [
-          "WindowsAzureActiveDirectoryIntegratedApp"
-        ],
-        "appRoleAssignmentRequired": false,
+        "requiresAssignment": false,
         "verifiedPublisher": {
           "displayName": "Microsoft Corporation",
           "verifiedPublisherId": "5206095",
           "addedDateTime": "2024-05-14T00:57:46Z"
         },
+        "tags": [
+          "WindowsAzureActiveDirectoryIntegratedApp"
+        ],
         "info": {
           "termsOfServiceUrl": "https://aka.ms/msgraphtou",
           "supportUrl": null,
@@ -180,41 +167,37 @@
           "logoUrl": null
         },
         "keyCredentials": [],
-        "passwordCredentials": [],
-        "risk": {
-          "score": 25,
-          "level": "low",
-          "reasons": [
-            {
-              "code": "MULTITENANT_AUDIENCE",
-              "title": "Multi-tenant sign-in audience",
-              "details": "signInAudience=AzureADandPersonalMicrosoftAccount"
-            },
-            {
-              "code": "OFFLINE_ACCESS",
-              "title": "Refresh-token persistence",
-              "details": "Delegated grants include offline_access."
-            },
-            {
-              "code": "HIGH_RISK_SCOPES",
-              "title": "High-risk delegated scopes",
-              "details": "Directory.ReadWrite.All"
-            }
-          ]
-        },
-        "externalSignals": {
-          "whois": null,
-          "etldPlusOne": null,
-          "dns": null
-        }
+        "passwordCredentials": []
+      },
+      "risk": {
+        "score": 25,
+        "level": "low",
+        "reasons": [
+          {
+            "code": "MULTITENANT_AUDIENCE",
+            "title": "Multi-tenant sign-in audience",
+            "details": "signInAudience=AzureADandPersonalMicrosoftAccount"
+          },
+          {
+            "code": "OFFLINE_ACCESS",
+            "title": "Refresh-token persistence",
+            "details": "Delegated grants include offline_access."
+          },
+          {
+            "code": "HIGH_RISK_SCOPES",
+            "title": "High-risk delegated scopes",
+            "details": "Directory.ReadWrite.All"
+          }
+        ]
       }
     },
     {
-      "id": "app:de8bc8b5-d9f9-48b1-a8ad-b748da725064",
-      "type": "APPLICATION",
+      "id": "app:graph-explorer",
+      "type": "Application",
+      "displayName": "Graph Explorer",
       "properties": {
         "appId": "de8bc8b5-d9f9-48b1-a8ad-b748da725064",
-        "displayName": "Graph Explorer",
+        "isMultiTenant": false,
         "createdDateTime": null,
         "signInAudience": "AzureADandPersonalMicrosoftAccount",
         "replyUrls": [
@@ -241,19 +224,19 @@
           "https://tryit.graphexplorerppe.microsoft.com/",
           "https://tryit.graphexplorer.microsoft.com/"
         ],
-        "placeholders": {
-          "createdBy": null,
-          "lastModifiedDateTime": null
-        }
+        "web": null,
+        "spa": null,
+        "publicClient": null,
+        "requiredResourceAccess": null
       }
     },
     {
-      "id": "sp:615ba484-8879-49fe-9980-a5ae00170083",
-      "type": "SERVICE_PRINCIPAL",
+      "id": "sp:officeatwork-apps",
+      "type": "ServicePrincipal",
+      "displayName": "officeatwork Apps",
       "properties": {
-        "objectId": "615ba484-8879-49fe-9980-a5ae00170083",
+        "servicePrincipalId": "615ba484-8879-49fe-9980-a5ae00170083",
         "appId": "06395122-32dd-4b3d-93d5-800f5c4431da",
-        "displayName": "officeatwork Apps",
         "appDisplayName": "officeatwork Apps",
         "publisherName": "officeatwork AG",
         "signInAudience": "AzureADandPersonalMicrosoftAccount",
@@ -278,15 +261,15 @@
         ],
         "homepage": "https://www.officeatwork.com",
         "logoutUrl": null,
-        "tags": [
-          "WindowsAzureActiveDirectoryIntegratedApp"
-        ],
-        "appRoleAssignmentRequired": false,
+        "requiresAssignment": false,
         "verifiedPublisher": {
           "displayName": "officeatwork AG",
           "verifiedPublisherId": "1130150",
           "addedDateTime": "2023-07-07T12:50:08Z"
         },
+        "tags": [
+          "WindowsAzureActiveDirectoryIntegratedApp"
+        ],
         "info": {
           "termsOfServiceUrl": "https://links.officeatwork.com/officeatwork-licenseterms",
           "supportUrl": null,
@@ -295,36 +278,32 @@
           "logoUrl": "https://aadcdn.msftauthimages.net/c1c6b6c8-1gp3p2z0pjgcs5xajd-boto-wwgofk3tbnpvklgcr54/appbranding/fz8b-drot0sehifijbukaimkpjpx4kfe2pomobt3jly/1033/bannerlogo?ts=638243267868662768"
         },
         "keyCredentials": [],
-        "passwordCredentials": [],
-        "risk": {
-          "score": 20,
-          "level": "low",
-          "reasons": [
-            {
-              "code": "MULTITENANT_AUDIENCE",
-              "title": "Multi-tenant sign-in audience",
-              "details": "signInAudience=AzureADandPersonalMicrosoftAccount"
-            },
-            {
-              "code": "OFFLINE_ACCESS",
-              "title": "Refresh-token persistence",
-              "details": "Delegated grants include offline_access."
-            }
-          ]
-        },
-        "externalSignals": {
-          "whois": null,
-          "etldPlusOne": null,
-          "dns": null
-        }
+        "passwordCredentials": []
+      },
+      "risk": {
+        "score": 20,
+        "level": "low",
+        "reasons": [
+          {
+            "code": "MULTITENANT_AUDIENCE",
+            "title": "Multi-tenant sign-in audience",
+            "details": "signInAudience=AzureADandPersonalMicrosoftAccount"
+          },
+          {
+            "code": "OFFLINE_ACCESS",
+            "title": "Refresh-token persistence",
+            "details": "Delegated grants include offline_access."
+          }
+        ]
       }
     },
     {
-      "id": "app:06395122-32dd-4b3d-93d5-800f5c4431da",
-      "type": "APPLICATION",
+      "id": "app:officeatwork-apps",
+      "type": "Application",
+      "displayName": "officeatwork Apps",
       "properties": {
         "appId": "06395122-32dd-4b3d-93d5-800f5c4431da",
-        "displayName": "officeatwork Apps",
+        "isMultiTenant": false,
         "createdDateTime": null,
         "signInAudience": "AzureADandPersonalMicrosoftAccount",
         "replyUrls": [
@@ -344,28 +323,28 @@
           "brk-multihub://apps-test.officeatwork365.com",
           "brk-multihub://cdn-test.officeatwork365.com"
         ],
-        "placeholders": {
-          "createdBy": null,
-          "lastModifiedDateTime": null
-        }
+        "web": null,
+        "spa": null,
+        "publicClient": null,
+        "requiredResourceAccess": null
       }
     },
     {
-      "id": "user:63644dda-bdaa-415b-b102-dbf93d2fdea2",
-      "type": "USER",
+      "id": "user:joe-bloggs",
+      "type": "User",
+      "displayName": "Joe Bloggs",
       "properties": {
-        "objectId": "63644dda-bdaa-415b-b102-dbf93d2fdea2",
-        "displayName": "Joe Bloggs",
+        "azureObjectId": "63644dda-bdaa-415b-b102-dbf93d2fdea2",
         "userPrincipalName": "JoeBloggs@Cirriustech.onmicrosoft.com"
       }
     },
     {
-      "id": "sp:d9593966-6d7a-471d-a539-751b5706aa60",
-      "type": "SERVICE_PRINCIPAL",
+      "id": "sp:lucid",
+      "type": "ServicePrincipal",
+      "displayName": "Lucid",
       "properties": {
-        "objectId": "d9593966-6d7a-471d-a539-751b5706aa60",
+        "servicePrincipalId": "d9593966-6d7a-471d-a539-751b5706aa60",
         "appId": "328c7390-2221-4078-b779-b99b11772335",
-        "displayName": "Lucid",
         "appDisplayName": "Lucid",
         "publisherName": "Microsoft Accounts",
         "signInAudience": "AzureADandPersonalMicrosoftAccount",
@@ -403,15 +382,15 @@
         ],
         "homepage": "https://lucid.co",
         "logoutUrl": "https://lucid.app/users/logout",
-        "tags": [
-          "WindowsAzureActiveDirectoryIntegratedApp"
-        ],
-        "appRoleAssignmentRequired": false,
+        "requiresAssignment": false,
         "verifiedPublisher": {
           "displayName": null,
           "verifiedPublisherId": null,
           "addedDateTime": null
         },
+        "tags": [
+          "WindowsAzureActiveDirectoryIntegratedApp"
+        ],
         "info": {
           "termsOfServiceUrl": "https://lucid.co/tos",
           "supportUrl": null,
@@ -420,36 +399,32 @@
           "logoUrl": "https://secure.aadcdn.microsoftonline-p.com/dbd5a2dd-otrskziqqxxsssdghj7jjfrifoprytjmtmfdfhco0ss/appbranding/rmknkpuhfbyynopnt1omozgfib7vqqn7g6w0eyy-kqm/1033/bannerlogo?ts=637339027650139654"
         },
         "keyCredentials": [],
-        "passwordCredentials": [],
-        "risk": {
-          "score": 35,
-          "level": "low",
-          "reasons": [
-            {
-              "code": "UNVERIFIED_PUBLISHER",
-              "title": "Unverified publisher",
-              "details": "Service principal has no verifiedPublisherId."
-            },
-            {
-              "code": "MULTITENANT_AUDIENCE",
-              "title": "Multi-tenant sign-in audience",
-              "details": "signInAudience=AzureADandPersonalMicrosoftAccount"
-            }
-          ]
-        },
-        "externalSignals": {
-          "whois": null,
-          "etldPlusOne": null,
-          "dns": null
-        }
+        "passwordCredentials": []
+      },
+      "risk": {
+        "score": 35,
+        "level": "low",
+        "reasons": [
+          {
+            "code": "UNVERIFIED_PUBLISHER",
+            "title": "Unverified publisher",
+            "details": "Service principal has no verifiedPublisherId."
+          },
+          {
+            "code": "MULTITENANT_AUDIENCE",
+            "title": "Multi-tenant sign-in audience",
+            "details": "signInAudience=AzureADandPersonalMicrosoftAccount"
+          }
+        ]
       }
     },
     {
-      "id": "app:328c7390-2221-4078-b779-b99b11772335",
-      "type": "APPLICATION",
+      "id": "app:lucid",
+      "type": "Application",
+      "displayName": "Lucid",
       "properties": {
         "appId": "328c7390-2221-4078-b779-b99b11772335",
-        "displayName": "Lucid",
+        "isMultiTenant": false,
         "createdDateTime": null,
         "signInAudience": "AzureADandPersonalMicrosoftAccount",
         "replyUrls": [
@@ -482,24 +457,26 @@
           "https://admin.lucid.app/it/users/microsoftLoggedIn",
           "https://admin.lucid.app/users/microsoftLoggedIn"
         ],
-        "placeholders": {
-          "createdBy": null,
-          "lastModifiedDateTime": null
-        }
+        "web": null,
+        "spa": null,
+        "publicClient": null,
+        "requiredResourceAccess": null
       }
     }
   ],
   "edges": [
     {
-      "source": "sp:2d41e3f0-0fa6-42da-a820-abecfb0d71a6",
-      "target": "app:14d82eec-204b-4c2f-b7e8-296a70dab67e",
+      "id": "e-instance-microsoft-graph-command-line-tools-microsoft-graph-command-line-tools",
+      "from": "sp:microsoft-graph-command-line-tools",
+      "to": "app:microsoft-graph-command-line-tools",
       "type": "INSTANCE_OF",
       "properties": {}
     },
     {
-      "source": "sp:2d41e3f0-0fa6-42da-a820-abecfb0d71a6",
-      "target": "sp:8749cf44-2fc9-4fee-bc76-cbaac00bae98",
-      "type": "HAS_SCOPE",
+      "id": "e-too-many-scopes-microsoft-graph-command-line-tools-microsoft-graph",
+      "from": "sp:microsoft-graph-command-line-tools",
+      "to": "sp:microsoft-graph",
+      "type": "HAS_TOO_MANY_SCOPES",
       "properties": {
         "scopes": [
           "AuditLog.Read.All",
@@ -528,35 +505,63 @@
           "offline_access",
           "openid",
           "profile"
+        ],
+        "permissionType": "delegated",
+        "classification": "too_broad",
+        "tooBroadScopes": [
+          "AuditLog.Read.All",
+          "CrossTenantInformation.ReadBasic.All",
+          "DeviceManagementApps.Read.All",
+          "DeviceManagementConfiguration.Read.All",
+          "DeviceManagementManagedDevices.Read.All",
+          "DeviceManagementRBAC.Read.All",
+          "DeviceManagementServiceConfig.Read.All",
+          "Directory.Read.All",
+          "DirectoryRecommendations.Read.All",
+          "EntitlementManagement.Read.All",
+          "IdentityRiskEvent.Read.All",
+          "IdentityRiskyUser.Read.All",
+          "Policy.Read.All",
+          "Reports.Read.All",
+          "RoleManagement.Read.All",
+          "SharePointTenantSettings.Read.All",
+          "UserAuthenticationMethod.Read.All"
+        ],
+        "privilegedScopes": [
+          "RoleEligibilitySchedule.ReadWrite.Directory"
         ]
       }
     },
     {
-      "source": "sp:2d41e3f0-0fa6-42da-a820-abecfb0d71a6",
-      "target": "sp:8749cf44-2fc9-4fee-bc76-cbaac00bae98",
+      "id": "e-persistence-microsoft-graph-command-line-tools-microsoft-graph",
+      "from": "sp:microsoft-graph-command-line-tools",
+      "to": "sp:microsoft-graph",
       "type": "HAS_OFFLINE_ACCESS",
       "properties": {
         "resourceId": "8749cf44-2fc9-4fee-bc76-cbaac00bae98"
       }
     },
     {
-      "source": "user:5ef040da-fada-4fa2-9398-c0adb46af0d3",
-      "target": "sp:2d41e3f0-0fa6-42da-a820-abecfb0d71a6",
+      "id": "e-assigned-graham-gold-microsoft-graph-command-line-tools",
+      "from": "user:graham-gold",
+      "to": "sp:microsoft-graph-command-line-tools",
       "type": "ASSIGNED_TO",
       "properties": {
         "appRoleId": "00000000-0000-0000-0000-000000000000"
       }
     },
     {
-      "source": "sp:42510949-ada1-4587-9c66-7cd091aab9ae",
-      "target": "app:de8bc8b5-d9f9-48b1-a8ad-b748da725064",
+      "id": "e-instance-graph-explorer-graph-explorer",
+      "from": "sp:graph-explorer",
+      "to": "app:graph-explorer",
       "type": "INSTANCE_OF",
       "properties": {}
     },
     {
-      "source": "sp:42510949-ada1-4587-9c66-7cd091aab9ae",
-      "target": "sp:8749cf44-2fc9-4fee-bc76-cbaac00bae98",
-      "type": "HAS_SCOPE",
+      "id": "e-too-many-scopes-graph-explorer-microsoft-graph",
+      "from": "sp:graph-explorer",
+      "to": "sp:microsoft-graph",
+      "type": "HAS_TOO_MANY_SCOPES",
       "properties": {
         "scopes": [
           "Application.Read.All",
@@ -567,81 +572,102 @@
           "offline_access",
           "openid",
           "profile"
+        ],
+        "permissionType": "delegated",
+        "classification": "too_broad",
+        "tooBroadScopes": [
+          "Application.Read.All",
+          "Application.ReadWrite.All",
+          "Directory.Read.All",
+          "Directory.ReadWrite.All"
         ]
       }
     },
     {
-      "source": "sp:42510949-ada1-4587-9c66-7cd091aab9ae",
-      "target": "sp:8749cf44-2fc9-4fee-bc76-cbaac00bae98",
+      "id": "e-persistence-graph-explorer-microsoft-graph",
+      "from": "sp:graph-explorer",
+      "to": "sp:microsoft-graph",
       "type": "HAS_OFFLINE_ACCESS",
       "properties": {
         "resourceId": "8749cf44-2fc9-4fee-bc76-cbaac00bae98"
       }
     },
     {
-      "source": "user:5ef040da-fada-4fa2-9398-c0adb46af0d3",
-      "target": "sp:42510949-ada1-4587-9c66-7cd091aab9ae",
+      "id": "e-assigned-graham-gold-graph-explorer",
+      "from": "user:graham-gold",
+      "to": "sp:graph-explorer",
       "type": "ASSIGNED_TO",
       "properties": {
         "appRoleId": "00000000-0000-0000-0000-000000000000"
       }
     },
     {
-      "source": "sp:615ba484-8879-49fe-9980-a5ae00170083",
-      "target": "app:06395122-32dd-4b3d-93d5-800f5c4431da",
+      "id": "e-instance-officeatwork-apps-officeatwork-apps",
+      "from": "sp:officeatwork-apps",
+      "to": "app:officeatwork-apps",
       "type": "INSTANCE_OF",
       "properties": {}
     },
     {
-      "source": "sp:615ba484-8879-49fe-9980-a5ae00170083",
-      "target": "sp:8749cf44-2fc9-4fee-bc76-cbaac00bae98",
-      "type": "HAS_SCOPE",
+      "id": "e-scope-officeatwork-apps-microsoft-graph",
+      "from": "sp:officeatwork-apps",
+      "to": "sp:microsoft-graph",
+      "type": "HAS_SCOPES",
       "properties": {
         "scopes": [
           "User.Read",
           "offline_access",
           "openid",
           "profile"
-        ]
+        ],
+        "permissionType": "delegated",
+        "classification": "regular"
       }
     },
     {
-      "source": "sp:615ba484-8879-49fe-9980-a5ae00170083",
-      "target": "sp:8749cf44-2fc9-4fee-bc76-cbaac00bae98",
+      "id": "e-persistence-officeatwork-apps-microsoft-graph",
+      "from": "sp:officeatwork-apps",
+      "to": "sp:microsoft-graph",
       "type": "HAS_OFFLINE_ACCESS",
       "properties": {
         "resourceId": "8749cf44-2fc9-4fee-bc76-cbaac00bae98"
       }
     },
     {
-      "source": "user:63644dda-bdaa-415b-b102-dbf93d2fdea2",
-      "target": "sp:615ba484-8879-49fe-9980-a5ae00170083",
+      "id": "e-assigned-joe-bloggs-officeatwork-apps",
+      "from": "user:joe-bloggs",
+      "to": "sp:officeatwork-apps",
       "type": "ASSIGNED_TO",
       "properties": {
         "appRoleId": "00000000-0000-0000-0000-000000000000"
       }
     },
     {
-      "source": "sp:d9593966-6d7a-471d-a539-751b5706aa60",
-      "target": "app:328c7390-2221-4078-b779-b99b11772335",
+      "id": "e-instance-lucid-lucid",
+      "from": "sp:lucid",
+      "to": "app:lucid",
       "type": "INSTANCE_OF",
       "properties": {}
     },
     {
-      "source": "sp:d9593966-6d7a-471d-a539-751b5706aa60",
-      "target": "sp:8749cf44-2fc9-4fee-bc76-cbaac00bae98",
-      "type": "HAS_SCOPE",
+      "id": "e-scope-lucid-microsoft-graph",
+      "from": "sp:lucid",
+      "to": "sp:microsoft-graph",
+      "type": "HAS_SCOPES",
       "properties": {
         "scopes": [
           "email",
           "openid",
           "profile"
-        ]
+        ],
+        "permissionType": "delegated",
+        "classification": "regular"
       }
     },
     {
-      "source": "user:5ef040da-fada-4fa2-9398-c0adb46af0d3",
-      "target": "sp:d9593966-6d7a-471d-a539-751b5706aa60",
+      "id": "e-assigned-graham-gold-lucid",
+      "from": "user:graham-gold",
+      "to": "sp:lucid",
       "type": "ASSIGNED_TO",
       "properties": {
         "appRoleId": "00000000-0000-0000-0000-000000000000"

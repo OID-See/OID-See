@@ -24,17 +24,23 @@ export function toVisData(input: any): VisData {
     })
 
     const visEdges = exp.edges.map((e) => {
-      const scopes = e.properties?.scopes?.length ? e.properties.scopes.join(' ') : ''
-      const label = scopes ? `${e.type}\n${scopes}` : e.type
+      // Don't show scopes on edge labels - they're visible in details panel
+      const label = e.type
 
       const isDerived = !!e.derived?.isDerived
       const isInstance = e.type === 'INSTANCE_OF'
+      
+      // Color edges based on type
+      const isScopeEdge = e.type === 'HAS_SCOPES' || e.type === 'HAS_PRIVILEGED_SCOPES' || e.type === 'HAS_TOO_MANY_SCOPES' || e.type === 'HAS_SCOPE'
+      const isTooManyScopes = e.type === 'HAS_TOO_MANY_SCOPES'
 
       const color = isDerived
         ? { color: 'rgba(66,232,224,0.90)', highlight: 'rgba(66,232,224,1.0)' }
         : isInstance
           ? { color: 'rgba(234,242,255,0.35)', highlight: 'rgba(234,242,255,0.65)' }
-          : undefined
+          : isTooManyScopes
+            ? { color: 'rgba(255,100,100,0.70)', highlight: 'rgba(255,100,100,1.0)' }
+            : undefined
 
       return {
         id: e.id,
@@ -43,7 +49,7 @@ export function toVisData(input: any): VisData {
         label,
         arrows: 'to',
         dashes: isDerived || isInstance,
-        width: isDerived ? 3 : 1.5,
+        width: isDerived ? 3 : isTooManyScopes ? 2.5 : 1.5,
         color,
         __oidsee: e,
       }

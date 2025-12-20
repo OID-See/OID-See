@@ -122,16 +122,50 @@ def utc_now_iso() -> str:
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def node_id(kind: str, object_id: str) -> str:
-    return f"{kind}:{object_id}"
+def sanitize_name_for_id(name: str) -> str:
+    """Convert display name to ID-safe format: lowercase, replace spaces/special chars with hyphens."""
+    if not name:
+        return "unknown"
+    import re
+    # Replace non-alphanumeric with hyphens, collapse multiple hyphens, strip edges
+    safe = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+    return safe[:50] if safe else "unknown"  # Cap length
 
 
-def make_node(nid: str, ntype: str, props: Dict[str, Any]) -> Dict[str, Any]:
-    return {"id": nid, "type": ntype, "properties": props}
+def node_id(kind: str, identifier: str, display_name: Optional[str] = None) -> str:
+    """Generate node ID using display name if available, falling back to identifier."""
+    if display_name:
+        return f"{kind}:{sanitize_name_for_id(display_name)}"
+    return f"{kind}:{identifier}"
+
+
+def make_node(nid: str, ntype: str, display_name: str, props: Dict[str, Any]) -> Dict[str, Any]:
+    return {"id": nid, "type": ntype, "displayName": display_name, "properties": props}
 
 
 def make_edge(src: str, dst: str, etype: str, props: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    return {"source": src, "target": dst, "type": etype, "properties": props or {}}
+    # Human-friendly, type-related edge id using display names from node IDs
+    TYPE_ID_MAP = {
+        "INSTANCE_OF": "instance",
+        "OWNS": "own",
+        "MEMBER_OF": "member",
+        "HAS_SCOPES": "scope",
+        "HAS_PRIVILEGED_SCOPES": "privileged-scope",
+        "HAS_TOO_MANY_SCOPES": "too-many-scopes",
+        "HAS_ROLE": "role",
+        "ASSIGNED_TO": "assigned",
+        "CAN_IMPERSONATE": "impersonate",
+        # Non-schema helpers kept readable
+        "HAS_APP_ROLE": "app-role",
+        "HAS_OFFLINE_ACCESS": "persistence",
+    }
+    def _extract_name(ref: str) -> str:
+        # Extract the display name part after ':' from node ID
+        return (ref or "").split(":", 1)[-1]
+    friendly = TYPE_ID_MAP.get(etype, etype.lower().replace("_", "-"))
+    # Use display names from node IDs (already sanitized)
+    eid = f"e-{friendly}-{_extract_name(src)}-{_extract_name(dst)}"
+    return {"id": eid, "from": src, "to": dst, "type": etype, "properties": props or {}}
 
 
 def is_verified_publisher(vp: Optional[Dict[str, Any]]) -> bool:
@@ -204,6 +238,43 @@ HIGH_RISK_DELEGATED = {
 }
 
 IMPERSONATION_MARKERS = {"user_impersonation", "access_as_user"}
+
+
+def classify_scopes(scopes: Set[str]) -> Dict[str, Any]:
+    """Classify scopes and determine appropriate edge type."""
+    too_broad = []
+    privileged = []
+    regular = []
+    
+    for scope in scopes:
+        scope_lower = scope.lower()
+        # Check for too broadly scoped (.All)
+        if scope_lower.endswith(".all"):
+            too_broad.append(scope)
+        # Check for privileged (write/readwrite)
+        elif "write" in scope_lower or "readwrite" in scope_lower:
+            privileged.append(scope)
+        else:
+            regular.append(scope)
+    
+    # Determine edge type based on classification
+    if too_broad:
+        edge_type = "HAS_TOO_MANY_SCOPES"
+        classification = "too_broad"
+    elif privileged:
+        edge_type = "HAS_PRIVILEGED_SCOPES"
+        classification = "privileged"
+    else:
+        edge_type = "HAS_SCOPES"
+        classification = "regular"
+    
+    return {
+        "edge_type": edge_type,
+        "classification": classification,
+        "too_broad": too_broad,
+        "privileged": privileged,
+        "regular": regular,
+    }
 
 
 def compute_risk_for_sp(
@@ -295,9 +366,9 @@ class OidSeeCollector:
 
     # ---- add nodes with de-dupe
 
-    def add_node(self, nid: str, ntype: str, props: Dict[str, Any]) -> None:
+    def add_node(self, nid: str, ntype: str, display_name: str, props: Dict[str, Any]) -> None:
         if nid not in self.nodes:
-            self.nodes[nid] = make_node(nid, ntype, props)
+            self.nodes[nid] = make_node(nid, ntype, display_name, props)
 
     def add_edge(self, src: str, dst: str, etype: str, props: Optional[Dict[str, Any]] = None) -> None:
         self.edges.append(make_edge(src, dst, etype, props))
@@ -538,14 +609,14 @@ class OidSeeCollector:
         # Second pass: emit nodes and edges
         for sp in target_sps:
             sp_id = sp["id"]
-            sp_nid = node_id("sp", sp_id)
+            sp_display = sp.get("displayName") or sp.get("appDisplayName")
+            sp_nid = node_id("sp", sp_id, sp_display)
 
             # service principal node
             risk = compute_risk_for_sp(sp, sp_delegated_scopes.get(sp_id, {}), sp_has_app_perms.get(sp_id, False))
             props = {
-                "objectId": sp_id,
+                "servicePrincipalId": sp_id,
                 "appId": sp.get("appId"),
-                "displayName": sp.get("displayName") or sp.get("appDisplayName"),
                 "appDisplayName": sp.get("appDisplayName"),
                 "publisherName": sp.get("publisherName"),
                 "signInAudience": sp.get("signInAudience"),
@@ -554,37 +625,34 @@ class OidSeeCollector:
                 "replyUrls": sp.get("replyUrls") or [],
                 "homepage": sp.get("homepage"),
                 "logoutUrl": sp.get("logoutUrl"),
+                "requiresAssignment": sp.get("appRoleAssignmentRequired"),
+                "verifiedPublisher": sp.get("verifiedPublisher"),
                 "tags": sp.get("tags") or [],
-                "appRoleAssignmentRequired": sp.get("appRoleAssignmentRequired"),
-                "verifiedPublisher": sp.get("verifiedPublisher") or {"displayName": None, "verifiedPublisherId": None, "addedDateTime": None},
                 "info": sp.get("info") or {},
                 "keyCredentials": sp.get("keyCredentials") or [],
                 "passwordCredentials": sp.get("passwordCredentials") or [],
-                "risk": risk,
-                "externalSignals": {
-                    # Graph-only run: placeholders
-                    "whois": None,
-                    "etldPlusOne": None,
-                    "dns": None,
-                }
             }
-            self.add_node(sp_nid, "SERVICE_PRINCIPAL", props)
+            node = self.add_node(sp_nid, "ServicePrincipal", sp_display, props)
+            # Add risk at top level if present
+            if risk and risk.get("score", 0) > 0:
+                self.nodes[sp_nid]["risk"] = risk
 
             # Application node (best-effort)
             appid = sp.get("appId")
             if appid:
                 app_obj = self.app_cache_by_appid.get(appid)
-                app_nid = node_id("app", appid)
-                self.add_node(app_nid, "APPLICATION", {
+                app_display = (app_obj or {}).get("displayName") or sp.get("appDisplayName")
+                app_nid = node_id("app", appid, app_display)
+                self.add_node(app_nid, "Application", app_display, {
                     "appId": appid,
-                    "displayName": (app_obj or {}).get("displayName") or sp.get("appDisplayName"),
+                    "isMultiTenant": (app_obj or {}).get("signInAudience") not in (None, "AzureADMyOrg"),
                     "createdDateTime": (app_obj or {}).get("createdDateTime"),
                     "signInAudience": (app_obj or {}).get("signInAudience") or sp.get("signInAudience"),
                     "replyUrls": sp.get("replyUrls") or [],
-                    "placeholders": {
-                        "createdBy": None,
-                        "lastModifiedDateTime": None,
-                    }
+                    "web": (app_obj or {}).get("web"),
+                    "spa": (app_obj or {}).get("spa"),
+                    "publicClient": (app_obj or {}).get("publicClient"),
+                    "requiredResourceAccess": (app_obj or {}).get("requiredResourceAccess"),
                 })
                 self.add_edge(sp_nid, app_nid, "INSTANCE_OF", {})
 
@@ -596,34 +664,59 @@ class OidSeeCollector:
                 od = self.dir_cache.get(oid) or {"id": oid, "displayName": o.get("displayName")}
                 # node type based on @odata.type
                 otype = (od.get("@odata.type") or "").lower()
+                o_display = od.get("displayName") or "Unknown"
                 if "user" in otype:
-                    onid = node_id("user", oid)
-                    self.add_node(onid, "USER", {"objectId": oid, "displayName": od.get("displayName"), "userPrincipalName": od.get("userPrincipalName")})
+                    onid = node_id("user", oid, o_display)
+                    self.add_node(onid, "User", o_display, {
+                        "azureObjectId": oid,
+                        "userPrincipalName": od.get("userPrincipalName"),
+                    })
                 elif "group" in otype:
-                    onid = node_id("group", oid)
-                    self.add_node(onid, "GROUP", {"objectId": oid, "displayName": od.get("displayName")})
+                    onid = node_id("group", oid, o_display)
+                    self.add_node(onid, "Group", o_display, {
+                        "groupId": oid,
+                    })
                 elif "directoryrole" in otype:
-                    onid = node_id("role", oid)
-                    self.add_node(onid, "ROLE", {"objectId": oid, "displayName": od.get("displayName")})
+                    onid = node_id("role", oid, o_display)
+                    self.add_node(onid, "Role", o_display, {
+                        "roleTemplateId": od.get("roleTemplateId"),
+                    })
                 else:
-                    onid = node_id("dir", oid)
-                    self.add_node(onid, "RISK_SIGNAL", {"objectId": oid, "displayName": od.get("displayName"), "kind": "UNKNOWN_OWNER"})
+                    onid = node_id("dir", oid, o_display)
+                    self.add_node(onid, "User", o_display, {
+                        "azureObjectId": oid,
+                    })
                 self.add_edge(onid, sp_nid, "OWNS", {})
 
-            # Delegated scopes -> HAS_SCOPE edges to resource SP nodes
+            # Delegated scopes -> classified edges to resource SP nodes
             for rid, scopes in sp_delegated_scopes.get(sp_id, {}).items():
                 res_sp = self.sp_cache.get(rid, {"id": rid})
-                res_nid = node_id("sp", rid)
+                res_display = res_sp.get("displayName") or res_sp.get("appDisplayName") or "Unknown Resource"
+                res_nid = node_id("sp", rid, res_display)
                 if res_nid not in self.nodes:
-                    self.add_node(res_nid, "SERVICE_PRINCIPAL", {
-                        "objectId": rid,
+                    self.add_node(res_nid, "ResourceApi", res_display, {
                         "appId": res_sp.get("appId"),
-                        "displayName": res_sp.get("displayName") or res_sp.get("appDisplayName"),
+                        "servicePrincipalId": rid,
                         "publisherName": res_sp.get("publisherName"),
-                        "verifiedPublisher": res_sp.get("verifiedPublisher") or {"displayName": None, "verifiedPublisherId": None, "addedDateTime": None},
-                        "risk": {"score": 0, "level": "low", "reasons": []},
+                        "verifiedPublisher": res_sp.get("verifiedPublisher"),
+                        "appRoles": res_sp.get("appRoles"),
+                        "publishedPermissionScopes": res_sp.get("publishedPermissionScopes") or res_sp.get("oauth2PermissionScopes"),
+                        "replyUrls": res_sp.get("replyUrls"),
                     })
-                self.add_edge(sp_nid, res_nid, "HAS_SCOPE", {"scopes": sorted(scopes)})
+                
+                # Classify scopes and emit appropriate edge
+                classification = classify_scopes(scopes)
+                edge_props = {
+                    "scopes": sorted(scopes),
+                    "permissionType": "delegated",
+                    "classification": classification["classification"],
+                }
+                if classification["too_broad"]:
+                    edge_props["tooBroadScopes"] = sorted(classification["too_broad"])
+                if classification["privileged"]:
+                    edge_props["privilegedScopes"] = sorted(classification["privileged"])
+                
+                self.add_edge(sp_nid, res_nid, classification["edge_type"], edge_props)
 
                 # Persistence edge
                 if "offline_access" in scopes:
@@ -644,15 +737,17 @@ class OidSeeCollector:
                         by_res.setdefault(rid, set()).add(arid)
                 for rid, role_ids in by_res.items():
                     res_sp = self.sp_cache.get(rid, {"id": rid})
-                    res_nid = node_id("sp", rid)
+                    res_display = res_sp.get("displayName") or res_sp.get("appDisplayName") or "Unknown Resource"
+                    res_nid = node_id("sp", rid, res_display)
                     if res_nid not in self.nodes:
-                        self.add_node(res_nid, "SERVICE_PRINCIPAL", {
-                            "objectId": rid,
+                        self.add_node(res_nid, "ResourceApi", res_display, {
                             "appId": res_sp.get("appId"),
-                            "displayName": res_sp.get("displayName") or res_sp.get("appDisplayName"),
+                            "servicePrincipalId": rid,
                             "publisherName": res_sp.get("publisherName"),
-                            "verifiedPublisher": res_sp.get("verifiedPublisher") or {"displayName": None, "verifiedPublisherId": None, "addedDateTime": None},
-                            "risk": {"score": 0, "level": "low", "reasons": []},
+                            "verifiedPublisher": res_sp.get("verifiedPublisher"),
+                            "appRoles": res_sp.get("appRoles"),
+                            "publishedPermissionScopes": res_sp.get("publishedPermissionScopes") or res_sp.get("oauth2PermissionScopes"),
+                            "replyUrls": res_sp.get("replyUrls"),
                         })
                     self.add_edge(sp_nid, res_nid, "HAS_APP_ROLE", {"appRoleIds": sorted(role_ids)})
 
@@ -662,13 +757,12 @@ class OidSeeCollector:
                     roles_by_id = {r.get("id"): r for r in app_roles if r.get("id")}
                     for arid in role_ids:
                         r = roles_by_id.get(arid, {})
-                        rnid = node_id("approle", arid)
-                        self.add_node(rnid, "APP_ROLE", {
-                            "objectId": arid,
-                            "displayName": r.get("displayName"),
+                        role_display = r.get("displayName") or r.get("value") or "Unknown Role"
+                        rnid = node_id("approle", arid, role_display)
+                        self.add_node(rnid, "Role", role_display, {
+                            "roleTemplateId": arid,
                             "value": r.get("value"),
                             "description": r.get("description"),
-                            "resourceServicePrincipalId": rid,
                         })
                         self.add_edge(sp_nid, rnid, "HAS_APP_ROLE", {"resourceId": rid})
 
@@ -679,19 +773,29 @@ class OidSeeCollector:
                     continue
                 pobj = self.dir_cache.get(pid) or {"id": pid}
                 otype = (pobj.get("@odata.type") or "").lower()
+                p_display = pobj.get("displayName") or "Unknown"
                 if "user" in otype:
-                    pnid = node_id("user", pid)
-                    self.add_node(pnid, "USER", {"objectId": pid, "displayName": pobj.get("displayName"), "userPrincipalName": pobj.get("userPrincipalName")})
+                    pnid = node_id("user", pid, p_display)
+                    self.add_node(pnid, "User", p_display, {
+                        "azureObjectId": pid,
+                        "userPrincipalName": pobj.get("userPrincipalName"),
+                    })
                 elif "group" in otype:
-                    pnid = node_id("group", pid)
-                    self.add_node(pnid, "GROUP", {"objectId": pid, "displayName": pobj.get("displayName")})
+                    pnid = node_id("group", pid, p_display)
+                    self.add_node(pnid, "Group", p_display, {
+                        "groupId": pid,
+                    })
                 elif "serviceprincipal" in otype:
-                    pnid = node_id("sp", pid)
-                    # include minimal props; it might already exist
-                    self.add_node(pnid, "SERVICE_PRINCIPAL", {"objectId": pid, "displayName": pobj.get("displayName"), "appId": pobj.get("appId"), "risk": {"score": 0, "level": "low", "reasons": []}})
+                    pnid = node_id("sp", pid, p_display)
+                    self.add_node(pnid, "ServicePrincipal", p_display, {
+                        "servicePrincipalId": pid,
+                        "appId": pobj.get("appId"),
+                    })
                 else:
-                    pnid = node_id("dir", pid)
-                    self.add_node(pnid, "RISK_SIGNAL", {"objectId": pid, "displayName": pobj.get("displayName"), "kind": "UNKNOWN_PRINCIPAL"})
+                    pnid = node_id("dir", pid, p_display)
+                    self.add_node(pnid, "User", p_display, {
+                        "azureObjectId": pid,
+                    })
 
                 # ASSIGNED_TO edge direction: principal -> app
                 self.add_edge(pnid, sp_nid, "ASSIGNED_TO", {"appRoleId": a.get("appRoleId")})
@@ -702,27 +806,25 @@ class OidSeeCollector:
                 if not rd_id:
                     continue
                 rd = self._role_defs.get(rd_id, {"id": rd_id})
-                rnid = node_id("roledef", rd_id)
-                self.add_node(rnid, "ROLE", {
-                    "objectId": rd_id,
-                    "displayName": rd.get("displayName"),
+                rd_display = rd.get("displayName") or "Unknown Role"
+                rnid = node_id("roledef", rd_id, rd_display)
+                self.add_node(rnid, "Role", rd_display, {
+                    "roleTemplateId": rd_id,
                     "description": rd.get("description"),
                     "isBuiltIn": rd.get("isBuiltIn"),
                 })
                 self.add_edge(sp_nid, rnid, "HAS_ROLE", {"directoryScopeId": ra.get("directoryScopeId")})
 
         export = {
-            "format": "oidsee-graph-export@1",
+            "format": {
+                "name": "oidsee-graph",
+                "version": "1.1"
+            },
             "generatedAt": utc_now_iso(),
-            "tenant": tenant,
-            "collection": {
-                "graphOnly": True,
-                "placeholders": {
-                    "whois": True,
-                    "dns": True,
-                    "etlDPlusOne": True,
-                    "signInLogsCorrelation": True,
-                }
+            "tenant": {
+                "tenantId": tenant.get("tenantId"),
+                "displayName": tenant.get("displayName"),
+                "cloud": "Public"
             },
             "nodes": list(self.nodes.values()),
             "edges": self.edges,
