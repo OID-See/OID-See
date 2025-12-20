@@ -6,6 +6,17 @@ export type Selection =
   | { kind: 'node'; id: string; oidsee?: any }
   | { kind: 'edge'; id: string; oidsee?: any }
 
+export type GraphApi = {
+  focusNode: (id: string) => void
+  focusNeighbors: (id: string) => void
+  togglePinNode: (id: string) => void
+  isolateNode: (id: string) => void
+  isolateEdge: (id: string) => void
+  clearIsolation: () => void
+  selectEdge: (id: string) => void
+  selectNode: (id: string) => void
+}
+
 type VisNode = any
 type VisEdge = any
 
@@ -13,14 +24,20 @@ export function GraphCanvas({
   nodes,
   edges,
   onSelection,
+  onApiReady,
 }: {
   nodes: VisNode[]
   edges: VisEdge[]
   onSelection?: (s: Selection | null) => void
+  onApiReady?: (api: GraphApi) => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const networkRef = useRef<Network | null>(null)
+  const nodeDsRef = useRef<DataSet<any> | null>(null)
+  const edgeDsRef = useRef<DataSet<any> | null>(null)
   const fittedRef = useRef(false)
+  const pinned = useRef<Set<string>>(new Set())
+  const isolated = useRef<boolean>(false)
 
   useEffect(() => {
     if (!ref.current) return
@@ -33,6 +50,8 @@ export function GraphCanvas({
 
     const nodeDs = new DataSet(nodes)
     const edgeDs = new DataSet(edges)
+    nodeDsRef.current = nodeDs
+    edgeDsRef.current = edgeDs
 
     const network = new Network(
       ref.current,
@@ -90,6 +109,89 @@ export function GraphCanvas({
 
     networkRef.current = network
 
+    const api: GraphApi = {
+      focusNode: (id: string) => {
+        try {
+          network.selectNodes([id], false)
+          network.focus(id, { scale: 1.1, animation: { duration: 300, easingFunction: 'easeInOutQuad' } })
+        } catch {}
+      },
+      focusNeighbors: (id: string) => {
+        try {
+          const neigh = network.getConnectedNodes(id) as string[]
+          network.selectNodes([id, ...neigh], false)
+          network.focus(id, { scale: 1.1, animation: { duration: 300, easingFunction: 'easeInOutQuad' } })
+        } catch {}
+      },
+      togglePinNode: (id: string) => {
+        const ds = nodeDsRef.current
+        const net = networkRef.current
+        if (!ds || !net) return
+        const pos = net.getPositions([id])[id]
+        const isPinned = pinned.current.has(id)
+        if (isPinned) {
+          pinned.current.delete(id)
+          ds.update({ id, fixed: false })
+        } else {
+          pinned.current.add(id)
+          ds.update({ id, fixed: { x: true, y: true }, x: pos?.x, y: pos?.y })
+        }
+      },
+      isolateNode: (id: string) => {
+        const dsN = nodeDsRef.current
+        const dsE = edgeDsRef.current
+        const net = networkRef.current
+        if (!dsN || !dsE || !net) return
+        const neigh = new Set<string>([id, ...(net.getConnectedNodes(id) as string[])])
+        const keepEdges = new Set<string>(net.getConnectedEdges(id) as string[])
+        dsN.update(dsN.get().map((n: any) => ({ id: n.id, hidden: !neigh.has(n.id) })))
+        dsE.update(dsE.get().map((e: any) => ({ id: e.id, hidden: !keepEdges.has(e.id) })))
+        isolated.current = true
+        try {
+          net.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } })
+        } catch {}
+      },
+      isolateEdge: (id: string) => {
+        const dsN = nodeDsRef.current
+        const dsE = edgeDsRef.current
+        const net = networkRef.current
+        if (!dsN || !dsE || !net) return
+        const e = dsE.get(id) as any
+        if (!e) return
+        const keepNodes = new Set<string>([e.from, e.to])
+        dsN.update(dsN.get().map((n: any) => ({ id: n.id, hidden: !keepNodes.has(n.id) })))
+        dsE.update(dsE.get().map((x: any) => ({ id: x.id, hidden: x.id !== id })))
+        isolated.current = true
+        try {
+          net.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } })
+        } catch {}
+      },
+      clearIsolation: () => {
+        const dsN = nodeDsRef.current
+        const dsE = edgeDsRef.current
+        const net = networkRef.current
+        if (!dsN || !dsE || !net) return
+        dsN.update(dsN.get().map((n: any) => ({ id: n.id, hidden: false })))
+        dsE.update(dsE.get().map((e: any) => ({ id: e.id, hidden: false })))
+        isolated.current = false
+        try {
+          net.fit({ animation: { duration: 250, easingFunction: 'easeInOutQuad' } })
+        } catch {}
+      },
+      selectEdge: (id: string) => {
+        try {
+          network.selectEdges([id])
+        } catch {}
+      },
+      selectNode: (id: string) => {
+        try {
+          network.selectNodes([id])
+        } catch {}
+      },
+    }
+
+    onApiReady?.(api)
+
     const fitOnce = () => {
       if (fittedRef.current) return
       fittedRef.current = true
@@ -116,7 +218,14 @@ export function GraphCanvas({
     network.on('deselectNode', () => onSelection?.(null))
     network.on('deselectEdge', () => onSelection?.(null))
 
-    // Subtle "glow" for derived edges by pulsing alpha (lightweight).
+    // Convenience: double-click node to isolate (tap-friendly on desktop)
+    network.on('doubleClick', (p: any) => {
+      const id = p.nodes?.[0]
+      if (!id) return
+      api.isolateNode(id)
+    })
+
+    // Subtle pulse for derived edges
     const derivedIds = edgeDs
       .get()
       .filter((e: any) => (e.__oidsee?.derived?.isDerived ?? false) === true)
@@ -129,8 +238,8 @@ export function GraphCanvas({
             pulse = !pulse
             const alpha = pulse ? 0.95 : 0.70
             edgeDs.update(
-              derivedIds.map((id: string) => ({
-                id,
+              derivedIds.map((did: string) => ({
+                id: did,
                 color: { color: `rgba(66,232,224,${alpha})`, highlight: 'rgba(66,232,224,1.0)' },
               }))
             )
@@ -140,7 +249,6 @@ export function GraphCanvas({
     const ro = new ResizeObserver(() => {
       try {
         network.redraw()
-        network.fit({ animation: false })
       } catch {}
     })
     ro.observe(ref.current)
@@ -150,7 +258,7 @@ export function GraphCanvas({
       ro.disconnect()
       network.destroy()
     }
-  }, [nodes, edges, onSelection])
+  }, [nodes, edges, onSelection, onApiReady])
 
   return <div ref={ref} className="graph" />
 }

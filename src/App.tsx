@@ -1,13 +1,12 @@
 
 import { useEffect, useMemo, useState } from 'react'
-import { GraphCanvas, Selection } from './components/GraphCanvas'
+import { GraphCanvas, GraphApi, Selection } from './components/GraphCanvas'
 import { toVisData, VisData } from './adapters/toVisData'
 import sample from './samples/sample-oidsee-graph.json?raw'
 import { DetailsPanel } from './components/DetailsPanel'
 import { FilterBar, Lens } from './components/FilterBar'
+import { SavedQueriesManager, SavedQuery } from './components/SavedQueriesManager'
 import { parseQuery, evalClause, getPath, isNumericOp, Clause } from './filters/query'
-
-type SavedQuery = { name: string; query: string }
 
 function loadSaved(): SavedQuery[] {
   try {
@@ -18,13 +17,6 @@ function loadSaved(): SavedQuery[] {
     return arr.filter((x) => x && typeof x.name === 'string' && typeof x.query === 'string')
   } catch {
     return []
-  }
-}
-function saveSaved(arr: SavedQuery[]) {
-  try {
-    localStorage.setItem('oidsee.savedQueries', JSON.stringify(arr))
-  } catch {
-    // ignore
   }
 }
 
@@ -141,6 +133,8 @@ export default function App() {
   const [lens, setLens] = useState<Lens>('full')
   const [pathAware, setPathAware] = useState<boolean>(true)
   const [saved, setSaved] = useState<SavedQuery[]>([])
+  const [savedOpen, setSavedOpen] = useState(false)
+  const [graphApi, setGraphApi] = useState<GraphApi | null>(null)
 
   useEffect(() => {
     setSaved(loadSaved())
@@ -198,30 +192,20 @@ export default function App() {
     return computeWarnings(data, p.clauses)
   }, [data, query])
 
-  function saveCurrentQuery() {
-    const name = prompt('Save query as…')
-    if (!name) return
-    const next = saved.filter((s) => s.name !== name).concat([{ name, query }])
-    setSaved(next)
-    saveSaved(next)
-  }
-
-  function deleteSavedQuery() {
-    if (!saved.length) return
-    const name = prompt('Delete which saved query? Enter exact name:\n' + saved.map((s) => `- ${s.name}`).join('\n'))
-    if (!name) return
-    const next = saved.filter((s) => s.name !== name)
-    setSaved(next)
-    saveSaved(next)
-  }
-
-  function loadSavedQuery(name: string) {
-    const found = saved.find((s) => s.name === name)
-    if (found) setQuery(found.query)
-  }
-
   return (
     <div className="app">
+      <SavedQueriesManager
+        open={savedOpen}
+        onClose={() => setSavedOpen(false)}
+        saved={saved}
+        setSaved={setSaved}
+        currentQuery={query}
+        onLoad={(q) => {
+          setQuery(q)
+          setSavedOpen(false)
+        }}
+      />
+
       <header className="topbar">
         <div className="brand">
           <div className="brand__mark" aria-hidden="true">
@@ -292,13 +276,15 @@ export default function App() {
             onLens={setLens}
             pathAware={pathAware}
             onPathAware={setPathAware}
-            saved={saved}
-            onSave={saveCurrentQuery}
-            onDelete={deleteSavedQuery}
-            onLoad={loadSavedQuery}
+            onOpenSaved={() => setSavedOpen(true)}
           />
           {filtered ? (
-            <GraphCanvas nodes={filtered.nodes} edges={filtered.edges} onSelection={setSelection} />
+            <GraphCanvas
+              nodes={filtered.nodes}
+              edges={filtered.edges}
+              onSelection={setSelection}
+              onApiReady={(api) => setGraphApi(api)}
+            />
           ) : (
             <div className="empty">
               <div className="empty__title">No graph yet</div>
@@ -309,7 +295,21 @@ export default function App() {
 
         <section className="panel panel--details">
           <div className="panel__title">Details</div>
-          <DetailsPanel selection={selection} />
+          <DetailsPanel
+            selection={selection}
+            onFocus={(id) => graphApi?.focusNode(id)}
+            onPin={(id) => graphApi?.togglePinNode(id)}
+            onIsolate={(kind, id) => (kind === 'node' ? graphApi?.isolateNode(id) : graphApi?.isolateEdge(id))}
+            onClearIsolation={() => graphApi?.clearIsolation()}
+            onJumpEdge={(id) => {
+              graphApi?.selectEdge(id)
+              graphApi?.isolateEdge(id)
+            }}
+            onJumpNode={(id) => {
+              graphApi?.selectNode(id)
+              graphApi?.focusNode(id)
+            }}
+          />
         </section>
       </main>
 
