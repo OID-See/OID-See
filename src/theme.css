@@ -39,8 +39,8 @@ body{
 
 .brand{ display:flex; align-items:center; gap:1.2rem; }
 .brand__logo{
-  width: 256px;
-  height: 256px;
+  width: 128px;
+  height: 128px;
   object-fit: contain;
   filter: drop-shadow(0 4px 10px rgba(0,0,0,0.35));
 }
