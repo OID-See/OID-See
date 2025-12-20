@@ -1,0 +1,651 @@
+{
+  "format": "oidsee-graph-export@1",
+  "generatedAt": "2025-12-20T18:53:15Z",
+  "tenant": {
+    "tenantId": "254d3d84-0a52-49b7-bb23-03b3557e25ac",
+    "displayName": "Cirriustech",
+    "tenantType": "AAD",
+    "defaultDomain": "Cirriustech.onmicrosoft.com"
+  },
+  "collection": {
+    "graphOnly": true,
+    "placeholders": {
+      "whois": true,
+      "dns": true,
+      "etlDPlusOne": true,
+      "signInLogsCorrelation": true
+    }
+  },
+  "nodes": [
+    {
+      "id": "sp:2d41e3f0-0fa6-42da-a820-abecfb0d71a6",
+      "type": "SERVICE_PRINCIPAL",
+      "properties": {
+        "objectId": "2d41e3f0-0fa6-42da-a820-abecfb0d71a6",
+        "appId": "14d82eec-204b-4c2f-b7e8-296a70dab67e",
+        "displayName": "Microsoft Graph Command Line Tools",
+        "appDisplayName": "Microsoft Graph Command Line Tools",
+        "publisherName": "PRDTRS01",
+        "signInAudience": "AzureADandPersonalMicrosoftAccount",
+        "appOwnerOrganizationId": "cdc5aeea-15c5-4db6-b079-fcadd2505dc2",
+        "createdDateTime": "2025-11-24T19:27:32Z",
+        "replyUrls": [
+          "ms-appx-web://microsoft.aad.brokerplugin/14d82eec-204b-4c2f-b7e8-296a70dab67e",
+          "http://localhost",
+          "https://login.microsoftonline.com/common/oauth2/nativeclient"
+        ],
+        "homepage": "https://docs.microsoft.com/en-us/graph/powershell/get-started",
+        "logoutUrl": null,
+        "tags": [
+          "WindowsAzureActiveDirectoryIntegratedApp"
+        ],
+        "appRoleAssignmentRequired": false,
+        "verifiedPublisher": {
+          "displayName": "Microsoft Corporation",
+          "verifiedPublisherId": "5206095",
+          "addedDateTime": "2024-05-13T21:14:05Z"
+        },
+        "info": {
+          "termsOfServiceUrl": "https://docs.microsoft.com/en-us/legal/microsoft-apis/terms-of-use?context=graph/context",
+          "supportUrl": null,
+          "privacyStatementUrl": "https://privacy.microsoft.com/en-us/privacystatement",
+          "marketingUrl": null,
+          "logoUrl": null
+        },
+        "keyCredentials": [],
+        "passwordCredentials": [],
+        "risk": {
+          "score": 20,
+          "level": "low",
+          "reasons": [
+            {
+              "code": "MULTITENANT_AUDIENCE",
+              "title": "Multi-tenant sign-in audience",
+              "details": "signInAudience=AzureADandPersonalMicrosoftAccount"
+            },
+            {
+              "code": "OFFLINE_ACCESS",
+              "title": "Refresh-token persistence",
+              "details": "Delegated grants include offline_access."
+            }
+          ]
+        },
+        "externalSignals": {
+          "whois": null,
+          "etldPlusOne": null,
+          "dns": null
+        }
+      }
+    },
+    {
+      "id": "app:14d82eec-204b-4c2f-b7e8-296a70dab67e",
+      "type": "APPLICATION",
+      "properties": {
+        "appId": "14d82eec-204b-4c2f-b7e8-296a70dab67e",
+        "displayName": "Microsoft Graph Command Line Tools",
+        "createdDateTime": null,
+        "signInAudience": "AzureADandPersonalMicrosoftAccount",
+        "replyUrls": [
+          "ms-appx-web://microsoft.aad.brokerplugin/14d82eec-204b-4c2f-b7e8-296a70dab67e",
+          "http://localhost",
+          "https://login.microsoftonline.com/common/oauth2/nativeclient"
+        ],
+        "placeholders": {
+          "createdBy": null,
+          "lastModifiedDateTime": null
+        }
+      }
+    },
+    {
+      "id": "sp:8749cf44-2fc9-4fee-bc76-cbaac00bae98",
+      "type": "SERVICE_PRINCIPAL",
+      "properties": {
+        "objectId": "8749cf44-2fc9-4fee-bc76-cbaac00bae98",
+        "appId": "00000003-0000-0000-c000-000000000000",
+        "displayName": "Microsoft Graph",
+        "publisherName": "Microsoft Services",
+        "verifiedPublisher": {
+          "displayName": null,
+          "verifiedPublisherId": null,
+          "addedDateTime": null
+        },
+        "risk": {
+          "score": 0,
+          "level": "low",
+          "reasons": []
+        }
+      }
+    },
+    {
+      "id": "user:5ef040da-fada-4fa2-9398-c0adb46af0d3",
+      "type": "USER",
+      "properties": {
+        "objectId": "5ef040da-fada-4fa2-9398-c0adb46af0d3",
+        "displayName": "Graham Gold",
+        "userPrincipalName": "CirriusGG@Cirriustech.onmicrosoft.com"
+      }
+    },
+    {
+      "id": "sp:42510949-ada1-4587-9c66-7cd091aab9ae",
+      "type": "SERVICE_PRINCIPAL",
+      "properties": {
+        "objectId": "42510949-ada1-4587-9c66-7cd091aab9ae",
+        "appId": "de8bc8b5-d9f9-48b1-a8ad-b748da725064",
+        "displayName": "Graph Explorer",
+        "appDisplayName": "Graph Explorer",
+        "publisherName": "PRDTRS01",
+        "signInAudience": "AzureADandPersonalMicrosoftAccount",
+        "appOwnerOrganizationId": "cdc5aeea-15c5-4db6-b079-fcadd2505dc2",
+        "createdDateTime": "2025-12-14T00:36:32Z",
+        "replyUrls": [
+          "https://developer.microsoft.com/zh-cn/graph/graph-explorer/",
+          "https://developer.microsoft.com/zh-cn/graph/graph-explorer",
+          "https://developer.microsoft.com/ru-ru/graph/graph-explorer/",
+          "https://developer.microsoft.com/ru-ru/graph/graph-explorer",
+          "https://developer.microsoft.com/pt-br/graph/graph-explorer/",
+          "https://developer.microsoft.com/pt-br/graph/graph-explorer",
+          "https://developer.microsoft.com/ja-jp/graph/graph-explorer/",
+          "https://developer.microsoft.com/ja-jp/graph/graph-explorer",
+          "https://developer.microsoft.com/fr-fr/graph/graph-explorer/",
+          "https://developer.microsoft.com/fr-fr/graph/graph-explorer",
+          "https://developer.microsoft.com/es-es/graph/graph-explorer/",
+          "https://developer.microsoft.com/es-es/graph/graph-explorer",
+          "https://developer.microsoft.com/en-us/graph/graph-explorer/preview/",
+          "https://developer.microsoft.com/en-us/graph/graph-explorer/preview",
+          "https://developer.microsoft.com/en-us/graph/graph-explorer/",
+          "https://developer.microsoft.com/en-us/graph/graph-explorer",
+          "https://developer.microsoft.com/de-de/graph/graph-explorer/",
+          "https://developer.microsoft.com/de-de/graph/graph-explorer",
+          "https://graphtryit-func-prod-eastus.azurewebsites.net/",
+          "https://graphtryit-func-ppe-eastus.azurewebsites.net/",
+          "https://tryit.graphexplorerppe.microsoft.com/",
+          "https://tryit.graphexplorer.microsoft.com/"
+        ],
+        "homepage": "https://developer.microsoft.com/graph/graph-explorer",
+        "logoutUrl": "https://developer.microsoft.com/en-us/graph/graph-explorer/logout",
+        "tags": [
+          "WindowsAzureActiveDirectoryIntegratedApp"
+        ],
+        "appRoleAssignmentRequired": false,
+        "verifiedPublisher": {
+          "displayName": "Microsoft Corporation",
+          "verifiedPublisherId": "5206095",
+          "addedDateTime": "2024-05-14T00:57:46Z"
+        },
+        "info": {
+          "termsOfServiceUrl": "https://aka.ms/msgraphtou",
+          "supportUrl": null,
+          "privacyStatementUrl": "https://go.microsoft.com/fwlink/?LinkId=521839",
+          "marketingUrl": null,
+          "logoUrl": null
+        },
+        "keyCredentials": [],
+        "passwordCredentials": [],
+        "risk": {
+          "score": 25,
+          "level": "low",
+          "reasons": [
+            {
+              "code": "MULTITENANT_AUDIENCE",
+              "title": "Multi-tenant sign-in audience",
+              "details": "signInAudience=AzureADandPersonalMicrosoftAccount"
+            },
+            {
+              "code": "OFFLINE_ACCESS",
+              "title": "Refresh-token persistence",
+              "details": "Delegated grants include offline_access."
+            },
+            {
+              "code": "HIGH_RISK_SCOPES",
+              "title": "High-risk delegated scopes",
+              "details": "Directory.ReadWrite.All"
+            }
+          ]
+        },
+        "externalSignals": {
+          "whois": null,
+          "etldPlusOne": null,
+          "dns": null
+        }
+      }
+    },
+    {
+      "id": "app:de8bc8b5-d9f9-48b1-a8ad-b748da725064",
+      "type": "APPLICATION",
+      "properties": {
+        "appId": "de8bc8b5-d9f9-48b1-a8ad-b748da725064",
+        "displayName": "Graph Explorer",
+        "createdDateTime": null,
+        "signInAudience": "AzureADandPersonalMicrosoftAccount",
+        "replyUrls": [
+          "https://developer.microsoft.com/zh-cn/graph/graph-explorer/",
+          "https://developer.microsoft.com/zh-cn/graph/graph-explorer",
+          "https://developer.microsoft.com/ru-ru/graph/graph-explorer/",
+          "https://developer.microsoft.com/ru-ru/graph/graph-explorer",
+          "https://developer.microsoft.com/pt-br/graph/graph-explorer/",
+          "https://developer.microsoft.com/pt-br/graph/graph-explorer",
+          "https://developer.microsoft.com/ja-jp/graph/graph-explorer/",
+          "https://developer.microsoft.com/ja-jp/graph/graph-explorer",
+          "https://developer.microsoft.com/fr-fr/graph/graph-explorer/",
+          "https://developer.microsoft.com/fr-fr/graph/graph-explorer",
+          "https://developer.microsoft.com/es-es/graph/graph-explorer/",
+          "https://developer.microsoft.com/es-es/graph/graph-explorer",
+          "https://developer.microsoft.com/en-us/graph/graph-explorer/preview/",
+          "https://developer.microsoft.com/en-us/graph/graph-explorer/preview",
+          "https://developer.microsoft.com/en-us/graph/graph-explorer/",
+          "https://developer.microsoft.com/en-us/graph/graph-explorer",
+          "https://developer.microsoft.com/de-de/graph/graph-explorer/",
+          "https://developer.microsoft.com/de-de/graph/graph-explorer",
+          "https://graphtryit-func-prod-eastus.azurewebsites.net/",
+          "https://graphtryit-func-ppe-eastus.azurewebsites.net/",
+          "https://tryit.graphexplorerppe.microsoft.com/",
+          "https://tryit.graphexplorer.microsoft.com/"
+        ],
+        "placeholders": {
+          "createdBy": null,
+          "lastModifiedDateTime": null
+        }
+      }
+    },
+    {
+      "id": "sp:615ba484-8879-49fe-9980-a5ae00170083",
+      "type": "SERVICE_PRINCIPAL",
+      "properties": {
+        "objectId": "615ba484-8879-49fe-9980-a5ae00170083",
+        "appId": "06395122-32dd-4b3d-93d5-800f5c4431da",
+        "displayName": "officeatwork Apps",
+        "appDisplayName": "officeatwork Apps",
+        "publisherName": "officeatwork AG",
+        "signInAudience": "AzureADandPersonalMicrosoftAccount",
+        "appOwnerOrganizationId": "bd98d495-3bc0-4049-89d2-66d7c4ac68ed",
+        "createdDateTime": "2025-12-20T13:57:50Z",
+        "replyUrls": [
+          "https://cdn-staging.officeatwork.com/oauth/spa",
+          "https://cdn.officeatwork.com/oauth/spa",
+          "https://cdn-staging.officeatwork.com/oauth/index.html",
+          "https://cdn.officeatwork.com/oauth/index.html",
+          "brk-multihub://local.officeatwork.com:54005",
+          "brk-multihub://cdn.officeatwork.com",
+          "brk-multihub://local.officeatwork.com:9000",
+          "brk-multihub://apps-test.officeatwork.com",
+          "brk-multihub://cdn-staging.officeatwork.com",
+          "brk-multihub://cdn-test.officeatwork.com",
+          "brk-multihub://cdn.officeatwork365.com",
+          "brk-multihub://local.officeatwork365.com:9000",
+          "brk-multihub://cdn-staging.officeatwork365.com",
+          "brk-multihub://apps-test.officeatwork365.com",
+          "brk-multihub://cdn-test.officeatwork365.com"
+        ],
+        "homepage": "https://www.officeatwork.com",
+        "logoutUrl": null,
+        "tags": [
+          "WindowsAzureActiveDirectoryIntegratedApp"
+        ],
+        "appRoleAssignmentRequired": false,
+        "verifiedPublisher": {
+          "displayName": "officeatwork AG",
+          "verifiedPublisherId": "1130150",
+          "addedDateTime": "2023-07-07T12:50:08Z"
+        },
+        "info": {
+          "termsOfServiceUrl": "https://links.officeatwork.com/officeatwork-licenseterms",
+          "supportUrl": null,
+          "privacyStatementUrl": "https://links.officeatwork.com/officeatwork-privacystatement",
+          "marketingUrl": null,
+          "logoUrl": "https://aadcdn.msftauthimages.net/c1c6b6c8-1gp3p2z0pjgcs5xajd-boto-wwgofk3tbnpvklgcr54/appbranding/fz8b-drot0sehifijbukaimkpjpx4kfe2pomobt3jly/1033/bannerlogo?ts=638243267868662768"
+        },
+        "keyCredentials": [],
+        "passwordCredentials": [],
+        "risk": {
+          "score": 20,
+          "level": "low",
+          "reasons": [
+            {
+              "code": "MULTITENANT_AUDIENCE",
+              "title": "Multi-tenant sign-in audience",
+              "details": "signInAudience=AzureADandPersonalMicrosoftAccount"
+            },
+            {
+              "code": "OFFLINE_ACCESS",
+              "title": "Refresh-token persistence",
+              "details": "Delegated grants include offline_access."
+            }
+          ]
+        },
+        "externalSignals": {
+          "whois": null,
+          "etldPlusOne": null,
+          "dns": null
+        }
+      }
+    },
+    {
+      "id": "app:06395122-32dd-4b3d-93d5-800f5c4431da",
+      "type": "APPLICATION",
+      "properties": {
+        "appId": "06395122-32dd-4b3d-93d5-800f5c4431da",
+        "displayName": "officeatwork Apps",
+        "createdDateTime": null,
+        "signInAudience": "AzureADandPersonalMicrosoftAccount",
+        "replyUrls": [
+          "https://cdn-staging.officeatwork.com/oauth/spa",
+          "https://cdn.officeatwork.com/oauth/spa",
+          "https://cdn-staging.officeatwork.com/oauth/index.html",
+          "https://cdn.officeatwork.com/oauth/index.html",
+          "brk-multihub://local.officeatwork.com:54005",
+          "brk-multihub://cdn.officeatwork.com",
+          "brk-multihub://local.officeatwork.com:9000",
+          "brk-multihub://apps-test.officeatwork.com",
+          "brk-multihub://cdn-staging.officeatwork.com",
+          "brk-multihub://cdn-test.officeatwork.com",
+          "brk-multihub://cdn.officeatwork365.com",
+          "brk-multihub://local.officeatwork365.com:9000",
+          "brk-multihub://cdn-staging.officeatwork365.com",
+          "brk-multihub://apps-test.officeatwork365.com",
+          "brk-multihub://cdn-test.officeatwork365.com"
+        ],
+        "placeholders": {
+          "createdBy": null,
+          "lastModifiedDateTime": null
+        }
+      }
+    },
+    {
+      "id": "user:63644dda-bdaa-415b-b102-dbf93d2fdea2",
+      "type": "USER",
+      "properties": {
+        "objectId": "63644dda-bdaa-415b-b102-dbf93d2fdea2",
+        "displayName": "Joe Bloggs",
+        "userPrincipalName": "JoeBloggs@Cirriustech.onmicrosoft.com"
+      }
+    },
+    {
+      "id": "sp:d9593966-6d7a-471d-a539-751b5706aa60",
+      "type": "SERVICE_PRINCIPAL",
+      "properties": {
+        "objectId": "d9593966-6d7a-471d-a539-751b5706aa60",
+        "appId": "328c7390-2221-4078-b779-b99b11772335",
+        "displayName": "Lucid",
+        "appDisplayName": "Lucid",
+        "publisherName": "Microsoft Accounts",
+        "signInAudience": "AzureADandPersonalMicrosoftAccount",
+        "appOwnerOrganizationId": "9188040d-6c67-4c5b-b112-36a304b66dad",
+        "createdDateTime": "2025-12-20T14:15:58Z",
+        "replyUrls": [
+          "https://lucid.app/oneDriveRedirect",
+          "https://lucid.app/users/linkToMicrosoft",
+          "https://lucid.app/de/users/microsoftLoggedIn",
+          "https://lucid.app/es/users/microsoftLoggedIn",
+          "https://lucid.app/es-LA/users/microsoftLoggedIn",
+          "https://lucid.app/fr/users/microsoftLoggedIn",
+          "https://lucid.app/fr-FR/users/microsoftLoggedIn",
+          "https://lucid.app/nl/users/microsoftLoggedIn",
+          "https://lucid.app/pt/users/microsoftLoggedIn",
+          "https://lucid.app/pt-BR/users/microsoftLoggedIn",
+          "https://lucid.app/ja/users/microsoftLoggedIn",
+          "https://lucid.app/ru/users/microsoftLoggedIn",
+          "https://lucid.app/it/users/microsoftLoggedIn",
+          "https://lucid.app/users/microsoftLoggedIn",
+          "https://admin.lucid.app/oneDriveRedirect",
+          "https://admin.lucid.app/linkToMicrosoft",
+          "https://admin.lucid.app/de/users/microsoftLoggedIn",
+          "https://admin.lucid.app/es/users/microsoftLoggedIn",
+          "https://admin.lucid.app/es-LA/users/microsoftLoggedIn",
+          "https://admin.lucid.app/fr/users/microsoftLoggedIn",
+          "https://admin.lucid.app/fr-FR/users/microsoftLoggedIn",
+          "https://admin.lucid.app/nl/users/microsoftLoggedIn",
+          "https://admin.lucid.app/pt/users/microsoftLoggedIn",
+          "https://admin.lucid.app/pt-BR/users/microsoftLoggedIn",
+          "https://admin.lucid.app/ja/users/microsoftLoggedIn",
+          "https://admin.lucid.app/ru/users/microsoftLoggedIn",
+          "https://admin.lucid.app/it/users/microsoftLoggedIn",
+          "https://admin.lucid.app/users/microsoftLoggedIn"
+        ],
+        "homepage": "https://lucid.co",
+        "logoutUrl": "https://lucid.app/users/logout",
+        "tags": [
+          "WindowsAzureActiveDirectoryIntegratedApp"
+        ],
+        "appRoleAssignmentRequired": false,
+        "verifiedPublisher": {
+          "displayName": null,
+          "verifiedPublisherId": null,
+          "addedDateTime": null
+        },
+        "info": {
+          "termsOfServiceUrl": "https://lucid.co/tos",
+          "supportUrl": null,
+          "privacyStatementUrl": "https://lucid.co/privacy",
+          "marketingUrl": null,
+          "logoUrl": "https://secure.aadcdn.microsoftonline-p.com/dbd5a2dd-otrskziqqxxsssdghj7jjfrifoprytjmtmfdfhco0ss/appbranding/rmknkpuhfbyynopnt1omozgfib7vqqn7g6w0eyy-kqm/1033/bannerlogo?ts=637339027650139654"
+        },
+        "keyCredentials": [],
+        "passwordCredentials": [],
+        "risk": {
+          "score": 35,
+          "level": "low",
+          "reasons": [
+            {
+              "code": "UNVERIFIED_PUBLISHER",
+              "title": "Unverified publisher",
+              "details": "Service principal has no verifiedPublisherId."
+            },
+            {
+              "code": "MULTITENANT_AUDIENCE",
+              "title": "Multi-tenant sign-in audience",
+              "details": "signInAudience=AzureADandPersonalMicrosoftAccount"
+            }
+          ]
+        },
+        "externalSignals": {
+          "whois": null,
+          "etldPlusOne": null,
+          "dns": null
+        }
+      }
+    },
+    {
+      "id": "app:328c7390-2221-4078-b779-b99b11772335",
+      "type": "APPLICATION",
+      "properties": {
+        "appId": "328c7390-2221-4078-b779-b99b11772335",
+        "displayName": "Lucid",
+        "createdDateTime": null,
+        "signInAudience": "AzureADandPersonalMicrosoftAccount",
+        "replyUrls": [
+          "https://lucid.app/oneDriveRedirect",
+          "https://lucid.app/users/linkToMicrosoft",
+          "https://lucid.app/de/users/microsoftLoggedIn",
+          "https://lucid.app/es/users/microsoftLoggedIn",
+          "https://lucid.app/es-LA/users/microsoftLoggedIn",
+          "https://lucid.app/fr/users/microsoftLoggedIn",
+          "https://lucid.app/fr-FR/users/microsoftLoggedIn",
+          "https://lucid.app/nl/users/microsoftLoggedIn",
+          "https://lucid.app/pt/users/microsoftLoggedIn",
+          "https://lucid.app/pt-BR/users/microsoftLoggedIn",
+          "https://lucid.app/ja/users/microsoftLoggedIn",
+          "https://lucid.app/ru/users/microsoftLoggedIn",
+          "https://lucid.app/it/users/microsoftLoggedIn",
+          "https://lucid.app/users/microsoftLoggedIn",
+          "https://admin.lucid.app/oneDriveRedirect",
+          "https://admin.lucid.app/linkToMicrosoft",
+          "https://admin.lucid.app/de/users/microsoftLoggedIn",
+          "https://admin.lucid.app/es/users/microsoftLoggedIn",
+          "https://admin.lucid.app/es-LA/users/microsoftLoggedIn",
+          "https://admin.lucid.app/fr/users/microsoftLoggedIn",
+          "https://admin.lucid.app/fr-FR/users/microsoftLoggedIn",
+          "https://admin.lucid.app/nl/users/microsoftLoggedIn",
+          "https://admin.lucid.app/pt/users/microsoftLoggedIn",
+          "https://admin.lucid.app/pt-BR/users/microsoftLoggedIn",
+          "https://admin.lucid.app/ja/users/microsoftLoggedIn",
+          "https://admin.lucid.app/ru/users/microsoftLoggedIn",
+          "https://admin.lucid.app/it/users/microsoftLoggedIn",
+          "https://admin.lucid.app/users/microsoftLoggedIn"
+        ],
+        "placeholders": {
+          "createdBy": null,
+          "lastModifiedDateTime": null
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "sp:2d41e3f0-0fa6-42da-a820-abecfb0d71a6",
+      "target": "app:14d82eec-204b-4c2f-b7e8-296a70dab67e",
+      "type": "INSTANCE_OF",
+      "properties": {}
+    },
+    {
+      "source": "sp:2d41e3f0-0fa6-42da-a820-abecfb0d71a6",
+      "target": "sp:8749cf44-2fc9-4fee-bc76-cbaac00bae98",
+      "type": "HAS_SCOPE",
+      "properties": {
+        "scopes": [
+          "AuditLog.Read.All",
+          "CrossTenantInformation.ReadBasic.All",
+          "DeviceManagementApps.Read.All",
+          "DeviceManagementConfiguration.Read.All",
+          "DeviceManagementManagedDevices.Read.All",
+          "DeviceManagementRBAC.Read.All",
+          "DeviceManagementServiceConfig.Read.All",
+          "Directory.Read.All",
+          "DirectoryRecommendations.Read.All",
+          "EntitlementManagement.Read.All",
+          "IdentityRiskEvent.Read.All",
+          "IdentityRiskyUser.Read.All",
+          "Policy.Read.All",
+          "Policy.Read.ConditionalAccess",
+          "Policy.Read.PermissionGrant",
+          "PrivilegedAccess.Read.AzureAD",
+          "Reports.Read.All",
+          "RoleEligibilitySchedule.Read.Directory",
+          "RoleEligibilitySchedule.ReadWrite.Directory",
+          "RoleManagement.Read.All",
+          "SharePointTenantSettings.Read.All",
+          "User.Read",
+          "UserAuthenticationMethod.Read.All",
+          "offline_access",
+          "openid",
+          "profile"
+        ]
+      }
+    },
+    {
+      "source": "sp:2d41e3f0-0fa6-42da-a820-abecfb0d71a6",
+      "target": "sp:8749cf44-2fc9-4fee-bc76-cbaac00bae98",
+      "type": "HAS_OFFLINE_ACCESS",
+      "properties": {
+        "resourceId": "8749cf44-2fc9-4fee-bc76-cbaac00bae98"
+      }
+    },
+    {
+      "source": "user:5ef040da-fada-4fa2-9398-c0adb46af0d3",
+      "target": "sp:2d41e3f0-0fa6-42da-a820-abecfb0d71a6",
+      "type": "ASSIGNED_TO",
+      "properties": {
+        "appRoleId": "00000000-0000-0000-0000-000000000000"
+      }
+    },
+    {
+      "source": "sp:42510949-ada1-4587-9c66-7cd091aab9ae",
+      "target": "app:de8bc8b5-d9f9-48b1-a8ad-b748da725064",
+      "type": "INSTANCE_OF",
+      "properties": {}
+    },
+    {
+      "source": "sp:42510949-ada1-4587-9c66-7cd091aab9ae",
+      "target": "sp:8749cf44-2fc9-4fee-bc76-cbaac00bae98",
+      "type": "HAS_SCOPE",
+      "properties": {
+        "scopes": [
+          "Application.Read.All",
+          "Application.ReadWrite.All",
+          "Directory.Read.All",
+          "Directory.ReadWrite.All",
+          "User.Read",
+          "offline_access",
+          "openid",
+          "profile"
+        ]
+      }
+    },
+    {
+      "source": "sp:42510949-ada1-4587-9c66-7cd091aab9ae",
+      "target": "sp:8749cf44-2fc9-4fee-bc76-cbaac00bae98",
+      "type": "HAS_OFFLINE_ACCESS",
+      "properties": {
+        "resourceId": "8749cf44-2fc9-4fee-bc76-cbaac00bae98"
+      }
+    },
+    {
+      "source": "user:5ef040da-fada-4fa2-9398-c0adb46af0d3",
+      "target": "sp:42510949-ada1-4587-9c66-7cd091aab9ae",
+      "type": "ASSIGNED_TO",
+      "properties": {
+        "appRoleId": "00000000-0000-0000-0000-000000000000"
+      }
+    },
+    {
+      "source": "sp:615ba484-8879-49fe-9980-a5ae00170083",
+      "target": "app:06395122-32dd-4b3d-93d5-800f5c4431da",
+      "type": "INSTANCE_OF",
+      "properties": {}
+    },
+    {
+      "source": "sp:615ba484-8879-49fe-9980-a5ae00170083",
+      "target": "sp:8749cf44-2fc9-4fee-bc76-cbaac00bae98",
+      "type": "HAS_SCOPE",
+      "properties": {
+        "scopes": [
+          "User.Read",
+          "offline_access",
+          "openid",
+          "profile"
+        ]
+      }
+    },
+    {
+      "source": "sp:615ba484-8879-49fe-9980-a5ae00170083",
+      "target": "sp:8749cf44-2fc9-4fee-bc76-cbaac00bae98",
+      "type": "HAS_OFFLINE_ACCESS",
+      "properties": {
+        "resourceId": "8749cf44-2fc9-4fee-bc76-cbaac00bae98"
+      }
+    },
+    {
+      "source": "user:63644dda-bdaa-415b-b102-dbf93d2fdea2",
+      "target": "sp:615ba484-8879-49fe-9980-a5ae00170083",
+      "type": "ASSIGNED_TO",
+      "properties": {
+        "appRoleId": "00000000-0000-0000-0000-000000000000"
+      }
+    },
+    {
+      "source": "sp:d9593966-6d7a-471d-a539-751b5706aa60",
+      "target": "app:328c7390-2221-4078-b779-b99b11772335",
+      "type": "INSTANCE_OF",
+      "properties": {}
+    },
+    {
+      "source": "sp:d9593966-6d7a-471d-a539-751b5706aa60",
+      "target": "sp:8749cf44-2fc9-4fee-bc76-cbaac00bae98",
+      "type": "HAS_SCOPE",
+      "properties": {
+        "scopes": [
+          "email",
+          "openid",
+          "profile"
+        ]
+      }
+    },
+    {
+      "source": "user:5ef040da-fada-4fa2-9398-c0adb46af0d3",
+      "target": "sp:d9593966-6d7a-471d-a539-751b5706aa60",
+      "type": "ASSIGNED_TO",
+      "properties": {
+        "appRoleId": "00000000-0000-0000-0000-000000000000"
+      }
+    }
+  ]
+}
