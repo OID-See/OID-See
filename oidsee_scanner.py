@@ -45,6 +45,7 @@ from azure.identity import ClientSecretCredential, DeviceCodeCredential
 
 GRAPH_BETA = "https://graph.microsoft.com/beta"
 GRAPH_V1 = "https://graph.microsoft.com/v1.0"
+AZURE_CLI_CLIENT_ID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
 
 
 # -----------------------------
@@ -62,8 +63,9 @@ class GraphClient:
         self.credential = DeviceCodeCredential(
             tenant_id=self.tenant_id,
             client_id=client_id,
-            prompt_callback=lambda dc: print(dc["message"], file=sys.stderr),
+            timeout=900,
         )
+        print("Requesting device code for interactive login...", file=sys.stderr)
         # prime token
         _ = self._get_token()
         print(f"✓ Authenticated via device code for client_id={client_id}", file=sys.stderr)
@@ -376,13 +378,13 @@ class OidSeeCollector:
 
     def fetch_app_role_assignments(self, client_sp_id: str) -> List[Dict[str, Any]]:
         # application permissions granted to this service principal
-        select = "id,appRoleId,principalId,resourceId,createdDateTime"
+        select = "id,appRoleId,principalId,resourceId"
         url = f"{GRAPH_BETA}/servicePrincipals/{client_sp_id}/appRoleAssignments?$select={select}"
         return self.graph.get_paged(url)
 
     def fetch_app_role_assigned_to(self, sp_id: str) -> List[Dict[str, Any]]:
         # principals assigned to this app
-        select = "id,appRoleId,principalId,resourceId,createdDateTime"
+        select = "id,appRoleId,principalId,resourceId"
         url = f"{GRAPH_BETA}/servicePrincipals/{sp_id}/appRoleAssignedTo?$select={select}"
         return self.graph.get_paged(url)
 
@@ -393,7 +395,7 @@ class OidSeeCollector:
 
     def fetch_directory_role_assignments_to_principal(self, principal_id: str) -> List[Dict[str, Any]]:
         # roleManagement API (v1.0)
-        select = "id,principalId,roleDefinitionId,directoryScopeId,appScopeId,createdDateTime"
+        select = "id,principalId,roleDefinitionId,directoryScopeId"
         url = f"{GRAPH_V1}/roleManagement/directory/roleAssignments?$filter=principalId eq '{principal_id}'&$select={select}"
         return self.graph.get_paged(url)
 
@@ -735,8 +737,8 @@ class OidSeeCollector:
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="OID-See Graph Scanner (Graph-only)")
     p.add_argument("--tenant-id", required=True, help="Tenant ID (GUID) to authenticate against")
-    p.add_argument("--device-code-client-id", help="Public client app id for device code auth (delegated)")
-    p.add_argument("--client-id", help="Client id for client secret auth")
+    p.add_argument("--device-code-client-id", help="Public client app id for device code auth (delegated)", default=AZURE_CLI_CLIENT_ID)
+    p.add_argument("--client-id", help="Client id for client secret auth (defaults to Azure CLI client id)")
     p.add_argument("--client-secret", help="Client secret for client secret auth")
     p.add_argument("--out", default="oidsee-export.json", help="Output JSON file path")
     p.add_argument("--include-first-party", action="store_true", help="Include Microsoft-first-party apps (heuristic)")
@@ -749,13 +751,12 @@ def main() -> int:
     args = parse_args()
 
     graph = GraphClient(args.tenant_id)
-    if args.client_id and args.client_secret:
-        graph.authenticate_client_secret(args.client_id, args.client_secret)
-    elif args.device_code_client_id:
-        graph.authenticate_device_code(args.device_code_client_id)
+    if args.client_secret:
+        cid = args.client_id or AZURE_CLI_CLIENT_ID
+        graph.authenticate_client_secret(cid, args.client_secret)
     else:
-        print("ERROR: Provide either --device-code-client-id or --client-id/--client-secret", file=sys.stderr)
-        return 2
+        cid = args.device_code_client_id or AZURE_CLI_CLIENT_ID
+        graph.authenticate_device_code(cid)
 
     opts = CollectOptions(
         include_all_service_principals=bool(args.include_all_sps),
