@@ -22,6 +22,48 @@ A lightweight Microsoft Graph scanner that builds an OID-See export for your Ent
 - Robust HTTP handling with exponential backoff + jitter for throttling; graceful handling of missing objects.
 - Category‑level progress logs to stderr (no per‑item spam).
 
+## Enhanced Features (New)
+
+### Credential Hygiene Analysis
+The scanner now performs comprehensive analysis of application and service principal credentials:
+- **Password Credentials**: Client secrets with validity periods
+- **Key Credentials**: X.509 certificates for authentication
+- **Federated Identity Credentials**: Workload identity federation configurations
+
+**Insights Generated:**
+- **Long-lived secrets**: Identifies secrets with lifetimes exceeding 180 days
+- **Expired credentials**: Detects credentials that have expired but remain in the configuration
+- **Multiple active secrets**: Flags applications with more than 3 active credentials
+- **Certificate expiry warnings**: Alerts when certificates expire within 30 days
+
+All insights are included in the `credentialInsights` property of ServicePrincipal nodes and contribute to risk scoring.
+
+### Reply URL Security Analysis
+Comprehensive analysis of OAuth2 redirect URIs to detect security issues:
+- **Non-HTTPS schemes**: Identifies insecure HTTP redirect URIs
+- **IP literals**: Detects IP addresses in redirect URIs (potential bypasses)
+- **Localhost URLs**: Identifies development/test configurations in production apps
+- **Punycode domains**: Detects internationalized domain names (potential homograph attacks)
+- **Domain clustering**: Groups reply URLs by registrable domain (eTLD+1)
+
+Results are available in the `replyUrlAnalysis` property and contribute to risk scoring.
+
+### Permission Resolution
+OAuth2 scopes and app roles are now resolved to human-readable details:
+- **OAuth2 Scopes**: Includes displayName, description, admin/user consent information
+- **App Roles**: Includes displayName, description, and allowedMemberTypes
+- **Resource Identification**: Clearly identifies the resource API for each permission
+
+Resolved details are included in edge properties for `HAS_SCOPES`, `HAS_PRIVILEGED_SCOPES`, `HAS_TOO_MANY_SCOPES`, and `HAS_APP_ROLE` edges.
+
+### Trust Signals
+Enhanced identity and trust indicators in ServicePrincipal nodes:
+- **Identity Laundering Detection**: Flags applications with reply URLs from domains not aligned with declared homepage/branding
+- **Mixed Domain Analysis**: Identifies applications using multiple registrable domains
+- **Non-aligned Domains**: Lists domains that don't match the application's declared identity
+
+Trust signals are available in the `trustSignals` property of ServicePrincipal nodes.
+
 ## Prerequisites
 - Python 3.12+
 - Install dependencies:
@@ -94,10 +136,21 @@ Scoring is additive (capped 0–100) and mapped to levels: info/low/medium/high/
     - strong: −30, moderate: −15, weak: −5
   - No owners: +15
   - Deception (unverified publisher + display/publisher mismatch): +20
-  - **`MIXED_REPLYURL_DOMAINS` (heuristic, non-blocking)**: Detects potential attribution ambiguities or identity laundering signals by analyzing reply URL domains
+  - **`MIXED_REPLYURL_DOMAINS`**: Detects potential attribution ambiguities or identity laundering signals
     - Identity laundering signal: +15 (reply URLs use domains not aligned with homepage/branding)
     - Attribution ambiguity: +5 (multiple distinct domains, all aligned with homepage/branding)
   - Legacy (created before July 2025): +10
+
+- Credential Hygiene (New):
+  - **Long-lived secrets**: +10 (secrets with lifetime >180 days)
+  - **Expired credentials**: +5 (expired credentials still present)
+  - **Multiple active secrets**: +5 (more than 3 active credentials)
+  - **Certificate expiring soon**: +8 (certificate expires within 30 days)
+
+- Reply URL Anomalies (New):
+  - **Non-HTTPS URLs**: +10 (insecure redirect URIs)
+  - **IP literals**: +12 (IP addresses in redirect URIs)
+  - **Punycode domains**: +8 (internationalized domain names)
 
 Risk reasons include codes, messages, and weights; score level is derived from the final score.
 

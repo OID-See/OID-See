@@ -10,8 +10,12 @@ This repo includes the full JSON Schema at:
 
 ### Features
 - **Interactive Graph Visualization**: Explore relationships between service principals, applications, users, and permissions
-- **Risk Scoring**: Automatic risk assessment based on permissions, exposure, and governance
-- **Security Heuristics**: Including the new `MIXED_REPLYURL_DOMAINS` heuristic for detecting attribution ambiguities and identity laundering signals
+- **Risk Scoring**: Automatic risk assessment based on permissions, exposure, governance, and security hygiene
+- **Security Heuristics**: 
+  - **Identity Laundering Detection**: Detects applications with reply URLs from domains not aligned with declared identity
+  - **Credential Hygiene Analysis**: Identifies long-lived secrets, expired credentials, and certificate rollover issues
+  - **Reply URL Security**: Flags non-HTTPS, IP literals, and punycode domains in redirect URIs
+  - **Permission Resolution**: Human-readable OAuth2 scope and app role descriptions
 - **Advanced Filtering**: Filter nodes and edges using a powerful query syntax
 - **Multiple Lenses**: View full graph, risk-focused, or structural relationships
 

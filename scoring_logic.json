@@ -91,6 +91,24 @@
         "attribution_ambiguity_weight": 5,
         "attribution_ambiguity_description": "Attribution ambiguity: multiple distinct domains in reply URLs"
       },
+      "CREDENTIAL_HYGIENE": {
+        "long_lived_secret_weight": 10,
+        "long_lived_secret_description": "Long-lived secrets detected (>180 days)",
+        "expired_credential_weight": 5,
+        "expired_credential_description": "Expired credentials still present",
+        "multiple_active_secrets_weight": 5,
+        "multiple_active_secrets_description": "Multiple active secrets detected",
+        "certificate_expiring_weight": 8,
+        "certificate_expiring_description": "Certificate expiring within 30 days"
+      },
+      "REPLY_URL_ANOMALIES": {
+        "non_https_weight": 10,
+        "non_https_description": "Non-HTTPS reply URLs detected",
+        "ip_literal_weight": 12,
+        "ip_literal_description": "IP literal in reply URLs",
+        "punycode_weight": 8,
+        "punycode_description": "Punycode (IDN) domains in reply URLs"
+      },
       "LEGACY": {
         "weight": 10,
         "description": "App created before July 2025"
