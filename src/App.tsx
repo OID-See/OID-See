@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { GraphCanvas, Selection } from './components/GraphCanvas'
+import { useEffect, useMemo, useState, useRef } from 'react'
+import { GraphCanvas, Selection, GraphCanvasHandle } from './components/GraphCanvas'
 import { toVisData, VisData } from './adapters/toVisData'
 import sampleObj from './samples/sample-oidsee-graph.json'
 import { DetailsPanel } from './components/DetailsPanel'
@@ -162,6 +162,7 @@ export default function App() {
   const [lens, setLens] = useState<Lens>('full')
   const [pathAware, setPathAware] = useState<boolean>(true)
   const [saved, setSaved] = useState<SavedQuery[]>([])
+  const graphRef = useRef<GraphCanvasHandle>(null)
 
   useEffect(() => {
     setSaved(loadSaved())
@@ -252,6 +253,14 @@ export default function App() {
     }
   }
 
+  function handleFocus(sel: Selection) {
+    if (sel.kind === 'node') {
+      graphRef.current?.focusNode(sel.id)
+    } else if (sel.kind === 'edge') {
+      graphRef.current?.focusEdge(sel.id)
+    }
+  }
+
   return (
     <div className="app">
       <header className="topbar">
@@ -338,7 +347,7 @@ export default function App() {
         <section className="panel panel--graph">
           <div className="panel__title">Graph</div>
           {filtered ? (
-            <GraphCanvas nodes={filtered.nodes} edges={filtered.edges} onSelection={setSelection} />
+            <GraphCanvas ref={graphRef} nodes={filtered.nodes} edges={filtered.edges} onSelection={setSelection} />
           ) : (
             <div className="empty">
               <div className="empty__title">No graph yet</div>
@@ -349,7 +358,7 @@ export default function App() {
 
         <section className="panel panel--details">
           <div className="panel__title">Details</div>
-          <DetailsPanel selection={selection} />
+          <DetailsPanel selection={selection} onFocus={handleFocus} />
         </section>
       </main>
 
