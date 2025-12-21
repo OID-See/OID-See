@@ -5,6 +5,23 @@ function entries(obj: Record<string, any>) {
   return Object.entries(obj ?? {})
 }
 
+function formatValue(v: unknown): string {
+  if (v === null) return 'null'
+  if (v === undefined) return 'undefined'
+  if (typeof v === 'string') return v
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
+  if (typeof v === 'object') {
+    // For objects and arrays, show as formatted JSON
+    try {
+      return JSON.stringify(v, null, 2)
+    } catch (error) {
+      // Fallback for circular references or non-serializable values
+      return String(v)
+    }
+  }
+  return String(v)
+}
+
 function Badge({ children }: { children: any }) {
   return <span className="badge">{children}</span>
 }
@@ -101,7 +118,7 @@ export function DetailsPanel({
               {entries(o.properties).slice(0, 50).map(([k, v]) => (
                 <tr key={k}>
                   <td className="muted">{k}</td>
-                  <td className="mono">{String(v)}</td>
+                  <td className="mono" style={{ whiteSpace: 'pre-wrap' }}>{formatValue(v)}</td>
                 </tr>
               ))}
             </tbody>
