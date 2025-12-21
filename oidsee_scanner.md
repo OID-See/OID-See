@@ -94,6 +94,9 @@ Scoring is additive (capped 0–100) and mapped to levels: info/low/medium/high/
     - strong: −30, moderate: −15, weak: −5
   - No owners: +15
   - Deception (unverified publisher + display/publisher mismatch): +20
+  - **`MIXED_REPLYURL_DOMAINS` (heuristic, non-blocking)**: Detects potential attribution ambiguities or identity laundering signals by analyzing reply URL domains
+    - Identity laundering signal: +15 (reply URLs use domains not aligned with homepage/branding)
+    - Attribution ambiguity: +5 (multiple distinct domains, all aligned with homepage/branding)
   - Legacy (created before July 2025): +10
 
 Risk reasons include codes, messages, and weights; score level is derived from the final score.
@@ -118,6 +121,72 @@ The scanner prints category‑level progress logs to stderr:
 - To include more apps, use `--include-first-party` or `--include-single-tenant`, or override filters with `--include-all-sps`.
 - For noisy tenants or strict throttling, increase `--max-retries` and `--retry-base-delay` modestly.
 - For minimum output noise, redirect stderr to a file if desired.
+
+## MIXED_REPLYURL_DOMAINS Heuristic (Detailed)
+
+The `MIXED_REPLYURL_DOMAINS` heuristic is a non-blocking rule that evaluates reply URLs to identify potential attribution ambiguities or identity laundering signals.
+
+### Purpose
+This heuristic helps detect scenarios where:
+1. **Identity Laundering**: An application uses reply URLs from domains that don't align with its declared homepage or branding (e.g., `info.marketingUrl`), potentially indicating malicious redirection or phishing attempts.
+2. **Attribution Ambiguity**: An application legitimately uses multiple domains but may cause confusion about which organization operates it.
+
+### Detection Logic
+1. Extract the eTLD+1 (effective top-level domain plus one, also known as the registrable domain) from all reply URLs.
+2. Identify distinct registrable domains among the reply URLs.
+3. Compare these domains against reference domains from:
+   - `homepage`
+   - `info.marketingUrl`
+   - `info.privacyStatementUrl`
+   - `info.termsOfServiceUrl`
+
+### Signal Types and Weights
+
+#### 🟠 Identity Laundering Signal (+15 points)
+Raised when:
+- There is more than one distinct registrable domain among reply URLs, AND
+- At least one domain does NOT align with the homepage or branding configurations
+
+**Example:**
+```
+replyUrls: ["https://app.contoso.com/callback", "https://evil.com/steal"]
+homepage: "https://www.contoso.com"
+→ evil.com is not aligned → Identity Laundering Signal
+```
+
+#### 🟡 Attribution Ambiguity (+5 points)
+Raised when:
+- There is more than one distinct registrable domain among reply URLs, AND
+- All domains align with homepage or branding configurations
+
+**Example:**
+```
+replyUrls: ["https://app.contoso.com/callback", "https://api.contoso.net/oauth"]
+homepage: "https://www.contoso.com"
+info.marketingUrl: "https://contoso.net"
+→ Both domains aligned → Attribution Ambiguity
+```
+
+#### ❌ Not Flagged
+- Single domain across all reply URLs
+- Empty or invalid reply URLs
+- Localhost/IP addresses (filtered out)
+
+### Use Cases
+- **Security Teams**: Identify potentially malicious applications using legitimate-looking primary domains but redirecting to suspicious secondary domains.
+- **Compliance Teams**: Detect multi-domain configurations that may violate organizational policies or create confusion for end users.
+- **Application Owners**: Understand when their application's reply URL configuration may appear suspicious and requires documentation or remediation.
+
+### Configuration
+Weights can be customized in `scoring_logic.json`:
+```json
+"MIXED_REPLYURL_DOMAINS": {
+  "identity_laundering_weight": 15,
+  "identity_laundering_description": "Identity laundering signal: reply URLs use domains not aligned with homepage/branding",
+  "attribution_ambiguity_weight": 5,
+  "attribution_ambiguity_description": "Attribution ambiguity: multiple distinct domains in reply URLs"
+}
+```
 
 ## License
 See the repository’s license files for terms.
