@@ -34,6 +34,8 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
+import re
 import sys
 import time
 from dataclasses import dataclass
@@ -47,6 +49,167 @@ from azure.identity import ClientSecretCredential, DeviceCodeCredential
 GRAPH_BETA = "https://graph.microsoft.com/beta"
 GRAPH_V1 = "https://graph.microsoft.com/v1.0"
 AZURE_CLI_CLIENT_ID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
+
+# -----------------------------
+# Scoring configuration loader
+# -----------------------------
+
+# Fallback defaults in case JSON file is missing or malformed
+DEFAULT_SCORING_CONFIG = {
+    "classify_app_role_value": {
+        "weights": {
+            "high_write_markers": 50,
+            "high_read_markers": 25,
+            "default": 35
+        },
+        "markers": {
+            "high_write_markers": [
+                "directory.readwrite",
+                "directory.access",
+                "rolemanagement.readwrite",
+                "mail.readwrite",
+                "files.readwrite",
+                "sites.fullcontrol",
+                "sites.readwrite",
+                "group.readwrite",
+                "reports.readwrite",
+                "device.readwrite",
+                "user.readwrite"
+            ],
+            "high_read_markers": [
+                "directory.read.all",
+                "auditlog.read",
+                "mail.read",
+                "files.read",
+                "sites.read",
+                "group.read.all",
+                "reports.read.all",
+                "user.read.all"
+            ]
+        }
+    },
+    "classify_scopes": {
+        "scope_classifications": {
+            "too_broad": {
+                "condition": "scope ends with '.All'",
+                "edge_type": "HAS_TOO_MANY_SCOPES",
+                "classification_label": "too_broad"
+            },
+            "privileged": {
+                "condition": "scope contains 'write' or 'readwrite'",
+                "edge_type": "HAS_PRIVILEGED_SCOPES",
+                "classification_label": "privileged"
+            },
+            "regular": {
+                "edge_type": "HAS_SCOPES",
+                "classification_label": "regular"
+            }
+        }
+    },
+    "compute_risk_for_sp": {
+        "scoring_contributors": {
+            "CAN_IMPERSONATE": {
+                "weight": 40,
+                "description": "Delegated impersonation markers present (access_as_user/user_impersonation)"
+            },
+            "HAS_APP_ROLE": {
+                "weight": 35,
+                "description": "Application permissions (app roles) granted"
+            },
+            "HAS_PRIVILEGED_SCOPES": {
+                "weight": 20,
+                "description": "Privileged delegated scopes granted"
+            },
+            "HAS_TOO_MANY_SCOPES": {
+                "weight": 15,
+                "description": "Delegated consent is overly broad"
+            },
+            "PERSISTENCE": {
+                "weight": 15,
+                "description": "offline_access delegated grant allows refresh tokens"
+            },
+            "ASSIGNED_TO": {
+                "reachable_users_thresholds": [
+                    {"threshold": 100, "weight": 25},
+                    {"threshold": 20, "weight": 15},
+                    {"threshold": 5, "weight": 10},
+                    {"threshold": 0, "weight": 5}
+                ],
+                "description": "App is assigned to principals approximating accessible users"
+            },
+            "BROAD_REACHABILITY": {
+                "weight": 15,
+                "description": "No assignments but appRoleAssignmentRequired=false implies broad reach"
+            },
+            "PRIVILEGE": {
+                "base_weight": 10,
+                "per_role_weight": 5,
+                "max_weight": 30,
+                "description": "Directory roles reachable from app depends on assignments"
+            },
+            "DECEPTION": {
+                "weight": 20,
+                "description": "Unverified publisher with name mismatch between publisher and display name"
+            },
+            "LEGACY": {
+                "weight": 10,
+                "description": "App created before July 2025",
+                "cutoff_date": "2025-07-01T00:00:00Z"
+            },
+            "NO_OWNERS": {
+                "weight": 15,
+                "description": "No owners found for application"
+            },
+            "GOVERNANCE": {
+                "weight": 5,
+                "description": "Assignments not required for app governance"
+            },
+            "GOVERNANCE_UNKNOWN": {
+                "weight": 3,
+                "description": "Assignment requirement unknown"
+            }
+        },
+        "final_score_limitation": {
+            "min_max_clamping": {
+                "minimum_allowed_score": 0,
+                "maximum_allowed_score": 100
+            },
+            "score_buckets": {
+                "critical": 85,
+                "high": 60,
+                "medium": 35,
+                "low": 15
+            }
+        }
+    }
+}
+
+def load_scoring_config(config_path: str = "scoring_logic.json") -> Dict[str, Any]:
+    """
+    Load scoring configuration from JSON file with error handling.
+    Falls back to hardcoded defaults if file is missing or malformed.
+    """
+    # Try to find the config file relative to this script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    config_file = os.path.join(script_dir, config_path)
+    
+    try:
+        with open(config_file, "r", encoding="utf-8") as f:
+            config = json.load(f)
+            print(f"✓ Loaded scoring configuration from {config_path}", file=sys.stderr)
+            return config
+    except FileNotFoundError:
+        print(f"⚠️  Scoring config file '{config_path}' not found, using defaults", file=sys.stderr)
+        return DEFAULT_SCORING_CONFIG
+    except json.JSONDecodeError as e:
+        print(f"⚠️  Invalid JSON in '{config_path}': {e}, using defaults", file=sys.stderr)
+        return DEFAULT_SCORING_CONFIG
+    except Exception as e:
+        print(f"⚠️  Error loading '{config_path}': {e}, using defaults", file=sys.stderr)
+        return DEFAULT_SCORING_CONFIG
+
+# Load the scoring configuration at module level
+SCORING_CONFIG = load_scoring_config()
 
 
 # -----------------------------
@@ -286,41 +449,38 @@ IMPERSONATION_MARKERS = {"user_impersonation", "access_as_user"}
 
 
 def classify_app_role_value(name: Optional[str]) -> int:
+    """Classify app role value based on loaded configuration."""
+    config = SCORING_CONFIG.get("classify_app_role_value", {})
+    weights = config.get("weights", {})
+    markers = config.get("markers", {})
+    
+    default_weight = weights.get("default", 35)
+    
     if not name:
-        return 35
+        return default_weight
+    
     n = name.lower()
-    high_write_markers = [
-        "directory.readwrite",
-        "directory.access",
-        "rolemanagement.readwrite",
-        "mail.readwrite",
-        "files.readwrite",
-        "sites.fullcontrol",
-        "sites.readwrite",
-        "group.readwrite",
-        "reports.readwrite",
-        "device.readwrite",
-        "user.readwrite",
-    ]
-    high_read_markers = [
-        "directory.read.all",
-        "auditlog.read",
-        "mail.read",
-        "files.read",
-        "sites.read",
-        "group.read.all",
-        "reports.read.all",
-        "user.read.all",
-    ]
+    
+    # Check high write markers
+    high_write_markers = markers.get("high_write_markers", [])
+    high_write_weight = weights.get("high_write_markers", 50)
     if any(m in n for m in high_write_markers):
-        return 50
+        return high_write_weight
+    
+    # Check high read markers
+    high_read_markers = markers.get("high_read_markers", [])
+    high_read_weight = weights.get("high_read_markers", 25)
     if any(m in n for m in high_read_markers):
-        return 25
-    return 35
+        return high_read_weight
+    
+    return default_weight
 
 
 def classify_scopes(scopes: Set[str]) -> Dict[str, Any]:
-    """Classify scopes and determine appropriate edge type."""
+    """Classify scopes and determine appropriate edge type based on loaded configuration."""
+    config = SCORING_CONFIG.get("classify_scopes", {})
+    classifications = config.get("scope_classifications", {})
+    
     too_broad = []
     privileged = []
     regular = []
@@ -336,16 +496,20 @@ def classify_scopes(scopes: Set[str]) -> Dict[str, Any]:
         else:
             regular.append(scope)
     
-    # Determine edge type based on classification
+    # Determine edge type based on classification using config
+    too_broad_config = classifications.get("too_broad", {})
+    privileged_config = classifications.get("privileged", {})
+    regular_config = classifications.get("regular", {})
+    
     if too_broad:
-        edge_type = "HAS_TOO_MANY_SCOPES"
-        classification = "too_broad"
+        edge_type = too_broad_config.get("edge_type", "HAS_TOO_MANY_SCOPES")
+        classification = too_broad_config.get("classification_label", "too_broad")
     elif privileged:
-        edge_type = "HAS_PRIVILEGED_SCOPES"
-        classification = "privileged"
+        edge_type = privileged_config.get("edge_type", "HAS_PRIVILEGED_SCOPES")
+        classification = privileged_config.get("classification_label", "privileged")
     else:
-        edge_type = "HAS_SCOPES"
-        classification = "regular"
+        edge_type = regular_config.get("edge_type", "HAS_SCOPES")
+        classification = regular_config.get("classification_label", "regular")
     
     return {
         "edge_type": edge_type,
@@ -367,13 +531,36 @@ def _parse_iso_datetime(value: Optional[str]) -> Optional[dt.datetime]:
 
 
 def _level_from_score(score: int) -> str:
-    if score >= 85:
+    """Determine risk level from score based on loaded configuration."""
+    config = SCORING_CONFIG.get("compute_risk_for_sp", {})
+    score_buckets = config.get("final_score_limitation", {}).get("score_buckets", {})
+    
+    # Handle both numeric and string formats in the JSON
+    def get_threshold(key, default):
+        value = score_buckets.get(key, default)
+        if isinstance(value, str):
+            # Parse strings like "score >= 85" or "85 > score >= 60" to extract the lower bound
+            # Find the last number with >= before it (the lower bound)
+            matches = re.findall(r'>=\s*(\d+)', value)
+            if matches:
+                return int(matches[-1])  # Use the last match (lower bound)
+            # If no >=, try to extract any number
+            matches = re.findall(r'\d+', value)
+            return int(matches[0]) if matches else default
+        return int(value)
+    
+    critical_threshold = get_threshold("critical", 85)
+    high_threshold = get_threshold("high", 60)
+    medium_threshold = get_threshold("medium", 35)
+    low_threshold = get_threshold("low", 15)
+    
+    if score >= critical_threshold:
         return "critical"
-    if score >= 60:
+    if score >= high_threshold:
         return "high"
-    if score >= 35:
+    if score >= medium_threshold:
         return "medium"
-    if score >= 15:
+    if score >= low_threshold:
         return "low"
     return "info"
 
@@ -393,50 +580,76 @@ def compute_risk_for_sp(
     sp_display: str,
     dir_cache: DirectoryCache,
 ) -> Dict[str, Any]:
+    """Compute risk score for service principal based on loaded configuration."""
+    config = SCORING_CONFIG.get("compute_risk_for_sp", {})
+    contributors = config.get("scoring_contributors", {})
+    final_score_config = config.get("final_score_limitation", {})
+    
     score = 0
     reasons: List[Dict[str, Any]] = []
 
+    # CAN_IMPERSONATE
     if has_impersonation:
-        score += 40
-        reasons.append({
-            "code": "CAN_IMPERSONATE",
-            "message": "Delegated impersonation markers present (access_as_user/user_impersonation)",
-            "weight": 40,
-        })
-
-    if app_role_max_weight > 0:
-        weight = max(35, app_role_max_weight)
+        impersonate_config = contributors.get("CAN_IMPERSONATE", {})
+        weight = impersonate_config.get("weight", 40)
+        description = impersonate_config.get("description", "Delegated impersonation markers present")
         score += weight
         reasons.append({
-            "code": "HAS_APP_ROLE",
-            "message": "Application permissions (app roles) granted",
+            "code": "CAN_IMPERSONATE",
+            "message": description,
             "weight": weight,
         })
 
+    # HAS_APP_ROLE
+    if app_role_max_weight > 0:
+        app_role_config = contributors.get("HAS_APP_ROLE", {})
+        min_weight = app_role_config.get("weight", 35)
+        weight = max(min_weight, app_role_max_weight)
+        description = app_role_config.get("description", "Application permissions (app roles) granted")
+        score += weight
+        reasons.append({
+            "code": "HAS_APP_ROLE",
+            "message": description,
+            "weight": weight,
+        })
+
+    # HAS_PRIVILEGED_SCOPES
     if has_privileged_scopes:
-        score += 20
+        privileged_config = contributors.get("HAS_PRIVILEGED_SCOPES", {})
+        weight = privileged_config.get("weight", 20)
+        description = privileged_config.get("description", "Privileged delegated scopes granted")
+        score += weight
         reasons.append({
             "code": "HAS_PRIVILEGED_SCOPES",
-            "message": "Privileged delegated scopes granted",
-            "weight": 20,
+            "message": description,
+            "weight": weight,
         })
 
+    # HAS_TOO_MANY_SCOPES
     if has_too_many_scopes:
-        score += 15
+        too_many_config = contributors.get("HAS_TOO_MANY_SCOPES", {})
+        weight = too_many_config.get("weight", 15)
+        description = too_many_config.get("description", "Delegated consent is overly broad")
+        score += weight
         reasons.append({
             "code": "HAS_TOO_MANY_SCOPES",
-            "message": "Delegated consent is overly broad",
-            "weight": 15,
+            "message": description,
+            "weight": weight,
         })
 
+    # PERSISTENCE (offline_access)
     if has_offline_access:
-        score += 15
+        persistence_config = contributors.get("PERSISTENCE", {})
+        weight = persistence_config.get("weight", 15)
+        description = persistence_config.get("description", "offline_access delegated grant allows refresh tokens")
+        score += weight
         reasons.append({
             "code": "PERSISTENCE",
-            "message": "offline_access delegated grant allows refresh tokens",
-            "weight": 15,
+            "message": description,
+            "weight": weight,
         })
 
+    # ASSIGNED_TO (reachable users)
     reachable_users = 0
     for a in assignments:
         pid = a.get("principalId")
@@ -446,15 +659,24 @@ def compute_risk_for_sp(
             reachable_users += 1
         elif "group" in otype:
             reachable_users += 5
+    
     if reachable_users > 0:
-        if reachable_users > 100:
-            weight = 25
-        elif reachable_users > 20:
-            weight = 15
-        elif reachable_users > 5:
-            weight = 10
-        else:
-            weight = 5
+        assigned_config = contributors.get("ASSIGNED_TO", {})
+        thresholds = assigned_config.get("reachable_users_thresholds", [
+            {"threshold": 100, "weight": 25},
+            {"threshold": 20, "weight": 15},
+            {"threshold": 5, "weight": 10},
+            {"threshold": 0, "weight": 5}
+        ])
+        
+        # Find appropriate weight based on thresholds
+        weight = 5  # default
+        for t in thresholds:
+            if reachable_users > t.get("threshold", 0):
+                weight = t.get("weight", 5)
+                break
+        
+        description = assigned_config.get("description", "App is assigned to principals")
         score += weight
         reasons.append({
             "code": "ASSIGNED_TO",
@@ -462,16 +684,26 @@ def compute_risk_for_sp(
             "weight": weight,
         })
     elif requires_assignment is False:
-        score += 15
+        # BROAD_REACHABILITY
+        broad_config = contributors.get("BROAD_REACHABILITY", {})
+        weight = broad_config.get("weight", 15)
+        description = broad_config.get("description", "No assignments but appRoleAssignmentRequired=false implies broad reach")
+        score += weight
         reasons.append({
             "code": "BROAD_REACHABILITY",
-            "message": "No assignments but appRoleAssignmentRequired=false implies broad reach",
-            "weight": 15,
+            "message": description,
+            "weight": weight,
         })
 
+    # PRIVILEGE (directory roles)
     roles_reachable = len(dir_role_assignments or [])
     if roles_reachable > 0:
-        weight = min(10 + 5 * roles_reachable, 30)
+        privilege_config = contributors.get("PRIVILEGE", {})
+        base_weight = privilege_config.get("base_weight", 10)
+        per_role_weight = privilege_config.get("per_role_weight", 5)
+        max_weight = privilege_config.get("max_weight", 30)
+        weight = min(base_weight + per_role_weight * roles_reachable, max_weight)
+        description = privilege_config.get("description", "Directory roles reachable from app")
         score += weight
         reasons.append({
             "code": "PRIVILEGE",
@@ -479,52 +711,77 @@ def compute_risk_for_sp(
             "weight": weight,
         })
 
+    # DECEPTION
     verified = is_verified_publisher(sp.get("verifiedPublisher"))
     publisher = sp.get("publisherName") or ""
     display_name = sp_display or sp.get("appDisplayName") or ""
     deception = (not verified) and publisher and display_name and publisher.lower() != display_name.lower()
     if deception:
-        score += 20
+        deception_config = contributors.get("DECEPTION", {})
+        weight = deception_config.get("weight", 20)
+        description = deception_config.get("description", "Unverified publisher with name mismatch")
+        score += weight
         reasons.append({
             "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20,
+            "message": description,
+            "weight": weight,
         })
 
+    # LEGACY
     created = _parse_iso_datetime(sp.get("createdDateTime"))
-    legacy_cutoff = dt.datetime(2025, 7, 1, tzinfo=dt.timezone.utc)
+    legacy_config = contributors.get("LEGACY", {})
+    cutoff_date_str = legacy_config.get("cutoff_date", "2025-07-01T00:00:00Z")
+    legacy_cutoff = _parse_iso_datetime(cutoff_date_str) or dt.datetime(2025, 7, 1, tzinfo=dt.timezone.utc)
     if created and created < legacy_cutoff:
-        score += 10
+        weight = legacy_config.get("weight", 10)
+        description = legacy_config.get("description", "App created before July 2025")
+        score += weight
         reasons.append({
             "code": "LEGACY",
-            "message": "App created before July 2025",
-            "weight": 10,
+            "message": description,
+            "weight": weight,
         })
 
+    # NO_OWNERS
     if owners is None or len(owners) == 0:
-        score += 15
+        no_owners_config = contributors.get("NO_OWNERS", {})
+        weight = no_owners_config.get("weight", 15)
+        description = no_owners_config.get("description", "No owners found for application")
+        score += weight
         reasons.append({
             "code": "NO_OWNERS",
-            "message": "No owners found for application",
-            "weight": 15,
+            "message": description,
+            "weight": weight,
         })
 
+    # GOVERNANCE
     if requires_assignment is False:
-        score += 5
+        governance_config = contributors.get("GOVERNANCE", {})
+        weight = governance_config.get("weight", 5)
+        description = governance_config.get("description", "Assignments not required for app")
+        score += weight
         reasons.append({
             "code": "GOVERNANCE",
-            "message": "Assignments not required for app",
-            "weight": 5,
+            "message": description,
+            "weight": weight,
         })
     elif requires_assignment is None:
-        score += 3
+        governance_unknown_config = contributors.get("GOVERNANCE_UNKNOWN", {})
+        weight = governance_unknown_config.get("weight", 3)
+        description = governance_unknown_config.get("description", "Assignment requirement unknown")
+        score += weight
         reasons.append({
             "code": "GOVERNANCE_UNKNOWN",
-            "message": "Assignment requirement unknown",
-            "weight": 3,
+            "message": description,
+            "weight": weight,
         })
 
-    score = max(0, min(100, score))
+    # Apply min/max clamping
+    clamping = final_score_config.get("min_max_clamping", {})
+    min_score = clamping.get("minimum_allowed_score", 0)
+    max_score = clamping.get("maximum_allowed_score", 100)
+    score = max(min_score, min(max_score, score))
+    
     level = _level_from_score(score)
 
     return {"score": score, "level": level, "reasons": reasons}
