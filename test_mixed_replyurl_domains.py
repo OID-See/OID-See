@@ -9,7 +9,12 @@ import sys
 from typing import Dict, Any, List, Optional
 
 # Import the functions we're testing
-from oidsee_scanner import extract_etldplus1, check_mixed_replyurl_domains
+from oidsee_scanner import extract_etldplus1, check_mixed_replyurl_domains, SCORING_CONFIG
+
+# Load weights from configuration to avoid drift
+MIXED_DOMAINS_CONFIG = SCORING_CONFIG.get("compute_risk_for_sp", {}).get("scoring_contributors", {}).get("MIXED_REPLYURL_DOMAINS", {})
+IDENTITY_LAUNDERING_WEIGHT = MIXED_DOMAINS_CONFIG.get("identity_laundering_weight", 15)
+ATTRIBUTION_AMBIGUITY_WEIGHT = MIXED_DOMAINS_CONFIG.get("attribution_ambiguity_weight", 5)
 
 
 def test_extract_etldplus1():
@@ -290,7 +295,7 @@ def test_integration_with_compute_risk():
         
         result = check_mixed_replyurl_domains(reply_urls, homepage, info)
         
-        # Simulate what compute_risk_for_sp would do
+        # Simulate what compute_risk_for_sp would do, using config values
         actual_weight = 0
         actual_signal = None
         
@@ -299,9 +304,9 @@ def test_integration_with_compute_risk():
             actual_signal = signal_type
             
             if signal_type == "identity_laundering":
-                actual_weight = 15  # from config
+                actual_weight = IDENTITY_LAUNDERING_WEIGHT
             elif signal_type == "attribution_ambiguity":
-                actual_weight = 5  # from config
+                actual_weight = ATTRIBUTION_AMBIGUITY_WEIGHT
         
         if actual_signal == expected_signal and actual_weight == expected_weight:
             print(f"✓ PASS: {name}")

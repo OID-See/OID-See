@@ -537,7 +537,7 @@ def _parse_iso_datetime(value: Optional[str]) -> Optional[dt.datetime]:
         return None
 
 
-def extract_etldplus1(url: str) -> Optional[str]:
+def extract_etldplus1(url: Optional[str]) -> Optional[str]:
     """
     Extract the eTLD+1 (registrable domain) from a URL.
     Returns None if extraction fails or URL is invalid.
