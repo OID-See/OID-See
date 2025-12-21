@@ -537,6 +537,234 @@ def _parse_iso_datetime(value: Optional[str]) -> Optional[dt.datetime]:
         return None
 
 
+def analyze_credentials(
+    password_creds: List[Dict[str, Any]],
+    key_creds: List[Dict[str, Any]],
+    federated_creds: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """
+    Analyze credential health and hygiene.
+    
+    Returns insights about:
+    - Long-lived secrets (>180 days)
+    - Expired but present credentials
+    - Multiple active secrets
+    - Certificate rollover hygiene
+    """
+    now = dt.datetime.now(dt.timezone.utc)
+    insights = {
+        "total_password_credentials": len(password_creds),
+        "total_key_credentials": len(key_creds),
+        "total_federated_credentials": len(federated_creds) if federated_creds else 0,
+        "active_password_credentials": 0,
+        "active_key_credentials": 0,
+        "expired_password_credentials": 0,
+        "expired_key_credentials": 0,
+        "long_lived_secrets": [],
+        "expired_but_present": [],
+        "certificate_rollover_issues": [],
+    }
+    
+    # Analyze password credentials
+    for cred in password_creds:
+        start_dt = _parse_iso_datetime(cred.get("startDateTime"))
+        end_dt = _parse_iso_datetime(cred.get("endDateTime"))
+        
+        if end_dt and end_dt < now:
+            insights["expired_password_credentials"] += 1
+            insights["expired_but_present"].append({
+                "type": "password",
+                "displayName": cred.get("displayName"),
+                "keyId": cred.get("keyId"),
+                "endDateTime": cred.get("endDateTime"),
+            })
+        else:
+            insights["active_password_credentials"] += 1
+            # Check for long-lived secrets (>180 days)
+            if start_dt and end_dt:
+                lifetime = (end_dt - start_dt).days
+                if lifetime > 180:
+                    insights["long_lived_secrets"].append({
+                        "type": "password",
+                        "displayName": cred.get("displayName"),
+                        "keyId": cred.get("keyId"),
+                        "lifetime_days": lifetime,
+                        "endDateTime": cred.get("endDateTime"),
+                    })
+    
+    # Analyze key credentials (certificates)
+    for cred in key_creds:
+        start_dt = _parse_iso_datetime(cred.get("startDateTime"))
+        end_dt = _parse_iso_datetime(cred.get("endDateTime"))
+        
+        if end_dt and end_dt < now:
+            insights["expired_key_credentials"] += 1
+            insights["expired_but_present"].append({
+                "type": "certificate",
+                "displayName": cred.get("displayName"),
+                "keyId": cred.get("keyId"),
+                "endDateTime": cred.get("endDateTime"),
+            })
+        else:
+            insights["active_key_credentials"] += 1
+            # Check certificate expiry within 30 days
+            if end_dt and (end_dt - now).days <= 30:
+                insights["certificate_rollover_issues"].append({
+                    "displayName": cred.get("displayName"),
+                    "keyId": cred.get("keyId"),
+                    "endDateTime": cred.get("endDateTime"),
+                    "days_until_expiry": (end_dt - now).days,
+                })
+    
+    return insights
+
+
+def analyze_reply_urls(reply_urls: List[str]) -> Dict[str, Any]:
+    """
+    Analyze reply URLs for security and consistency issues.
+    
+    Returns:
+    - Normalized URLs with scheme + host + eTLD+1
+    - Flags for non-HTTPS schemes, IP literals, localhost, punycode
+    - Domain cluster summary
+    """
+    analysis = {
+        "total_urls": len(reply_urls),
+        "normalized_domains": set(),
+        "non_https_urls": [],
+        "ip_literal_urls": [],
+        "localhost_urls": [],
+        "punycode_urls": [],
+        "schemes": set(),
+    }
+    
+    for url in reply_urls:
+        if not url:
+            continue
+            
+        # Parse URL components
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            
+            # Track schemes
+            if parsed.scheme:
+                analysis["schemes"].add(parsed.scheme)
+            
+            # Flag non-HTTPS
+            if parsed.scheme and parsed.scheme.lower() not in ("https",):
+                analysis["non_https_urls"].append(url)
+            
+            # Check for IP literals and localhost
+            hostname = parsed.hostname or parsed.netloc
+            if hostname:
+                # Simple IP detection (IPv4)
+                import re
+                is_ip_literal = False
+                if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', hostname):
+                    analysis["ip_literal_urls"].append(url)
+                    is_ip_literal = True
+                # IPv6 in brackets
+                if hostname.startswith('[') and hostname.endswith(']'):
+                    analysis["ip_literal_urls"].append(url)
+                    is_ip_literal = True
+                # Localhost (can be IP or name)
+                if hostname.lower() in ('localhost', '127.0.0.1', '::1'):
+                    analysis["localhost_urls"].append(url)
+                # Punycode (IDN)
+                elif 'xn--' in hostname.lower():
+                    analysis["punycode_urls"].append(url)
+            
+            # Extract eTLD+1 for domain clustering
+            domain = extract_etldplus1(url)
+            if domain:
+                analysis["normalized_domains"].add(domain)
+        except Exception:
+            # Skip malformed URLs
+            continue
+    
+    # Convert sets to lists for JSON serialization
+    analysis["normalized_domains"] = sorted(analysis["normalized_domains"])
+    analysis["schemes"] = sorted(analysis["schemes"])
+    
+    return analysis
+
+
+def resolve_permission_details(
+    resource_sp: Dict[str, Any],
+    scope_names: Optional[Set[str]] = None,
+    app_role_ids: Optional[Set[str]] = None,
+) -> Dict[str, Any]:
+    """
+    Resolve OAuth2 scopes and app roles to human-readable details.
+    
+    Returns:
+    - Resolved scopes with displayName, description, admin/user consent
+    - Resolved app roles with displayName, description, allowedMemberTypes
+    - Resource app identification
+    """
+    result = {
+        "resource_app_id": resource_sp.get("appId"),
+        "resource_display_name": resource_sp.get("displayName") or resource_sp.get("appDisplayName"),
+        "resolved_scopes": [],
+        "resolved_app_roles": [],
+    }
+    
+    # Resolve OAuth2 scopes
+    if scope_names:
+        published_scopes = resource_sp.get("publishedPermissionScopes") or resource_sp.get("oauth2PermissionScopes") or []
+        scopes_by_value = {s.get("value"): s for s in published_scopes if s.get("value")}
+        
+        for scope_name in scope_names:
+            scope_info = scopes_by_value.get(scope_name)
+            if scope_info:
+                result["resolved_scopes"].append({
+                    "value": scope_name,
+                    "id": scope_info.get("id"),
+                    "displayName": scope_info.get("adminConsentDisplayName") or scope_info.get("value"),
+                    "description": scope_info.get("adminConsentDescription") or scope_info.get("userConsentDescription"),
+                    "adminConsentDisplayName": scope_info.get("adminConsentDisplayName"),
+                    "adminConsentDescription": scope_info.get("adminConsentDescription"),
+                    "userConsentDisplayName": scope_info.get("userConsentDisplayName"),
+                    "userConsentDescription": scope_info.get("userConsentDescription"),
+                    "type": scope_info.get("type"),
+                    "isEnabled": scope_info.get("isEnabled"),
+                })
+            else:
+                # Scope not found in resource - include basic info
+                result["resolved_scopes"].append({
+                    "value": scope_name,
+                    "displayName": scope_name,
+                    "description": None,
+                })
+    
+    # Resolve app roles
+    if app_role_ids:
+        app_roles = resource_sp.get("appRoles") or []
+        roles_by_id = {r.get("id"): r for r in app_roles if r.get("id")}
+        
+        for role_id in app_role_ids:
+            role_info = roles_by_id.get(role_id)
+            if role_info:
+                result["resolved_app_roles"].append({
+                    "id": role_id,
+                    "value": role_info.get("value"),
+                    "displayName": role_info.get("displayName"),
+                    "description": role_info.get("description"),
+                    "allowedMemberTypes": role_info.get("allowedMemberTypes"),
+                    "isEnabled": role_info.get("isEnabled"),
+                })
+            else:
+                # Role not found in resource
+                result["resolved_app_roles"].append({
+                    "id": role_id,
+                    "displayName": None,
+                    "description": None,
+                })
+    
+    return result
+
+
 def extract_etldplus1(url: Optional[str]) -> Optional[str]:
     """
     Extract the eTLD+1 (registrable domain) from a URL.
@@ -704,6 +932,8 @@ def compute_risk_for_sp(
     dir_role_assignments: List[Dict[str, Any]],
     sp_display: str,
     dir_cache: DirectoryCache,
+    credential_insights: Optional[Dict[str, Any]] = None,
+    reply_url_analysis: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Compute risk score for service principal based on loaded configuration."""
     config = SCORING_CONFIG.get("compute_risk_for_sp", {})
@@ -942,6 +1172,105 @@ def compute_risk_for_sp(
             "weight": weight,
         })
 
+    # CREDENTIAL_HYGIENE
+    if credential_insights:
+        cred_config = contributors.get("CREDENTIAL_HYGIENE", {})
+        
+        # Long-lived secrets
+        if credential_insights.get("long_lived_secrets"):
+            weight = cred_config.get("long_lived_secret_weight", 10)
+            description = cred_config.get("long_lived_secret_description", "Long-lived secrets detected")
+            count = len(credential_insights["long_lived_secrets"])
+            score += weight
+            reasons.append({
+                "code": "CREDENTIAL_HYGIENE",
+                "message": f"{description} ({count} secrets)",
+                "weight": weight,
+                "subtype": "long_lived_secrets",
+            })
+        
+        # Expired but present credentials
+        if credential_insights.get("expired_but_present"):
+            weight = cred_config.get("expired_credential_weight", 5)
+            description = cred_config.get("expired_credential_description", "Expired credentials still present")
+            count = len(credential_insights["expired_but_present"])
+            score += weight
+            reasons.append({
+                "code": "CREDENTIAL_HYGIENE",
+                "message": f"{description} ({count} credentials)",
+                "weight": weight,
+                "subtype": "expired_credentials",
+            })
+        
+        # Multiple active secrets (>3)
+        total_active = credential_insights.get("active_password_credentials", 0) + credential_insights.get("active_key_credentials", 0)
+        if total_active > 3:
+            weight = cred_config.get("multiple_active_secrets_weight", 5)
+            description = cred_config.get("multiple_active_secrets_description", "Multiple active secrets detected")
+            score += weight
+            reasons.append({
+                "code": "CREDENTIAL_HYGIENE",
+                "message": f"{description} ({total_active} active)",
+                "weight": weight,
+                "subtype": "multiple_secrets",
+            })
+        
+        # Certificate rollover issues
+        if credential_insights.get("certificate_rollover_issues"):
+            weight = cred_config.get("certificate_expiring_weight", 8)
+            description = cred_config.get("certificate_expiring_description", "Certificate expiring soon")
+            count = len(credential_insights["certificate_rollover_issues"])
+            score += weight
+            reasons.append({
+                "code": "CREDENTIAL_HYGIENE",
+                "message": f"{description} ({count} certificates)",
+                "weight": weight,
+                "subtype": "certificate_expiring",
+            })
+
+    # REPLY_URL_ANOMALIES
+    if reply_url_analysis:
+        anomaly_config = contributors.get("REPLY_URL_ANOMALIES", {})
+        
+        # Non-HTTPS URLs
+        if reply_url_analysis.get("non_https_urls"):
+            weight = anomaly_config.get("non_https_weight", 10)
+            description = anomaly_config.get("non_https_description", "Non-HTTPS reply URLs detected")
+            count = len(reply_url_analysis["non_https_urls"])
+            score += weight
+            reasons.append({
+                "code": "REPLY_URL_ANOMALIES",
+                "message": f"{description} ({count} URLs)",
+                "weight": weight,
+                "subtype": "non_https",
+            })
+        
+        # IP literals
+        if reply_url_analysis.get("ip_literal_urls"):
+            weight = anomaly_config.get("ip_literal_weight", 12)
+            description = anomaly_config.get("ip_literal_description", "IP literal in reply URLs")
+            count = len(reply_url_analysis["ip_literal_urls"])
+            score += weight
+            reasons.append({
+                "code": "REPLY_URL_ANOMALIES",
+                "message": f"{description} ({count} URLs)",
+                "weight": weight,
+                "subtype": "ip_literal",
+            })
+        
+        # Punycode
+        if reply_url_analysis.get("punycode_urls"):
+            weight = anomaly_config.get("punycode_weight", 8)
+            description = anomaly_config.get("punycode_description", "Punycode domains in reply URLs")
+            count = len(reply_url_analysis["punycode_urls"])
+            score += weight
+            reasons.append({
+                "code": "REPLY_URL_ANOMALIES",
+                "message": f"{description} ({count} URLs)",
+                "weight": weight,
+                "subtype": "punycode",
+            })
+
     # Apply min/max clamping
     clamping = final_score_config.get("min_max_clamping", {})
     min_score = clamping.get("minimum_allowed_score", 0)
@@ -1052,7 +1381,8 @@ class OidSeeCollector:
         # Graph can't filter by a list directly; do best-effort: just skip, or do per-appId query.
         for appid in app_ids:
             try:
-                apps = self.graph.get_paged(f"{GRAPH_BETA}/applications?$filter=appId eq '{appid}'&$select=id,appId,displayName,createdDateTime,signInAudience,web,spa,publicClient,requiredResourceAccess")
+                # Include credentials and federated identity credentials in the select
+                apps = self.graph.get_paged(f"{GRAPH_BETA}/applications?$filter=appId eq '{appid}'&$select=id,appId,displayName,createdDateTime,signInAudience,web,spa,publicClient,requiredResourceAccess,passwordCredentials,keyCredentials,federatedIdentityCredentials")
                 if apps:
                     self.app_cache_by_appid[appid] = apps[0]
             except Exception:
@@ -1283,7 +1613,26 @@ class OidSeeCollector:
             owners = owners_by_sp.get(sp_id, [])
             requires_assignment = sp.get("appRoleAssignmentRequired")
 
-            # service principal node
+            # Analyze credentials from both SP and Application (before risk calculation)
+            appid = sp.get("appId")
+            app_obj = self.app_cache_by_appid.get(appid) if appid else None
+            
+            sp_password_creds = sp.get("passwordCredentials") or []
+            sp_key_creds = sp.get("keyCredentials") or []
+            app_password_creds = (app_obj or {}).get("passwordCredentials") or []
+            app_key_creds = (app_obj or {}).get("keyCredentials") or []
+            app_federated_creds = (app_obj or {}).get("federatedIdentityCredentials") or []
+            
+            # Combine credentials for analysis
+            all_password_creds = sp_password_creds + app_password_creds
+            all_key_creds = sp_key_creds + app_key_creds
+            credential_insights = analyze_credentials(all_password_creds, all_key_creds, app_federated_creds)
+            
+            # Analyze reply URLs (before risk calculation)
+            reply_urls = sp.get("replyUrls") or []
+            reply_url_analysis = analyze_reply_urls(reply_urls)
+
+            # service principal node - compute risk with enhanced insights
             risk = compute_risk_for_sp(
                 sp,
                 has_impersonation,
@@ -1298,7 +1647,23 @@ class OidSeeCollector:
                 dir_roles_by_sp.get(sp_id, []),
                 sp_display,
                 self.dir_cache,
+                credential_insights,
+                reply_url_analysis,
             )
+            
+            # Check for identity laundering signals
+            mixed_domains_result = check_mixed_replyurl_domains(reply_urls, sp.get("homepage"), sp.get("info") or {})
+            identity_laundering_suspected = (
+                mixed_domains_result.get("signal_type") == "identity_laundering"
+            )
+            
+            # Build trust signals
+            trust_signals = {
+                "identityLaunderingSuspected": identity_laundering_suspected,
+                "mixedReplyUrlDomains": mixed_domains_result.get("has_mixed_domains", False),
+                "nonAlignedDomains": list(mixed_domains_result.get("non_aligned_domains", [])),
+            }
+            
             props = {
                 "servicePrincipalId": sp_id,
                 "appId": sp.get("appId"),
@@ -1316,6 +1681,10 @@ class OidSeeCollector:
                 "info": sp.get("info") or {},
                 "keyCredentials": sp.get("keyCredentials") or [],
                 "passwordCredentials": sp.get("passwordCredentials") or [],
+                # Enhanced fields
+                "credentialInsights": credential_insights,
+                "replyUrlAnalysis": reply_url_analysis,
+                "trustSignals": trust_signals,
             }
             node = self.add_node(sp_nid, "ServicePrincipal", sp_display, props)
             # Add risk at top level if present
@@ -1323,7 +1692,6 @@ class OidSeeCollector:
                 self.nodes[sp_nid]["risk"] = risk
 
             # Application node (best-effort)
-            appid = sp.get("appId")
             if appid:
                 app_obj = self.app_cache_by_appid.get(appid)
                 app_display = (app_obj or {}).get("displayName") or sp.get("appDisplayName")
@@ -1338,6 +1706,9 @@ class OidSeeCollector:
                     "spa": (app_obj or {}).get("spa"),
                     "publicClient": (app_obj or {}).get("publicClient"),
                     "requiredResourceAccess": (app_obj or {}).get("requiredResourceAccess"),
+                    "passwordCredentials": (app_obj or {}).get("passwordCredentials") or [],
+                    "keyCredentials": (app_obj or {}).get("keyCredentials") or [],
+                    "federatedIdentityCredentials": (app_obj or {}).get("federatedIdentityCredentials") or [],
                 })
                 self.add_edge(sp_nid, app_nid, "INSTANCE_OF", {})
 
@@ -1389,12 +1760,18 @@ class OidSeeCollector:
                         "replyUrls": res_sp.get("replyUrls"),
                     })
                 
+                # Resolve permission details for scopes
+                permission_details = resolve_permission_details(res_sp, scope_names=scopes)
+                
                 # Classify scopes and emit appropriate edge
                 classification = classify_scopes(scopes)
                 edge_props = {
                     "scopes": sorted(scopes),
                     "permissionType": "delegated",
                     "classification": classification["classification"],
+                    "resourceAppId": permission_details.get("resource_app_id"),
+                    "resourceDisplayName": permission_details.get("resource_display_name"),
+                    "resolvedScopes": permission_details.get("resolved_scopes", []),
                 }
                 if classification["too_broad"]:
                     edge_props["tooBroadScopes"] = sorted(classification["too_broad"])
@@ -1434,7 +1811,16 @@ class OidSeeCollector:
                             "publishedPermissionScopes": res_sp.get("publishedPermissionScopes") or res_sp.get("oauth2PermissionScopes"),
                             "replyUrls": res_sp.get("replyUrls"),
                         })
-                    self.add_edge(sp_nid, res_nid, "HAS_APP_ROLE", {"appRoleIds": sorted(role_ids)})
+                    
+                    # Resolve app role details
+                    permission_details = resolve_permission_details(res_sp, app_role_ids=role_ids)
+                    
+                    self.add_edge(sp_nid, res_nid, "HAS_APP_ROLE", {
+                        "appRoleIds": sorted(role_ids),
+                        "resourceAppId": permission_details.get("resource_app_id"),
+                        "resourceDisplayName": permission_details.get("resource_display_name"),
+                        "resolvedAppRoles": permission_details.get("resolved_app_roles", []),
+                    })
 
                     # Create APP_ROLE nodes (optional, but helps visualisation)
                     # Attempt to resolve role displayName/value from resource SP appRoles list
@@ -1448,6 +1834,7 @@ class OidSeeCollector:
                             "roleTemplateId": arid,
                             "value": r.get("value"),
                             "description": r.get("description"),
+                            "allowedMemberTypes": r.get("allowedMemberTypes"),
                         })
                         self.add_edge(sp_nid, rnid, "HAS_APP_ROLE", {"resourceId": rid})
 
