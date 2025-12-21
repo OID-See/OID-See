@@ -1,0 +1,119 @@
+{
+  "classify_app_role_value": {
+    "weights": {
+      "high_write_markers": 50,
+      "high_read_markers": 25,
+      "default": 35
+    },
+    "markers": {
+      "high_write_markers": [
+        "directory.readwrite",
+        "directory.access",
+        "rolemanagement.readwrite",
+        "mail.readwrite",
+        "files.readwrite",
+        "sites.fullcontrol",
+        "sites.readwrite",
+        "group.readwrite",
+        "reports.readwrite",
+        "device.readwrite",
+        "user.readwrite"
+      ],
+      "high_read_markers": [
+        "directory.read.all",
+        "auditlog.read",
+        "mail.read",
+        "files.read",
+        "sites.read",
+        "group.read.all",
+        "reports.read.all",
+        "user.read.all"
+      ]
+    }
+  },
+
+  "classify_scopes": {
+    "scope_classifications": {
+      "too_broad": {
+        "condition": "scope ends with '.All'",
+        "edge_type": "HAS_TOO_MANY_SCOPES",
+        "classification_label": "too_broad"
+      },
+      "privileged": {
+        "condition": "scope contains 'write' or 'readwrite'",
+        "edge_type": "HAS_PRIVILEGED_SCOPES",
+        "classification_label": "privileged"
+      },
+      "regular": {
+        "edge_type": "HAS_SCOPES",
+        "classification_label": "regular"
+      }
+    }
+  },
+
+  "compute_risk_for_sp": {
+    "scoring_contributors": {
+      "CAN_IMPERSONATE": {
+        "weight": 40,
+        "description": "Delegated impersonation markers present (access_as_user/user_impersonation)"
+      },
+      "HAS_APP_ROLE": {
+        "weight": "Maximum weight between 35 or app_role_max_weight",
+        "description": "Application permissions (app roles) granted"
+      },
+      "HAS_PRIVILEGED_SCOPES": {
+        "weight": 20,
+        "description": "Privileged delegated scopes granted"
+      },
+      "HAS_TOO_MANY_SCOPES": {
+        "weight": 15,
+        "description": "Delegated consent is overly broad"
+      },
+      "ASSIGNED_TO": {
+        "weight": "calculated based on reachable_users (range: 5-25)",
+        "description": "App is assigned to principals approximating accessible users"
+      },
+      "BROAD_REACHABILITY": {
+        "weight": 15,
+        "description": "No assignments but appRoleAssignmentRequired=false implies broad reach"
+      },
+      "PRIVILEGE": {
+        "weight": "calculated as 10 + 5 * roles_reachable (max 30)",
+        "description": "Directory roles reachable from app depends on assignments"
+      },
+      "DECEPTION": {
+        "weight": 20,
+        "description": "Unverified publisher with name mismatch between publisher and display name"
+      },
+      "LEGACY": {
+        "weight": 10,
+        "description": "App created before July 2025"
+      },
+      "NO_OWNERS": {
+        "weight": 15,
+        "description": "No owners found for application"
+      },
+      "GOVERNANCE": {
+        "weight": 5,
+        "description": "Assignments not required for app governance"
+      },
+      "GOVERNANCE_UNKNOWN": {
+        "weight": 3,
+        "description": "Assignment requirement unknown"
+      }
+    },
+    "final_score_limitation": {
+      "min_max_clamping": {
+        "minimum_allowed_score": 0,
+        "maximum_allowed_score": 100
+      },
+      "score_buckets": {
+        "critical": "score >= 85",
+        "high": "85 > score >= 60",
+        "medium": "60 > score >= 35",
+        "low": "35 > score >= 15",
+        "info": "score < 15"
+      }
+    }
+  }
+}
