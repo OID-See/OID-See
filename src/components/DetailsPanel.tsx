@@ -5,18 +5,19 @@ function entries(obj: Record<string, any>) {
   return Object.entries(obj ?? {})
 }
 
-function formatValue(v: any): string {
+function formatValue(v: unknown): string {
   if (v === null) return 'null'
   if (v === undefined) return 'undefined'
   if (typeof v === 'string') return v
   if (typeof v === 'number' || typeof v === 'boolean') return String(v)
-  if (Array.isArray(v)) {
-    // For arrays, show as JSON
-    return JSON.stringify(v, null, 2)
-  }
   if (typeof v === 'object') {
-    // For objects, show as formatted JSON
-    return JSON.stringify(v, null, 2)
+    // For objects and arrays, show as formatted JSON
+    try {
+      return JSON.stringify(v, null, 2)
+    } catch (error) {
+      // Fallback for circular references or non-serializable values
+      return String(v)
+    }
   }
   return String(v)
 }
