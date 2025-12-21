@@ -1,5 +1,5 @@
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react'
 import { DataSet, Network } from 'vis-network/standalone'
 
 export type Selection =
@@ -9,33 +9,111 @@ export type Selection =
 type VisNode = any
 type VisEdge = any
 
-export function GraphCanvas({
-  nodes,
-  edges,
-  onSelection,
-}: {
-  nodes: VisNode[]
-  edges: VisEdge[]
-  onSelection?: (s: Selection | null) => void
-}) {
-  const ref = useRef<HTMLDivElement>(null)
+export interface GraphCanvasHandle {
+  focusNode: (nodeId: string) => void
+  focusEdge: (edgeId: string) => void
+}
+
+export const GraphCanvas = forwardRef<
+  GraphCanvasHandle,
+  {
+    nodes: VisNode[]
+    edges: VisEdge[]
+    onSelection?: (s: Selection | null) => void
+  }
+>(({ nodes, edges, onSelection }, ref) => {
+  const containerRef = useRef<HTMLDivElement>(null)
   const networkRef = useRef<Network | null>(null)
+  const allNodesRef = useRef<DataSet<VisNode>>(new DataSet([]))
+  const allEdgesRef = useRef<DataSet<VisEdge>>(new DataSet([]))
+  const visibleNodesRef = useRef<DataSet<VisNode>>(new DataSet([]))
+  const visibleEdgesRef = useRef<DataSet<VisEdge>>(new DataSet([]))
   const fittedRef = useRef(false)
 
-  useEffect(() => {
-    if (!ref.current) return
+  // Expose focus methods to parent component
+  useImperativeHandle(ref, () => ({
+    focusNode: (nodeId: string) => {
+      const network = networkRef.current
+      if (!network) return
+      
+      try {
+        network.selectNodes([nodeId])
+        network.focus(nodeId, {
+          scale: 1.2,
+          animation: { duration: 450, easingFunction: 'easeInOutQuad' },
+        })
+      } catch (e) {
+        console.warn('Failed to focus node:', nodeId, e)
+      }
+    },
+    focusEdge: (edgeId: string) => {
+      const network = networkRef.current
+      const allEdges = allEdgesRef.current
+      if (!network || !allEdges) return
+      
+      try {
+        const edge = allEdges.get(edgeId)
+        if (!edge) return
+        
+        // Select the edge
+        network.selectEdges([edgeId])
+        
+        // Focus the "from" node first
+        network.focus(edge.from, {
+          scale: 1.2,
+          animation: { duration: 450, easingFunction: 'easeInOutQuad' },
+        })
+        
+        // Then focus the "to" node after a delay
+        setTimeout(() => {
+          network.focus(edge.to, {
+            scale: 1.2,
+            animation: { duration: 450, easingFunction: 'easeInOutQuad' },
+          })
+        }, 500)
+      } catch (e) {
+        console.warn('Failed to focus edge:', edgeId, e)
+      }
+    },
+  }))
 
-    if (!ref.current.style.height) ref.current.style.height = '70vh'
-    if (!ref.current.style.minHeight) ref.current.style.minHeight = '420px'
+  // Update visible datasets when nodes/edges change
+  useEffect(() => {
+    const allNodes = allNodesRef.current
+    const allEdges = allEdgesRef.current
+    const visibleNodes = visibleNodesRef.current
+    const visibleEdges = visibleEdgesRef.current
+
+    // Update all nodes/edges
+    allNodes.clear()
+    allNodes.add(nodes)
+    allEdges.clear()
+    allEdges.add(edges)
+
+    // Update visible nodes/edges (for now, same as all)
+    const nodeIds = nodes.map(n => n.id)
+    const edgeIds = edges.map(e => e.id)
+    
+    visibleNodes.clear()
+    visibleNodes.add(nodes)
+    visibleEdges.clear()
+    visibleEdges.add(edges)
+  }, [nodes, edges])
+
+  useEffect(() => {
+    if (!containerRef.current) return
+
+    if (!containerRef.current.style.height) containerRef.current.style.height = '70vh'
+    if (!containerRef.current.style.minHeight) containerRef.current.style.minHeight = '420px'
 
     networkRef.current?.destroy()
     fittedRef.current = false
 
-    const nodeDs = new DataSet(nodes)
-    const edgeDs = new DataSet(edges)
+    const nodeDs = visibleNodesRef.current
+    const edgeDs = visibleEdgesRef.current
 
     const network = new Network(
-      ref.current,
+      containerRef.current,
       { nodes: nodeDs, edges: edgeDs },
       {
         autoResize: true,
@@ -143,14 +221,14 @@ export function GraphCanvas({
         network.fit({ animation: false })
       } catch {}
     })
-    ro.observe(ref.current)
+    ro.observe(containerRef.current)
 
     return () => {
       if (timer) window.clearInterval(timer)
       ro.disconnect()
       network.destroy()
     }
-  }, [nodes, edges, onSelection])
+  }, [onSelection])
 
-  return <div ref={ref} className="graph" />
-}
+  return <div ref={containerRef} className="graph" />
+})

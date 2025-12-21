@@ -33,7 +33,13 @@ function Risk({ risk }: { risk?: any }) {
   )
 }
 
-export function DetailsPanel({ selection }: { selection: Selection | null }) {
+export function DetailsPanel({ 
+  selection,
+  onFocus,
+}: { 
+  selection: Selection | null
+  onFocus?: (selection: Selection) => void
+}) {
   if (!selection) {
     return (
       <div className="details-empty">
@@ -54,6 +60,15 @@ export function DetailsPanel({ selection }: { selection: Selection | null }) {
           <Badge>{isNode ? o.type ?? 'Node' : o.type ?? 'Edge'}</Badge>
           <span className="mono muted">{selection.id}</span>
         </div>
+        {onFocus && (
+          <button 
+            className="btn btn--ghost" 
+            onClick={() => onFocus(selection)}
+            style={{ marginTop: '.5rem' }}
+          >
+            Focus
+          </button>
+        )}
       </div>
 
       {!isNode && (
