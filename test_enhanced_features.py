@@ -107,9 +107,9 @@ def test_analyze_credentials():
     for test_case in test_cases:
         name = test_case["name"]
         result = analyze_credentials(
-            test_case["password_creds"],
-            test_case["key_creds"],
-            test_case.get("federated_creds"),
+            password_creds=test_case["password_creds"],
+            key_creds=test_case["key_creds"],
+            federated_creds=test_case.get("federated_creds"),
         )
         
         checks_passed = True
@@ -362,9 +362,9 @@ def test_resolve_permission_details():
     for test_case in test_cases:
         name = test_case["name"]
         result = resolve_permission_details(
-            resource_sp,
-            test_case.get("scope_names"),
-            test_case.get("app_role_ids"),
+            resource_sp=resource_sp,
+            scope_names=test_case.get("scope_names"),
+            app_role_ids=test_case.get("app_role_ids"),
         )
         
         checks_passed = True

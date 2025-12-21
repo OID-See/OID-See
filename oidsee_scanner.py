@@ -1761,7 +1761,11 @@ class OidSeeCollector:
                     })
                 
                 # Resolve permission details for scopes
-                permission_details = resolve_permission_details(res_sp, scope_names=scopes)
+                permission_details = resolve_permission_details(
+                    resource_sp=res_sp,
+                    scope_names=scopes,
+                    app_role_ids=None
+                )
                 
                 # Classify scopes and emit appropriate edge
                 classification = classify_scopes(scopes)
@@ -1813,7 +1817,11 @@ class OidSeeCollector:
                         })
                     
                     # Resolve app role details
-                    permission_details = resolve_permission_details(res_sp, app_role_ids=role_ids)
+                    permission_details = resolve_permission_details(
+                        resource_sp=res_sp,
+                        scope_names=None,
+                        app_role_ids=role_ids
+                    )
                     
                     self.add_edge(sp_nid, res_nid, "HAS_APP_ROLE", {
                         "appRoleIds": sorted(role_ids),
