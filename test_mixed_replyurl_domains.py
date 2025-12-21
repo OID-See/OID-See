@@ -331,9 +331,9 @@ def main():
     all_passed = True
     
     # Run all test functions
-    all_passed &= test_extract_etldplus1()
-    all_passed &= test_check_mixed_replyurl_domains()
-    all_passed &= test_integration_with_compute_risk()
+    all_passed = all_passed and test_extract_etldplus1()
+    all_passed = all_passed and test_check_mixed_replyurl_domains()
+    all_passed = all_passed and test_integration_with_compute_risk()
     
     print("\n" + "=" * 60)
     if all_passed:
