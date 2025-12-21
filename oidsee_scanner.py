@@ -811,8 +811,8 @@ def check_mixed_replyurl_domains(
     if not reply_urls:
         return {
             "has_mixed_domains": False,
-            "domains": set(),
-            "non_aligned_domains": set(),
+            "domains": [],
+            "non_aligned_domains": [],
             "signal_type": None,
         }
     
@@ -827,8 +827,8 @@ def check_mixed_replyurl_domains(
     if len(domains) <= 1:
         return {
             "has_mixed_domains": False,
-            "domains": domains,
-            "non_aligned_domains": set(),
+            "domains": sorted(domains),
+            "non_aligned_domains": [],
             "signal_type": None,
         }
     
@@ -875,10 +875,11 @@ def check_mixed_replyurl_domains(
             # Multiple domains but all align - attribution ambiguity
             signal_type = "attribution_ambiguity"
     
+    # Convert sets to lists for JSON serialization
     return {
         "has_mixed_domains": True,
-        "domains": domains,
-        "non_aligned_domains": non_aligned_domains,
+        "domains": sorted(domains),
+        "non_aligned_domains": sorted(non_aligned_domains),
         "signal_type": signal_type,
     }
 
@@ -1104,8 +1105,8 @@ def compute_risk_for_sp(
                 "message": description,
                 "weight": weight,
                 "signal_type": "identity_laundering",
-                "domains": list(mixed_domains_result["domains"]),
-                "non_aligned_domains": list(mixed_domains_result["non_aligned_domains"]),
+                "domains": mixed_domains_result["domains"],
+                "non_aligned_domains": mixed_domains_result["non_aligned_domains"],
             })
             score += weight
         elif signal_type == "attribution_ambiguity":
@@ -1119,7 +1120,7 @@ def compute_risk_for_sp(
                 "message": description,
                 "weight": weight,
                 "signal_type": "attribution_ambiguity",
-                "domains": list(mixed_domains_result["domains"]),
+                "domains": mixed_domains_result["domains"],
             })
             score += weight
 
@@ -1661,7 +1662,7 @@ class OidSeeCollector:
             trust_signals = {
                 "identityLaunderingSuspected": identity_laundering_suspected,
                 "mixedReplyUrlDomains": mixed_domains_result.get("has_mixed_domains", False),
-                "nonAlignedDomains": list(mixed_domains_result.get("non_aligned_domains", [])),
+                "nonAlignedDomains": mixed_domains_result.get("non_aligned_domains", []),
             }
             
             props = {
