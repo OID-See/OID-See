@@ -35,6 +35,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
 import sys
 import time
 from dataclasses import dataclass
@@ -534,10 +535,25 @@ def _level_from_score(score: int) -> str:
     config = SCORING_CONFIG.get("compute_risk_for_sp", {})
     score_buckets = config.get("final_score_limitation", {}).get("score_buckets", {})
     
-    critical_threshold = score_buckets.get("critical", 85)
-    high_threshold = score_buckets.get("high", 60)
-    medium_threshold = score_buckets.get("medium", 35)
-    low_threshold = score_buckets.get("low", 15)
+    # Handle both numeric and string formats in the JSON
+    def get_threshold(key, default):
+        value = score_buckets.get(key, default)
+        if isinstance(value, str):
+            # Parse strings like "score >= 85" or "85 > score >= 60" to extract the lower bound
+            import re
+            # Find the last number with >= before it (the lower bound)
+            matches = re.findall(r'>=\s*(\d+)', value)
+            if matches:
+                return int(matches[-1])  # Use the last match (lower bound)
+            # If no >=, try to extract any number
+            matches = re.findall(r'\d+', value)
+            return int(matches[0]) if matches else default
+        return int(value)
+    
+    critical_threshold = get_threshold("critical", 85)
+    high_threshold = get_threshold("high", 60)
+    medium_threshold = get_threshold("medium", 35)
+    low_threshold = get_threshold("low", 15)
     
     if score >= critical_threshold:
         return "critical"
