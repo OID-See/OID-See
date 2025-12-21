@@ -8,6 +8,13 @@ This repo includes the full JSON Schema at:
 
 - `schemas/oidsee-graph-export.schema.json`
 
+### Features
+- **Interactive Graph Visualization**: Explore relationships between service principals, applications, users, and permissions
+- **Risk Scoring**: Automatic risk assessment based on permissions, exposure, and governance
+- **Security Heuristics**: Including the new `MIXED_REPLYURL_DOMAINS` heuristic for detecting attribution ambiguities and identity laundering signals
+- **Advanced Filtering**: Filter nodes and edges using a powerful query syntax
+- **Multiple Lenses**: View full graph, risk-focused, or structural relationships
+
 ### Minimal example
 ```json
 {

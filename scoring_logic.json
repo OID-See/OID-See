@@ -85,6 +85,12 @@
         "weight": 20,
         "description": "Unverified publisher with name mismatch between publisher and display name"
       },
+      "MIXED_REPLYURL_DOMAINS": {
+        "identity_laundering_weight": 15,
+        "identity_laundering_description": "Identity laundering signal: reply URLs use domains not aligned with homepage/branding",
+        "attribution_ambiguity_weight": 5,
+        "attribution_ambiguity_description": "Attribution ambiguity: multiple distinct domains in reply URLs"
+      },
       "LEGACY": {
         "weight": 10,
         "description": "App created before July 2025"

@@ -43,6 +43,7 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import requests
 import random
+import tldextract
 from azure.identity import ClientSecretCredential, DeviceCodeCredential
 
 
@@ -150,6 +151,12 @@ DEFAULT_SCORING_CONFIG = {
             "DECEPTION": {
                 "weight": 20,
                 "description": "Unverified publisher with name mismatch between publisher and display name"
+            },
+            "MIXED_REPLYURL_DOMAINS": {
+                "identity_laundering_weight": 15,
+                "identity_laundering_description": "Identity laundering signal: reply URLs use domains not aligned with homepage/branding",
+                "attribution_ambiguity_weight": 5,
+                "attribution_ambiguity_description": "Attribution ambiguity: multiple distinct domains in reply URLs"
             },
             "LEGACY": {
                 "weight": 10,
@@ -530,6 +537,124 @@ def _parse_iso_datetime(value: Optional[str]) -> Optional[dt.datetime]:
         return None
 
 
+def extract_etldplus1(url: Optional[str]) -> Optional[str]:
+    """
+    Extract the eTLD+1 (registrable domain) from a URL.
+    Returns None if extraction fails or URL is invalid.
+    
+    Examples:
+        "https://app.contoso.com/callback" -> "contoso.com"
+        "http://subdomain.example.co.uk/path" -> "example.co.uk"
+        "https://localhost:5000" -> None (localhost is not a registrable domain)
+    """
+    if not url:
+        return None
+    
+    try:
+        extracted = tldextract.extract(url)
+        # Only return a valid registrable domain (domain + suffix)
+        # Skip if domain is empty or if it's a localhost/IP
+        if extracted.domain and extracted.suffix:
+            return f"{extracted.domain}.{extracted.suffix}"
+        return None
+    except Exception:
+        return None
+
+
+def check_mixed_replyurl_domains(
+    reply_urls: List[str],
+    homepage: Optional[str],
+    info: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """
+    Check for mixed reply URL domains - a potential attribution ambiguity 
+    or identity laundering signal.
+    
+    Returns a dict with:
+        - "has_mixed_domains": bool
+        - "domains": set of distinct eTLD+1 domains found
+        - "non_aligned_domains": set of domains not aligned with homepage/branding
+        - "signal_type": "attribution_ambiguity" | "identity_laundering" | None
+    
+    Signal types:
+        - "attribution_ambiguity": Multiple distinct domains, but all align with homepage/info
+        - "identity_laundering": At least one domain does not align with homepage/info
+    """
+    if not reply_urls:
+        return {
+            "has_mixed_domains": False,
+            "domains": set(),
+            "non_aligned_domains": set(),
+            "signal_type": None,
+        }
+    
+    # Extract domains from all reply URLs
+    domains = set()
+    for url in reply_urls:
+        domain = extract_etldplus1(url)
+        if domain:
+            domains.add(domain)
+    
+    # If only one domain or no valid domains, no mixed domain issue
+    if len(domains) <= 1:
+        return {
+            "has_mixed_domains": False,
+            "domains": domains,
+            "non_aligned_domains": set(),
+            "signal_type": None,
+        }
+    
+    # Extract reference domains from homepage and branding info
+    reference_domains = set()
+    
+    # Check homepage
+    if homepage:
+        homepage_domain = extract_etldplus1(homepage)
+        if homepage_domain:
+            reference_domains.add(homepage_domain)
+    
+    # Check info.marketingUrl and other branding fields
+    if info:
+        marketing_url = info.get("marketingUrl")
+        if marketing_url:
+            marketing_domain = extract_etldplus1(marketing_url)
+            if marketing_domain:
+                reference_domains.add(marketing_domain)
+        
+        # Also check privacyStatementUrl, termsOfServiceUrl as potential branding indicators
+        privacy_url = info.get("privacyStatementUrl")
+        if privacy_url:
+            privacy_domain = extract_etldplus1(privacy_url)
+            if privacy_domain:
+                reference_domains.add(privacy_domain)
+        
+        tos_url = info.get("termsOfServiceUrl")
+        if tos_url:
+            tos_domain = extract_etldplus1(tos_url)
+            if tos_domain:
+                reference_domains.add(tos_domain)
+    
+    # Find domains that don't align with any reference domains
+    non_aligned_domains = domains - reference_domains if reference_domains else domains
+    
+    # Determine signal type
+    signal_type = None
+    if len(domains) > 1:
+        if non_aligned_domains:
+            # At least one domain doesn't align - potential identity laundering
+            signal_type = "identity_laundering"
+        else:
+            # Multiple domains but all align - attribution ambiguity
+            signal_type = "attribution_ambiguity"
+    
+    return {
+        "has_mixed_domains": True,
+        "domains": domains,
+        "non_aligned_domains": non_aligned_domains,
+        "signal_type": signal_type,
+    }
+
+
 def _level_from_score(score: int) -> str:
     """Determine risk level from score based on loaded configuration."""
     config = SCORING_CONFIG.get("compute_risk_for_sp", {})
@@ -726,6 +851,47 @@ def compute_risk_for_sp(
             "message": description,
             "weight": weight,
         })
+
+    # MIXED_REPLYURL_DOMAINS (heuristic, non-blocking)
+    reply_urls = sp.get("replyUrls") or []
+    homepage = sp.get("homepage")
+    info = sp.get("info") or {}
+    mixed_domains_result = check_mixed_replyurl_domains(reply_urls, homepage, info)
+    
+    if mixed_domains_result.get("has_mixed_domains") and mixed_domains_result.get("signal_type"):
+        mixed_domains_config = contributors.get("MIXED_REPLYURL_DOMAINS", {})
+        signal_type = mixed_domains_result["signal_type"]
+        
+        # Different weights for different signal types
+        if signal_type == "identity_laundering":
+            weight = mixed_domains_config.get("identity_laundering_weight", 15)
+            description = mixed_domains_config.get(
+                "identity_laundering_description",
+                "Identity laundering signal: reply URLs use domains not aligned with homepage/branding"
+            )
+            reasons.append({
+                "code": "MIXED_REPLYURL_DOMAINS",
+                "message": description,
+                "weight": weight,
+                "signal_type": "identity_laundering",
+                "domains": list(mixed_domains_result["domains"]),
+                "non_aligned_domains": list(mixed_domains_result["non_aligned_domains"]),
+            })
+            score += weight
+        elif signal_type == "attribution_ambiguity":
+            weight = mixed_domains_config.get("attribution_ambiguity_weight", 5)
+            description = mixed_domains_config.get(
+                "attribution_ambiguity_description",
+                "Attribution ambiguity: multiple distinct domains in reply URLs"
+            )
+            reasons.append({
+                "code": "MIXED_REPLYURL_DOMAINS",
+                "message": description,
+                "weight": weight,
+                "signal_type": "attribution_ambiguity",
+                "domains": list(mixed_domains_result["domains"]),
+            })
+            score += weight
 
     # LEGACY
     created = _parse_iso_datetime(sp.get("createdDateTime"))
