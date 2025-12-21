@@ -540,7 +540,6 @@ def _level_from_score(score: int) -> str:
         value = score_buckets.get(key, default)
         if isinstance(value, str):
             # Parse strings like "score >= 85" or "85 > score >= 60" to extract the lower bound
-            import re
             # Find the last number with >= before it (the lower bound)
             matches = re.findall(r'>=\s*(\d+)', value)
             if matches:
