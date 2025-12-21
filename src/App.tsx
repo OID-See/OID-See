@@ -104,51 +104,79 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
   const nodeClauses = clauses.filter((c) => c.target === 'node' || c.target === 'both')
   const edgeClauses = clauses.filter((c) => c.target === 'edge' || c.target === 'both')
 
+  // Step 1: Determine which nodes pass the node filter
   const nodePass = new Set<string>()
-  for (const n of data.nodes) {
-    const raw = n.__oidsee ?? n
-    const ok = nodeClauses.every((c) => evalClause(raw, c))
-    if (ok) nodePass.add(n.id)
+  if (nodeClauses.length > 0) {
+    // If there are node filters, only include nodes that match
+    for (const n of data.nodes) {
+      const raw = n.__oidsee ?? n
+      const ok = nodeClauses.every((c) => evalClause(raw, c))
+      if (ok) nodePass.add(n.id)
+    }
+  } else {
+    // If no node filters, include all nodes initially
+    for (const n of data.nodes) {
+      nodePass.add(n.id)
+    }
   }
 
   const edgeById = new Map<string, any>()
   for (const e of data.edges) edgeById.set(e.id, e)
 
+  // Step 2: Filter edges based on edge clauses, lens, and whether endpoints are in nodePass
   const edgesOut: any[] = []
   const edgesKept = new Set<string>()
 
   for (const e of data.edges) {
     const raw = e.__oidsee ?? e
     const edgeType = raw.type ?? e.label ?? ''
+    
+    // Check lens filtering
     if (!lensEdgeAllowed(lens, edgeType)) continue
 
+    // Check edge clauses
     const ok = edgeClauses.every((c) => evalClause(raw, c))
     if (!ok) continue
+
+    // Check if both endpoints are in the filtered node set
+    if (!nodePass.has(e.from) || !nodePass.has(e.to)) continue
 
     if (!edgesKept.has(e.id)) {
       edgesOut.push(e)
       edgesKept.add(e.id)
     }
 
-    nodePass.add(e.from)
-    nodePass.add(e.to)
-
+    // Handle path-aware mode: include input edges for derived edges
     if (pathAware && raw?.derived?.isDerived && Array.isArray(raw.derived.inputs)) {
       for (const id of raw.derived.inputs) {
         const inp = edgeById.get(id)
         if (inp && !edgesKept.has(inp.id)) {
-          edgesOut.push(inp)
-          edgesKept.add(inp.id)
-          nodePass.add(inp.from)
-          nodePass.add(inp.to)
+          // Only include input edge if both its endpoints are in nodePass
+          if (nodePass.has(inp.from) && nodePass.has(inp.to)) {
+            edgesOut.push(inp)
+            edgesKept.add(inp.id)
+          }
         }
       }
     }
   }
 
-  const nodesOut = data.nodes.filter((n) => nodePass.has(n.id))
-  const nodeSet = new Set(nodesOut.map((n) => n.id))
-  const edgesFinal = edgesOut.filter((e) => nodeSet.has(e.from) && nodeSet.has(e.to))
+  // Step 3: Determine final nodes and edges
+  const nodesWithEdges = new Set<string>()
+  for (const e of edgesOut) {
+    nodesWithEdges.add(e.from)
+    nodesWithEdges.add(e.to)
+  }
+
+  // If there are explicit node filters, show all nodes that match (even if isolated)
+  // Otherwise, only show nodes that have edges
+  const nodesOut = data.nodes.filter((n) => {
+    if (!nodePass.has(n.id)) return false
+    if (nodeClauses.length > 0) return true  // Show all filtered nodes
+    return nodesWithEdges.has(n.id)  // Only show nodes with edges if no node filter
+  })
+  
+  const edgesFinal = edgesOut
 
   return { nodes: nodesOut, edges: edgesFinal, parsed }
 }
@@ -346,8 +374,15 @@ export default function App() {
 
         <section className="panel panel--graph">
           <div className="panel__title">Graph</div>
-          {filtered ? (
-            <GraphCanvas ref={graphRef} nodes={filtered.nodes} edges={filtered.edges} onSelection={setSelection} />
+          {data && filtered ? (
+            <GraphCanvas 
+              ref={graphRef} 
+              allNodes={data.nodes} 
+              allEdges={data.edges}
+              visibleNodes={filtered.nodes} 
+              visibleEdges={filtered.edges} 
+              onSelection={setSelection} 
+            />
           ) : (
             <div className="empty">
               <div className="empty__title">No graph yet</div>

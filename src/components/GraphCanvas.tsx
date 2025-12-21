@@ -17,11 +17,13 @@ export interface GraphCanvasHandle {
 export const GraphCanvas = forwardRef<
   GraphCanvasHandle,
   {
-    nodes: VisNode[]
-    edges: VisEdge[]
+    allNodes: VisNode[]
+    allEdges: VisEdge[]
+    visibleNodes: VisNode[]
+    visibleEdges: VisEdge[]
     onSelection?: (s: Selection | null) => void
   }
->(({ nodes, edges, onSelection }, ref) => {
+>(({ allNodes, allEdges, visibleNodes, visibleEdges, onSelection }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const networkRef = useRef<Network | null>(null)
   const allNodesRef = useRef<DataSet<VisNode>>(new DataSet([]))
@@ -77,28 +79,25 @@ export const GraphCanvas = forwardRef<
     },
   }))
 
-  // Update visible datasets when nodes/edges change
+  // Update all and visible datasets when nodes/edges change
   useEffect(() => {
-    const allNodes = allNodesRef.current
-    const allEdges = allEdgesRef.current
-    const visibleNodes = visibleNodesRef.current
-    const visibleEdges = visibleEdgesRef.current
+    const allNodesDs = allNodesRef.current
+    const allEdgesDs = allEdgesRef.current
+    const visibleNodesDs = visibleNodesRef.current
+    const visibleEdgesDs = visibleEdgesRef.current
 
-    // Update all nodes/edges
-    allNodes.clear()
-    allNodes.add(nodes)
-    allEdges.clear()
-    allEdges.add(edges)
+    // Update all nodes/edges with complete dataset
+    allNodesDs.clear()
+    allNodesDs.add(allNodes)
+    allEdgesDs.clear()
+    allEdgesDs.add(allEdges)
 
-    // Update visible nodes/edges (for now, same as all)
-    const nodeIds = nodes.map(n => n.id)
-    const edgeIds = edges.map(e => e.id)
-    
-    visibleNodes.clear()
-    visibleNodes.add(nodes)
-    visibleEdges.clear()
-    visibleEdges.add(edges)
-  }, [nodes, edges])
+    // Update visible nodes/edges with filtered dataset
+    visibleNodesDs.clear()
+    visibleNodesDs.add(visibleNodes)
+    visibleEdgesDs.clear()
+    visibleEdgesDs.add(visibleEdges)
+  }, [allNodes, allEdges, visibleNodes, visibleEdges])
 
   useEffect(() => {
     if (!containerRef.current) return
