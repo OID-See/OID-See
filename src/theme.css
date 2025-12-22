@@ -101,6 +101,13 @@ body{
   .panel--details{ grid-column: auto; }
 }
 
+/* Mobile portrait - increase filter panel height */
+@media (max-width: 768px) and (orientation: portrait) {
+  :root {
+    --filter-panel-height: 240px;
+  }
+}
+
 .panel--filter {
   padding: .75rem 1rem .6rem 1rem;
   border: none;
@@ -506,6 +513,19 @@ body{
 .vis-navigation .vis-button.vis-zoomExtends::after {
   background-color: rgba(155, 92, 255, 0.95);
   filter: drop-shadow(0 0 8px rgba(155, 92, 255, 0.35));
+}
+
+/* Hover states for navigation buttons */
+.vis-navigation .vis-button:hover::after {
+  background-color: rgba(66, 232, 224, 1); /* Teal hover for panning controls */
+  filter: drop-shadow(0 0 10px rgba(66, 232, 224, 0.5));
+}
+
+.vis-navigation .vis-button.vis-zoomIn:hover::after,
+.vis-navigation .vis-button.vis-zoomOut:hover::after,
+.vis-navigation .vis-button.vis-zoomExtends:hover::after {
+  background-color: rgba(155, 92, 255, 1); /* Purple hover for zoom controls */
+  filter: drop-shadow(0 0 10px rgba(155, 92, 255, 0.5));
 }
 
 /* ===== JSON Editor Syntax Highlighting ===== */
