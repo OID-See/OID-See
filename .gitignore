@@ -34,3 +34,4 @@ package-lock.json
 
 # Vite build cache
 .vite/
+node_modules/
