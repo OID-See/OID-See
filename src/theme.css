@@ -103,6 +103,15 @@ body{
   box-shadow: none;
   background: transparent;
   border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin: 0 1rem;
+  max-height: 180px;
+  overflow-y: auto;
+  transition: max-height 0.3s ease;
+}
+
+.panel--filter.collapsed {
+  max-height: 48px;
+  overflow: hidden;
 }
 
 .panel{
@@ -113,6 +122,16 @@ body{
   overflow:hidden;
   display:flex;
   flex-direction:column;
+  transition: width 0.3s ease, min-width 0.3s ease;
+}
+
+.panel.collapsed-horizontal {
+  min-width: 60px;
+  width: 60px;
+}
+
+.panel.collapsed-horizontal .panel__content {
+  display: none;
 }
 .panel__title{
   padding: .75rem 1rem;
@@ -120,6 +139,24 @@ body{
   color: rgba(234,242,255,0.82);
   border-bottom: 1px solid rgba(255,255,255,0.06);
   background: rgba(0,0,0,0.18);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel__collapse-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.10);
+  color: var(--fg0);
+  cursor: pointer;
+  padding: .25rem .5rem;
+  border-radius: 8px;
+  font-size: .85rem;
+  transition: background 0.2s ease;
+}
+
+.panel__collapse-btn:hover {
+  background: rgba(255,255,255,0.05);
 }
 
 .json-input{
@@ -204,6 +241,7 @@ body{
   padding: 2rem 1rem 1.75rem 1rem;
   border-bottom: 1px solid rgba(255,255,255,0.06);
   background: rgba(0,0,0,0.12);
+  position: relative;
 }
 .filterbar__row{
   display:flex;
@@ -437,7 +475,7 @@ body{
   height: 360px;
   background: rgba(0,0,0,0.30);
   border-radius: 0;
-  overflow: hidden;
+  overflow: auto;
   display: flex;
   flex-direction: column;
 }
@@ -451,6 +489,7 @@ body{
   font-size: 12.5px;
   line-height: 1.35rem;
   overflow-y: auto;
+  overflow-x: auto;
 }
 
 .json-editor__pre {
