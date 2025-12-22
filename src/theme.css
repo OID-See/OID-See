@@ -12,7 +12,7 @@
   --shadow: 0 10px 30px rgba(0,0,0,0.35);
   
   /* Panel collapse sizes */
-  --collapsed-panel-height: 48px;
+  --collapsed-panel-height: 56px;
   --filter-panel-height: 180px;
 }
 
@@ -93,9 +93,30 @@ body{
   gap: 1rem;
   padding: 1rem;
 }
+
+/* Adjust grid when Input panel is collapsed */
+.main:has(.panel:first-child.collapsed-horizontal) {
+  grid-template-columns: 80px 1fr 360px;
+}
+
+/* Adjust grid when Details panel is collapsed */
+.main:has(.panel--details.collapsed-horizontal) {
+  grid-template-columns: 420px 1fr 80px;
+}
+
+/* Adjust grid when both are collapsed */
+.main:has(.panel:first-child.collapsed-horizontal):has(.panel--details.collapsed-horizontal) {
+  grid-template-columns: 80px 1fr 80px;
+}
+
 @media (max-width: 1100px){
   .main{ grid-template-columns: 420px 1fr; }
   .panel--details{ grid-column: 1 / -1; }
+  
+  /* Adjust for collapsed Input on medium screens */
+  .main:has(.panel:first-child.collapsed-horizontal) {
+    grid-template-columns: 80px 1fr;
+  }
 }
 @media (max-width: 980px){
   .main{ grid-template-columns: 1fr; }
