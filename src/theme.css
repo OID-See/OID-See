@@ -598,6 +598,16 @@ body{
   box-shadow: none !important; /* remove any box shadow on hover */
 }
 
+/* Add background hover effect for buttons */
+.vis-navigation .vis-button:hover::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.08);
+  z-index: -1;
+}
+
 .vis-navigation .vis-button::after {
   content: "";
   position: absolute;
@@ -631,15 +641,28 @@ body{
 
 /* Hover states for navigation buttons */
 /* Teal hover for panning controls */
+.vis-navigation .vis-button.vis-up:hover::before,
+.vis-navigation .vis-button.vis-down:hover::before,
+.vis-navigation .vis-button.vis-left:hover::before,
+.vis-navigation .vis-button.vis-right:hover::before {
+  background-color: rgba(var(--teal-rgb), 0.15);
+}
+
 .vis-navigation .vis-button.vis-up:hover::after,
 .vis-navigation .vis-button.vis-down:hover::after,
 .vis-navigation .vis-button.vis-left:hover::after,
 .vis-navigation .vis-button.vis-right:hover::after {
-  background-color: rgba(66, 232, 224, 1);
-  filter: drop-shadow(0 0 10px rgba(66, 232, 224, 0.5));
+  background-color: rgba(var(--teal-rgb), 1);
+  filter: drop-shadow(0 0 10px rgba(var(--teal-rgb), 0.5));
 }
 
 /* Purple hover for zoom controls */
+.vis-navigation .vis-button.vis-zoomIn:hover::before,
+.vis-navigation .vis-button.vis-zoomOut:hover::before,
+.vis-navigation .vis-button.vis-zoomExtends:hover::before {
+  background-color: rgba(155, 92, 255, 0.15);
+}
+
 .vis-navigation .vis-button.vis-zoomIn:hover::after,
 .vis-navigation .vis-button.vis-zoomOut:hover::after,
 .vis-navigation .vis-button.vis-zoomExtends:hover::after {
