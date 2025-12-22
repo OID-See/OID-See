@@ -177,7 +177,7 @@ body{
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 16px;
   box-shadow: var(--shadow);
-  overflow:hidden;
+  overflow: auto;
   display:flex;
   flex-direction:column;
   transition: width 0.3s ease, min-width 0.3s ease;
@@ -186,6 +186,7 @@ body{
 .panel.collapsed-horizontal {
   min-width: 80px;
   width: 80px;
+  overflow: hidden;
 }
 
 .panel.collapsed-horizontal .panel__content {
