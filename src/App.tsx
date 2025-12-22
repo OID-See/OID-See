@@ -365,13 +365,13 @@ export default function App() {
 
       <section className={`panel--filter${filterCollapsed ? ' collapsed' : ''}`}>
         <div className={`panel__header-content filter-header${filterCollapsed ? ' collapsed' : ''}`}>
-          <span className="filter-label">Filters</span>
           <button 
             className="btn btn--ghost btn--collapse-sm" 
             onClick={() => setFilterCollapsed(!filterCollapsed)}
           >
             {filterCollapsed ? '▼' : '▲'}
           </button>
+          <span className="filter-label">Filters</span>
         </div>
         {!filterCollapsed && (
           <FilterBar
@@ -395,20 +395,20 @@ export default function App() {
         <section className={`panel${inputCollapsed ? ' collapsed-horizontal' : ''}`} onDragOver={(e) => e.preventDefault()} onDrop={onDrop} title="Drop a .json file here">
           <div className="panel__title">
             <div className="panel__header-content">
-              <span>Input</span>
+              <button 
+                className="panel__collapse-btn" 
+                onClick={() => setInputCollapsed(!inputCollapsed)}
+                title={inputCollapsed ? 'Expand' : 'Collapse'}
+              >
+                {inputCollapsed ? (isMobile ? '▼' : '▶') : (isMobile ? '▲' : '◀')}
+              </button>
+              <span className="panel__title-text">Input</span>
               <div className="panel__header-actions">
                 {!inputCollapsed && (
                   <button className="btn btn--ghost btn--format" onClick={formatJSON}>
                     Format
                   </button>
                 )}
-                <button 
-                  className="panel__collapse-btn" 
-                  onClick={() => setInputCollapsed(!inputCollapsed)}
-                  title={inputCollapsed ? 'Expand' : 'Collapse'}
-                >
-                  {inputCollapsed ? (isMobile ? '▼' : '▶') : (isMobile ? '▲' : '◀')}
-                </button>
               </div>
             </div>
           </div>
@@ -452,7 +452,6 @@ export default function App() {
 
         <section className={`panel panel--details${detailsCollapsed ? ' collapsed-horizontal' : ''}`}>
           <div className="panel__title">
-            <span>Details</span>
             <button 
               className="panel__collapse-btn" 
               onClick={() => setDetailsCollapsed(!detailsCollapsed)}
@@ -460,6 +459,7 @@ export default function App() {
             >
               {detailsCollapsed ? (isMobile ? '▼' : '◀') : (isMobile ? '▲' : '▶')}
             </button>
+            <span className="panel__title-text">Details</span>
           </div>
           {!detailsCollapsed && <DetailsPanel selection={selection} onFocus={handleFocus} />}
         </section>

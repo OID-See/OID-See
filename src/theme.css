@@ -141,7 +141,7 @@ body{
   border-bottom: 1px solid rgba(255,255,255,0.06);
   margin: 0 1rem;
   max-height: var(--filter-panel-height);
-  overflow-y: auto;
+  overflow: hidden;
   transition: max-height 0.3s ease;
 }
 
@@ -169,6 +169,12 @@ body{
 .panel.collapsed-horizontal .panel__content {
   display: none;
 }
+
+.panel.collapsed-horizontal .panel__title-text {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
 .panel__title{
   padding: .75rem 1rem;
   font-weight: 700;
@@ -178,6 +184,11 @@ body{
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.panel__title-text {
+  flex: 1;
+  text-align: center;
 }
 
 .panel__collapse-btn {
@@ -331,6 +342,9 @@ body{
   border-bottom: 1px solid rgba(255,255,255,0.06);
   background: rgba(0,0,0,0.12);
   position: relative;
+  max-height: calc(var(--filter-panel-height) - var(--collapsed-panel-height));
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 .filterbar__row{
   display:flex;
