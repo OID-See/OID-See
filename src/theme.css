@@ -179,7 +179,7 @@ body{
 
 .panel.collapsed-horizontal .panel__title-text {
   writing-mode: vertical-rl;
-  text-orientation: mixed;
+  text-orientation: upright;
   flex: 1;
   display: flex;
   align-items: center;
