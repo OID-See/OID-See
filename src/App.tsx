@@ -347,9 +347,8 @@ export default function App() {
         <div className={`panel__header-content filter-header${filterCollapsed ? ' collapsed' : ''}`}>
           <span className="filter-label">Filters</span>
           <button 
-            className="btn btn--ghost" 
+            className="btn btn--ghost btn--collapse-sm" 
             onClick={() => setFilterCollapsed(!filterCollapsed)}
-            style={{ padding: '.25rem .5rem', fontSize: '.85rem' }}
           >
             {filterCollapsed ? '▼' : '▲'}
           </button>
@@ -379,7 +378,7 @@ export default function App() {
               <span>Input</span>
               <div className="panel__header-actions">
                 {!inputCollapsed && (
-                  <button className="btn btn--ghost" onClick={formatJSON} style={{ padding: '.35rem .55rem', fontSize: '.85rem' }}>
+                  <button className="btn btn--ghost btn--format" onClick={formatJSON}>
                     Format
                   </button>
                 )}

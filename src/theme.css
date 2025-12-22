@@ -188,6 +188,16 @@ body{
   color: rgba(234,242,255,0.82);
 }
 
+.btn--collapse-sm {
+  padding: .25rem .5rem;
+  font-size: .85rem;
+}
+
+.btn--format {
+  padding: .35rem .55rem;
+  font-size: .85rem;
+}
+
 .json-input{
   width:100%;
   min-height: 360px;
