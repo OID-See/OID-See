@@ -162,8 +162,8 @@ body{
 }
 
 .panel.collapsed-horizontal {
-  min-width: 60px;
-  width: 60px;
+  min-width: 80px;
+  width: 80px;
 }
 
 .panel.collapsed-horizontal .panel__content {
@@ -172,9 +172,20 @@ body{
 
 .panel.collapsed-horizontal .panel__title {
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
+  align-items: center;
   height: 100%;
-  padding: 1rem 0.5rem;
+  padding: 0.75rem 0.5rem;
+  gap: 1rem;
+}
+
+.panel.collapsed-horizontal .panel__header-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  height: 100%;
 }
 
 .panel.collapsed-horizontal .panel__title-text {
@@ -184,10 +195,16 @@ body{
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
 }
 
 .panel.collapsed-horizontal .panel__header-actions {
   display: none;
+}
+
+.panel.collapsed-horizontal .panel__collapse-btn {
+  margin: 0;
 }
 
 .panel__title{

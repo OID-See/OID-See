@@ -452,14 +452,16 @@ export default function App() {
 
         <section className={`panel panel--details${detailsCollapsed ? ' collapsed-horizontal' : ''}`}>
           <div className="panel__title">
-            <button 
-              className="panel__collapse-btn" 
-              onClick={() => setDetailsCollapsed(!detailsCollapsed)}
-              title={detailsCollapsed ? 'Expand' : 'Collapse'}
-            >
-              {detailsCollapsed ? (isMobile ? '▼' : '◀') : (isMobile ? '▲' : '▶')}
-            </button>
-            <span className="panel__title-text">Details</span>
+            <div className="panel__header-content">
+              <button 
+                className="panel__collapse-btn" 
+                onClick={() => setDetailsCollapsed(!detailsCollapsed)}
+                title={detailsCollapsed ? 'Expand' : 'Collapse'}
+              >
+                {detailsCollapsed ? (isMobile ? '▼' : '◀') : (isMobile ? '▲' : '▶')}
+              </button>
+              <span className="panel__title-text">Details</span>
+            </div>
           </div>
           {!detailsCollapsed && <DetailsPanel selection={selection} onFocus={handleFocus} />}
         </section>
