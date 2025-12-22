@@ -516,15 +516,20 @@ body{
 }
 
 /* Hover states for navigation buttons */
-.vis-navigation .vis-button:hover::after {
-  background-color: rgba(66, 232, 224, 1); /* Teal hover for panning controls */
+/* Teal hover for panning controls */
+.vis-navigation .vis-button.vis-up:hover::after,
+.vis-navigation .vis-button.vis-down:hover::after,
+.vis-navigation .vis-button.vis-left:hover::after,
+.vis-navigation .vis-button.vis-right:hover::after {
+  background-color: rgba(66, 232, 224, 1);
   filter: drop-shadow(0 0 10px rgba(66, 232, 224, 0.5));
 }
 
+/* Purple hover for zoom controls */
 .vis-navigation .vis-button.vis-zoomIn:hover::after,
 .vis-navigation .vis-button.vis-zoomOut:hover::after,
 .vis-navigation .vis-button.vis-zoomExtends:hover::after {
-  background-color: rgba(155, 92, 255, 1); /* Purple hover for zoom controls */
+  background-color: rgba(155, 92, 255, 1);
   filter: drop-shadow(0 0 10px rgba(155, 92, 255, 0.5));
 }
 
