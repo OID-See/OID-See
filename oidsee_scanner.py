@@ -51,6 +51,12 @@ GRAPH_BETA = "https://graph.microsoft.com/beta"
 GRAPH_V1 = "https://graph.microsoft.com/v1.0"
 AZURE_CLI_CLIENT_ID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
 
+# Microsoft tenant IDs that could indicate identity laundering for unverified apps
+MICROSOFT_TENANT_IDS = [
+    "f8cdef31-a31e-4b4a-93e4-5f571e91255a",  # Microsoft Accounts (MSA)
+    "72f988bf-86f1-41af-91ab-2d7cd011db47",  # Microsoft Services
+]
+
 # -----------------------------
 # Scoring configuration loader
 # -----------------------------
@@ -1097,12 +1103,7 @@ def compute_risk_for_sp(
 
     # IDENTITY_LAUNDERING (Microsoft-owned appOwnerOrganizationId but not a first-party app)
     app_owner_org_id = sp.get("appOwnerOrganizationId")
-    # Microsoft Accounts/Services tenant IDs that could indicate identity laundering for unverified apps
-    microsoft_tenant_ids = [
-        "f8cdef31-a31e-4b4a-93e4-5f571e91255a",  # Microsoft Accounts (MSA)
-        "72f988bf-86f1-41af-91ab-2d7cd011db47",  # Microsoft Services
-    ]
-    if not verified and app_owner_org_id in microsoft_tenant_ids:
+    if not verified and app_owner_org_id in MICROSOFT_TENANT_IDS:
         identity_laundering_config = contributors.get("IDENTITY_LAUNDERING", {})
         weight = identity_laundering_config.get("weight", 15)
         details = identity_laundering_config.get("details", "App appears Microsoft-owned but is unverified multi-tenant")

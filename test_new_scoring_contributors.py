@@ -7,7 +7,13 @@ import sys
 from typing import Dict, Any, List
 
 # Import the functions we're testing
-from oidsee_scanner import compute_risk_for_sp, DirectoryCache, GraphClient, SCORING_CONFIG
+from oidsee_scanner import (
+    compute_risk_for_sp, 
+    DirectoryCache, 
+    GraphClient, 
+    SCORING_CONFIG,
+    MICROSOFT_TENANT_IDS
+)
 
 
 def mock_directory_cache():
@@ -99,7 +105,7 @@ def test_identity_laundering():
     print("\n=== Testing IDENTITY_LAUNDERING ===")
     
     # Microsoft tenant IDs that should trigger identity laundering
-    microsoft_tenant_id = "f8cdef31-a31e-4b4a-93e4-5f571e91255a"  # MSA tenant
+    microsoft_tenant_id = MICROSOFT_TENANT_IDS[0]  # Use first Microsoft tenant ID from constants
     
     sp_laundering = {
         "verifiedPublisher": None,  # Unverified
