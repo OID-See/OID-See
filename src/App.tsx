@@ -196,7 +196,16 @@ export default function App() {
   const [inputCollapsed, setInputCollapsed] = useState<boolean>(false)
   const [filterCollapsed, setFilterCollapsed] = useState<boolean>(false)
   const [detailsCollapsed, setDetailsCollapsed] = useState<boolean>(false)
+  const [isMobile, setIsMobile] = useState<boolean>(false)
   const graphRef = useRef<GraphCanvasHandle>(null)
+
+  // Detect mobile viewport
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768)
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   useEffect(() => {
     setSaved(loadSaved())
@@ -387,7 +396,7 @@ export default function App() {
                   onClick={() => setInputCollapsed(!inputCollapsed)}
                   title={inputCollapsed ? 'Expand' : 'Collapse'}
                 >
-                  {inputCollapsed ? '▶' : '◀'}
+                  {inputCollapsed ? (isMobile ? '▼' : '▶') : (isMobile ? '▲' : '◀')}
                 </button>
               </div>
             </div>
@@ -438,7 +447,7 @@ export default function App() {
               onClick={() => setDetailsCollapsed(!detailsCollapsed)}
               title={detailsCollapsed ? 'Expand' : 'Collapse'}
             >
-              {detailsCollapsed ? '◀' : '▶'}
+              {detailsCollapsed ? (isMobile ? '▼' : '◀') : (isMobile ? '▲' : '▶')}
             </button>
           </div>
           {!detailsCollapsed && <DetailsPanel selection={selection} onFocus={handleFocus} />}

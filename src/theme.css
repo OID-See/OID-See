@@ -108,6 +108,31 @@ body{
   }
 }
 
+/* Mobile - all panels collapse vertically */
+@media (max-width: 768px) {
+  /* Override horizontal collapse on mobile */
+  .panel.collapsed-horizontal {
+    min-width: auto;
+    width: auto;
+    max-height: 48px;
+    overflow: hidden;
+  }
+  
+  .panel.collapsed-horizontal .panel__title {
+    display: flex;
+  }
+  
+  .panel.collapsed-horizontal .panel__content {
+    display: none;
+  }
+  
+  /* Change collapse button icons for vertical collapse on mobile */
+  .panel__collapse-btn {
+    min-width: 48px;
+    min-height: 48px;
+  }
+}
+
 .panel--filter {
   padding: .75rem 1rem .6rem 1rem;
   border: none;
@@ -164,10 +189,21 @@ body{
   border-radius: 8px;
   font-size: .85rem;
   transition: background 0.2s ease;
+  -webkit-tap-highlight-color: rgba(255,255,255,0.1);
+  touch-action: manipulation;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .panel__collapse-btn:hover {
   background: rgba(255,255,255,0.05);
+}
+
+.panel__collapse-btn:active {
+  background: rgba(255,255,255,0.1);
 }
 
 .panel__header-content {
@@ -198,6 +234,13 @@ body{
 .btn--collapse-sm {
   padding: .25rem .5rem;
   font-size: .85rem;
+  -webkit-tap-highlight-color: rgba(255,255,255,0.1);
+  touch-action: manipulation;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn--format {
@@ -482,6 +525,11 @@ body{
 .vis-navigation .vis-button {
   position: relative;
   background-image: none !important; /* kill sprite */
+  background-color: transparent !important; /* ensure no background */
+}
+
+.vis-navigation .vis-button:hover {
+  background-color: transparent !important; /* prevent vis-network default hover */
 }
 
 .vis-navigation .vis-button::after {
