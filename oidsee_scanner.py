@@ -1743,6 +1743,14 @@ class OidSeeCollector:
                 "nonAlignedDomains": mixed_domains_result.get("non_aligned_domains", []),
             }
             
+            # Type-check list fields for properties dict
+            tags_value = sp.get("tags")
+            tags_safe = tags_value if isinstance(tags_value, list) else []
+            key_creds_value = sp.get("keyCredentials")
+            key_creds_safe = key_creds_value if isinstance(key_creds_value, list) else []
+            password_creds_value = sp.get("passwordCredentials")
+            password_creds_safe = password_creds_value if isinstance(password_creds_value, list) else []
+            
             props = {
                 "servicePrincipalId": sp_id,
                 "appId": sp.get("appId"),
@@ -1756,10 +1764,10 @@ class OidSeeCollector:
                 "logoutUrl": sp.get("logoutUrl"),
                 "requiresAssignment": sp.get("appRoleAssignmentRequired"),
                 "verifiedPublisher": sp.get("verifiedPublisher"),
-                "tags": sp.get("tags") if isinstance(sp.get("tags"), list) else [],
+                "tags": tags_safe,
                 "info": info_safe,
-                "keyCredentials": sp.get("keyCredentials") if isinstance(sp.get("keyCredentials"), list) else [],
-                "passwordCredentials": sp.get("passwordCredentials") if isinstance(sp.get("passwordCredentials"), list) else [],
+                "keyCredentials": key_creds_safe,
+                "passwordCredentials": password_creds_safe,
                 # Enhanced fields
                 "credentialInsights": credential_insights,
                 "replyUrlAnalysis": reply_url_analysis,
