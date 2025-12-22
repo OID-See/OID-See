@@ -6,6 +6,7 @@
 
   /* Logo-derived accents */
   --teal:#42E8E0;
+  --teal-rgb: 66, 232, 224;
   --purple:#9B5CFF;
   --danger:#FF6B6B;
   --shadow: 0 10px 30px rgba(0,0,0,0.35);
@@ -242,14 +243,14 @@ body{
 }
 
 .panel__collapse-btn:hover {
-  background: rgba(66, 232, 224, 0.12);
-  border-color: rgba(66, 232, 224, 0.4);
+  background: rgba(var(--teal-rgb), 0.12);
+  border-color: rgba(var(--teal-rgb), 0.4);
   color: var(--teal);
 }
 
 .panel__collapse-btn:active {
-  background: rgba(66, 232, 224, 0.18);
-  border-color: rgba(66, 232, 224, 0.6);
+  background: rgba(var(--teal-rgb), 0.18);
+  border-color: rgba(var(--teal-rgb), 0.6);
 }
 
 .panel__header-content {
@@ -291,14 +292,14 @@ body{
 }
 
 .btn--collapse-sm:hover {
-  background: rgba(66, 232, 224, 0.12);
-  border-color: rgba(66, 232, 224, 0.4);
+  background: rgba(var(--teal-rgb), 0.12);
+  border-color: rgba(var(--teal-rgb), 0.4);
   color: var(--teal);
 }
 
 .btn--collapse-sm:active {
-  background: rgba(66, 232, 224, 0.18);
-  border-color: rgba(66, 232, 224, 0.6);
+  background: rgba(var(--teal-rgb), 0.18);
+  border-color: rgba(var(--teal-rgb), 0.6);
 }
 
 .btn--format {
