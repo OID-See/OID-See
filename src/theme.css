@@ -9,6 +9,10 @@
   --purple:#9B5CFF;
   --danger:#FF6B6B;
   --shadow: 0 10px 30px rgba(0,0,0,0.35);
+  
+  /* Panel collapse sizes */
+  --collapsed-panel-height: 48px;
+  --filter-panel-height: 180px;
 }
 
 *{ box-sizing:border-box; }
@@ -97,12 +101,53 @@ body{
   .panel--details{ grid-column: auto; }
 }
 
+/* Mobile portrait - increase filter panel height */
+@media (max-width: 768px) and (orientation: portrait) {
+  :root {
+    --filter-panel-height: 240px;
+  }
+}
+
+/* Mobile - all panels collapse vertically */
+@media (max-width: 768px) {
+  /* Override horizontal collapse on mobile */
+  .panel.collapsed-horizontal {
+    min-width: auto;
+    width: auto;
+    max-height: 48px;
+    overflow: hidden;
+  }
+  
+  .panel.collapsed-horizontal .panel__title {
+    display: flex;
+  }
+  
+  .panel.collapsed-horizontal .panel__content {
+    display: none;
+  }
+  
+  /* Change collapse button icons for vertical collapse on mobile */
+  .panel__collapse-btn {
+    min-width: 48px;
+    min-height: 48px;
+  }
+}
+
 .panel--filter {
   padding: .75rem 1rem .6rem 1rem;
   border: none;
   box-shadow: none;
   background: transparent;
   border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin: 0 1rem;
+  max-height: var(--filter-panel-height);
+  overflow-y: auto;
+  transition: max-height 0.3s ease;
+}
+
+.panel--filter.collapsed {
+  max-height: var(--collapsed-panel-height);
+  overflow: hidden;
 }
 
 .panel{
@@ -113,6 +158,16 @@ body{
   overflow:hidden;
   display:flex;
   flex-direction:column;
+  transition: width 0.3s ease, min-width 0.3s ease;
+}
+
+.panel.collapsed-horizontal {
+  min-width: 60px;
+  width: 60px;
+}
+
+.panel.collapsed-horizontal .panel__content {
+  display: none;
 }
 .panel__title{
   padding: .75rem 1rem;
@@ -120,6 +175,77 @@ body{
   color: rgba(234,242,255,0.82);
   border-bottom: 1px solid rgba(255,255,255,0.06);
   background: rgba(0,0,0,0.18);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel__collapse-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.10);
+  color: var(--fg0);
+  cursor: pointer;
+  padding: .25rem .5rem;
+  border-radius: 8px;
+  font-size: .85rem;
+  transition: background 0.2s ease;
+  -webkit-tap-highlight-color: rgba(255,255,255,0.1);
+  touch-action: manipulation;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel__collapse-btn:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+.panel__collapse-btn:active {
+  background: rgba(255,255,255,0.1);
+}
+
+.panel__header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.panel__header-actions {
+  display: flex;
+  gap: .5rem;
+}
+
+.filter-header {
+  margin-bottom: .5rem;
+}
+
+.filter-header.collapsed {
+  margin-bottom: 0;
+}
+
+.filter-label {
+  font-weight: 700;
+  color: rgba(234,242,255,0.82);
+}
+
+.btn--collapse-sm {
+  padding: .25rem .5rem;
+  font-size: .85rem;
+  -webkit-tap-highlight-color: rgba(255,255,255,0.1);
+  touch-action: manipulation;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn--format {
+  padding: .35rem .55rem;
+  font-size: .85rem;
 }
 
 .json-input{
@@ -204,6 +330,7 @@ body{
   padding: 2rem 1rem 1.75rem 1rem;
   border-bottom: 1px solid rgba(255,255,255,0.06);
   background: rgba(0,0,0,0.12);
+  position: relative;
 }
 .filterbar__row{
   display:flex;
@@ -398,6 +525,11 @@ body{
 .vis-navigation .vis-button {
   position: relative;
   background-image: none !important; /* kill sprite */
+  background-color: transparent !important; /* ensure no background */
+}
+
+.vis-navigation .vis-button:hover {
+  background-color: transparent !important; /* prevent vis-network default hover */
 }
 
 .vis-navigation .vis-button::after {
@@ -431,13 +563,31 @@ body{
   filter: drop-shadow(0 0 8px rgba(155, 92, 255, 0.35));
 }
 
+/* Hover states for navigation buttons */
+/* Teal hover for panning controls */
+.vis-navigation .vis-button.vis-up:hover::after,
+.vis-navigation .vis-button.vis-down:hover::after,
+.vis-navigation .vis-button.vis-left:hover::after,
+.vis-navigation .vis-button.vis-right:hover::after {
+  background-color: rgba(66, 232, 224, 1);
+  filter: drop-shadow(0 0 10px rgba(66, 232, 224, 0.5));
+}
+
+/* Purple hover for zoom controls */
+.vis-navigation .vis-button.vis-zoomIn:hover::after,
+.vis-navigation .vis-button.vis-zoomOut:hover::after,
+.vis-navigation .vis-button.vis-zoomExtends:hover::after {
+  background-color: rgba(155, 92, 255, 1);
+  filter: drop-shadow(0 0 10px rgba(155, 92, 255, 0.5));
+}
+
 /* ===== JSON Editor Syntax Highlighting ===== */
 .json-editor {
   width: 100%;
   height: 360px;
   background: rgba(0,0,0,0.30);
   border-radius: 0;
-  overflow: hidden;
+  overflow: auto;
   display: flex;
   flex-direction: column;
 }
@@ -451,6 +601,7 @@ body{
   font-size: 12.5px;
   line-height: 1.35rem;
   overflow-y: auto;
+  overflow-x: auto;
 }
 
 .json-editor__pre {

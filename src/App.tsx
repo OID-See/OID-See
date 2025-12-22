@@ -9,15 +9,18 @@ import { JSONEditor } from './components/JSONEditor'
 
 type SavedQuery = { name: string; query: string }
 
+// Emoji regex for cross-browser compatibility validation
+const EMOJI_REGEX = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{FE00}-\u{FE0F}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F251}]/u
+
 const PRESET_QUERIES: SavedQuery[] = [
-  { name: '🔴 High Risk Apps', query: 'n.risk.score>=70' },
-  { name: '🔐 Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
-  { name: '⚡ Can Impersonate', query: 'e.type=CAN_IMPERSONATE' },
-  { name: '📊 Too Many Scopes', query: 'e.type=HAS_TOO_MANY_SCOPES' },
-  { name: '🛡️ Privileged Scopes', query: 'e.type=HAS_PRIVILEGED_SCOPES' },
-  { name: '🔄 Persistence Paths', query: 'e.type=PERSISTENCE_PATH' },
-  { name: '👤 Users Only', query: 'n.type=User' },
-  { name: '🔑 Applications', query: 'n.type=Application' },
+  { name: 'High Risk Apps', query: 'n.risk.score>=70' },
+  { name: 'Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
+  { name: 'Can Impersonate', query: 'e.type=CAN_IMPERSONATE' },
+  { name: 'Too Many Scopes', query: 'e.type=HAS_TOO_MANY_SCOPES' },
+  { name: 'Privileged Scopes', query: 'e.type=HAS_PRIVILEGED_SCOPES' },
+  { name: 'Persistence Paths', query: 'e.type=PERSISTENCE_PATH' },
+  { name: 'Users Only', query: 'n.type=User' },
+  { name: 'Applications', query: 'n.type=Application' },
 ]
 
 function loadSaved(): SavedQuery[] {
@@ -190,7 +193,30 @@ export default function App() {
   const [lens, setLens] = useState<Lens>('full')
   const [pathAware, setPathAware] = useState<boolean>(true)
   const [saved, setSaved] = useState<SavedQuery[]>([])
+  const [inputCollapsed, setInputCollapsed] = useState<boolean>(false)
+  const [filterCollapsed, setFilterCollapsed] = useState<boolean>(false)
+  const [detailsCollapsed, setDetailsCollapsed] = useState<boolean>(false)
+  const [isMobile, setIsMobile] = useState<boolean>(false)
   const graphRef = useRef<GraphCanvasHandle>(null)
+
+  // Detect mobile viewport
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768)
+    checkMobile()
+    
+    // Debounce resize events
+    let timeoutId: NodeJS.Timeout
+    const debouncedResize = () => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(checkMobile, 150)
+    }
+    
+    window.addEventListener('resize', debouncedResize)
+    return () => {
+      clearTimeout(timeoutId)
+      window.removeEventListener('resize', debouncedResize)
+    }
+  }, [])
 
   useEffect(() => {
     setSaved(loadSaved())
@@ -251,6 +277,13 @@ export default function App() {
   function saveCurrentQuery() {
     const name = prompt('Save query as…')
     if (!name) return
+    
+    // Check for emojis
+    if (EMOJI_REGEX.test(name)) {
+      alert('Emojis are not supported in query names for cross-browser compatibility. Please use text only.')
+      return
+    }
+    
     const next = saved.filter((s) => s.name !== name).concat([{ name, query }])
     setSaved(next)
     saveSaved(next)
@@ -330,45 +363,71 @@ export default function App() {
         </div>
       </header>
 
-      <section className="panel panel--filter">
-        <FilterBar
-          query={query}
-          onChange={setQuery}
-          counts={counts}
-          warnings={warnings}
-          lens={lens}
-          onLens={setLens}
-          pathAware={pathAware}
-          onPathAware={setPathAware}
-          saved={saved}
-          onSave={saveCurrentQuery}
-          onDelete={deleteSavedQuery}
-          onLoad={loadSavedQuery}
-        />
+      <section className={`panel--filter${filterCollapsed ? ' collapsed' : ''}`}>
+        <div className={`panel__header-content filter-header${filterCollapsed ? ' collapsed' : ''}`}>
+          <span className="filter-label">Filters</span>
+          <button 
+            className="btn btn--ghost btn--collapse-sm" 
+            onClick={() => setFilterCollapsed(!filterCollapsed)}
+          >
+            {filterCollapsed ? '▼' : '▲'}
+          </button>
+        </div>
+        {!filterCollapsed && (
+          <FilterBar
+            query={query}
+            onChange={setQuery}
+            counts={counts}
+            warnings={warnings}
+            lens={lens}
+            onLens={setLens}
+            pathAware={pathAware}
+            onPathAware={setPathAware}
+            saved={saved}
+            onSave={saveCurrentQuery}
+            onDelete={deleteSavedQuery}
+            onLoad={loadSavedQuery}
+          />
+        )}
       </section>
 
       <main className="main">
-        <section className="panel" onDragOver={(e) => e.preventDefault()} onDrop={onDrop} title="Drop a .json file here">
+        <section className={`panel${inputCollapsed ? ' collapsed-horizontal' : ''}`} onDragOver={(e) => e.preventDefault()} onDrop={onDrop} title="Drop a .json file here">
           <div className="panel__title">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="panel__header-content">
               <span>Input</span>
-              <button className="btn btn--ghost" onClick={formatJSON} style={{ padding: '.35rem .55rem', fontSize: '.85rem' }}>
-                Format
-              </button>
+              <div className="panel__header-actions">
+                {!inputCollapsed && (
+                  <button className="btn btn--ghost btn--format" onClick={formatJSON}>
+                    Format
+                  </button>
+                )}
+                <button 
+                  className="panel__collapse-btn" 
+                  onClick={() => setInputCollapsed(!inputCollapsed)}
+                  title={inputCollapsed ? 'Expand' : 'Collapse'}
+                >
+                  {inputCollapsed ? (isMobile ? '▼' : '▶') : (isMobile ? '▲' : '◀')}
+                </button>
+              </div>
             </div>
           </div>
-          <JSONEditor
-            value={raw}
-            onChange={setRaw}
-            placeholder={placeholder}
-          />
-          <div className="hint">Drop a JSON file anywhere in this panel, or paste JSON above. Nothing is uploaded to a server.</div>
+          {!inputCollapsed && (
+            <>
+              <JSONEditor
+                value={raw}
+                onChange={setRaw}
+                placeholder={placeholder}
+              />
+              <div className="hint">Drop a JSON file anywhere in this panel, or paste JSON above. Nothing is uploaded to a server.</div>
 
-          {error && (
-            <div className="error">
-              <div className="error__title">Couldn’t render</div>
-              <div className="error__msg">{error}</div>
-            </div>
+              {error && (
+                <div className="error">
+                  <div className="error__title">Couldn't render</div>
+                  <div className="error__msg">{error}</div>
+                </div>
+              )}
+            </>
           )}
         </section>
 
@@ -391,9 +450,18 @@ export default function App() {
           )}
         </section>
 
-        <section className="panel panel--details">
-          <div className="panel__title">Details</div>
-          <DetailsPanel selection={selection} onFocus={handleFocus} />
+        <section className={`panel panel--details${detailsCollapsed ? ' collapsed-horizontal' : ''}`}>
+          <div className="panel__title">
+            <span>Details</span>
+            <button 
+              className="panel__collapse-btn" 
+              onClick={() => setDetailsCollapsed(!detailsCollapsed)}
+              title={detailsCollapsed ? 'Expand' : 'Collapse'}
+            >
+              {detailsCollapsed ? (isMobile ? '▼' : '◀') : (isMobile ? '▲' : '▶')}
+            </button>
+          </div>
+          {!detailsCollapsed && <DetailsPanel selection={selection} onFocus={handleFocus} />}
         </section>
       </main>
 
