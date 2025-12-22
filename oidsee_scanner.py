@@ -1117,7 +1117,9 @@ def compute_risk_for_sp(
     # MIXED_REPLYURL_DOMAINS (heuristic, non-blocking)
     reply_urls = sp.get("replyUrls") or []
     homepage = sp.get("homepage")
-    info = sp.get("info") or {}
+    info_value = sp.get("info")
+    # Ensure info is always a dict (Graph API might return unexpected types)
+    info = info_value if isinstance(info_value, dict) else {}
     mixed_domains_result = check_mixed_replyurl_domains(reply_urls, homepage, info)
     
     if mixed_domains_result.get("has_mixed_domains") and mixed_domains_result.get("signal_type"):
