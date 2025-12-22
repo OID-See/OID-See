@@ -125,8 +125,8 @@ DEFAULT_SCORING_CONFIG = {
                 "weight": 15,
                 "description": "Delegated consent is overly broad"
             },
-            "PERSISTENCE": {
-                "weight": 15,
+            "OFFLINE_ACCESS_PERSISTENCE": {
+                "weight": 8,
                 "description": "offline_access delegated grant allows refresh tokens"
             },
             "ASSIGNED_TO": {
@@ -993,15 +993,15 @@ def compute_risk_for_sp(
             "weight": weight,
         })
 
-    # PERSISTENCE (offline_access)
+    # OFFLINE_ACCESS_PERSISTENCE (offline_access)
     if has_offline_access:
-        persistence_config = contributors.get("PERSISTENCE", {})
-        weight = persistence_config.get("weight", 15)
-        description = persistence_config.get("description", "offline_access delegated grant allows refresh tokens")
+        persistence_config = contributors.get("OFFLINE_ACCESS_PERSISTENCE", {})
+        weight = persistence_config.get("weight", 8)
+        details = persistence_config.get("details", "App requests offline_access (delegated) for refresh-token persistence")
         score += weight
         reasons.append({
-            "code": "PERSISTENCE",
-            "message": description,
+            "code": "OFFLINE_ACCESS_PERSISTENCE",
+            "message": details,
             "weight": weight,
         })
 
@@ -1067,8 +1067,20 @@ def compute_risk_for_sp(
             "weight": weight,
         })
 
-    # DECEPTION
+    # UNVERIFIED_PUBLISHER
     verified = is_verified_publisher(sp.get("verifiedPublisher"))
+    if not verified:
+        unverified_config = contributors.get("UNVERIFIED_PUBLISHER", {})
+        weight = unverified_config.get("weight", 6)
+        details = unverified_config.get("details", "Service principal has no verifiedPublisherId")
+        score += weight
+        reasons.append({
+            "code": "UNVERIFIED_PUBLISHER",
+            "message": details,
+            "weight": weight,
+        })
+
+    # DECEPTION (name mismatch in addition to unverified)
     publisher = sp.get("publisherName") or ""
     display_name = sp_display or sp.get("appDisplayName") or ""
     deception = (not verified) and publisher and display_name and publisher.lower() != display_name.lower()
@@ -1080,6 +1092,24 @@ def compute_risk_for_sp(
         reasons.append({
             "code": "DECEPTION",
             "message": description,
+            "weight": weight,
+        })
+
+    # IDENTITY_LAUNDERING (Microsoft-owned appOwnerOrganizationId but not a first-party app)
+    app_owner_org_id = sp.get("appOwnerOrganizationId")
+    # Microsoft Accounts/Services tenant IDs that could indicate identity laundering for unverified apps
+    microsoft_tenant_ids = [
+        "f8cdef31-a31e-4b4a-93e4-5f571e91255a",  # Microsoft Accounts (MSA)
+        "72f988bf-86f1-41af-91ab-2d7cd011db47",  # Microsoft Services
+    ]
+    if not verified and app_owner_org_id in microsoft_tenant_ids:
+        identity_laundering_config = contributors.get("IDENTITY_LAUNDERING", {})
+        weight = identity_laundering_config.get("weight", 15)
+        details = identity_laundering_config.get("details", "App appears Microsoft-owned but is unverified multi-tenant")
+        score += weight
+        reasons.append({
+            "code": "IDENTITY_LAUNDERING",
+            "message": details,
             "weight": weight,
         })
 
@@ -1123,6 +1153,19 @@ def compute_risk_for_sp(
                 "domains": mixed_domains_result["domains"],
             })
             score += weight
+    
+    # REPLYURL_OUTLIER_DOMAIN (domain not in main vendor domain set)
+    if reply_url_analysis and mixed_domains_result.get("non_aligned_domains"):
+        outlier_config = contributors.get("REPLYURL_OUTLIER_DOMAIN", {})
+        weight = outlier_config.get("weight", 10)
+        details = outlier_config.get("details", "Reply URLs on domains outside main vendor domain set")
+        score += weight
+        reasons.append({
+            "code": "REPLYURL_OUTLIER_DOMAIN",
+            "message": details,
+            "weight": weight,
+            "outlier_domains": mixed_domains_result["non_aligned_domains"],
+        })
 
     # LEGACY
     created = _parse_iso_datetime(sp.get("createdDateTime"))
@@ -1228,6 +1271,32 @@ def compute_risk_for_sp(
                 "weight": weight,
                 "subtype": "certificate_expiring",
             })
+    
+    # CREDENTIALS_PRESENT (keyCredentials and/or passwordCredentials)
+    has_key_creds = bool((sp.get("keyCredentials") or []))
+    has_password_creds = bool((sp.get("passwordCredentials") or []))
+    if has_key_creds or has_password_creds:
+        creds_present_config = contributors.get("CREDENTIALS_PRESENT", {})
+        weight = creds_present_config.get("weight", 10)
+        details = creds_present_config.get("details", "Service principal has credentials present")
+        score += weight
+        reasons.append({
+            "code": "CREDENTIALS_PRESENT",
+            "message": details,
+            "weight": weight,
+        })
+    
+    # PASSWORD_CREDENTIALS_PRESENT (specific to password credentials)
+    if has_password_creds:
+        password_creds_config = contributors.get("PASSWORD_CREDENTIALS_PRESENT", {})
+        weight = password_creds_config.get("weight", 12)
+        details = password_creds_config.get("details", "Service principal has password credentials")
+        score += weight
+        reasons.append({
+            "code": "PASSWORD_CREDENTIALS_PRESENT",
+            "message": details,
+            "weight": weight,
+        })
 
     # REPLY_URL_ANOMALIES
     if reply_url_analysis:
@@ -1686,6 +1755,9 @@ class OidSeeCollector:
                 "credentialInsights": credential_insights,
                 "replyUrlAnalysis": reply_url_analysis,
                 "trustSignals": trust_signals,
+                # Non-Graph data placeholders (WHOIS/DNS - not populated by Graph-only scanner)
+                "domainWhois": None,
+                "dnsRecords": None,
             }
             node = self.add_node(sp_nid, "ServicePrincipal", sp_display, props)
             # Add risk at top level if present
