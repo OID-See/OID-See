@@ -231,7 +231,7 @@ body{
   padding: .25rem .5rem;
   border-radius: 8px;
   font-size: .85rem;
-  transition: background 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
   -webkit-tap-highlight-color: rgba(255,255,255,0.1);
   touch-action: manipulation;
   min-width: 44px;
@@ -242,11 +242,14 @@ body{
 }
 
 .panel__collapse-btn:hover {
-  background: rgba(255,255,255,0.05);
+  background: rgba(66, 232, 224, 0.12);
+  border-color: rgba(66, 232, 224, 0.4);
+  color: var(--teal);
 }
 
 .panel__collapse-btn:active {
-  background: rgba(255,255,255,0.1);
+  background: rgba(66, 232, 224, 0.18);
+  border-color: rgba(66, 232, 224, 0.6);
 }
 
 .panel__header-content {
@@ -284,6 +287,18 @@ body{
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.btn--collapse-sm:hover {
+  background: rgba(66, 232, 224, 0.12);
+  border-color: rgba(66, 232, 224, 0.4);
+  color: var(--teal);
+}
+
+.btn--collapse-sm:active {
+  background: rgba(66, 232, 224, 0.18);
+  border-color: rgba(66, 232, 224, 0.6);
 }
 
 .btn--format {
