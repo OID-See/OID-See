@@ -1725,7 +1725,9 @@ class OidSeeCollector:
             )
             
             # Check for identity laundering signals
-            mixed_domains_result = check_mixed_replyurl_domains(reply_urls, sp.get("homepage"), sp.get("info") or {})
+            info_value_check = sp.get("info")
+            info_safe = info_value_check if isinstance(info_value_check, dict) else {}
+            mixed_domains_result = check_mixed_replyurl_domains(reply_urls, sp.get("homepage"), info_safe)
             identity_laundering_suspected = (
                 mixed_domains_result.get("signal_type") == "identity_laundering"
             )
@@ -1751,7 +1753,7 @@ class OidSeeCollector:
                 "requiresAssignment": sp.get("appRoleAssignmentRequired"),
                 "verifiedPublisher": sp.get("verifiedPublisher"),
                 "tags": sp.get("tags") or [],
-                "info": sp.get("info") or {},
+                "info": info_safe,
                 "keyCredentials": sp.get("keyCredentials") or [],
                 "passwordCredentials": sp.get("passwordCredentials") or [],
                 # Enhanced fields
