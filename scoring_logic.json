@@ -31,7 +31,6 @@
       ]
     }
   },
-
   "classify_scopes": {
     "scope_classifications": {
       "too_broad": {
@@ -50,7 +49,6 @@
       }
     }
   },
-
   "compute_risk_for_sp": {
     "scoring_contributors": {
       "CAN_IMPERSONATE": {
@@ -70,12 +68,14 @@
         "description": "Delegated consent is overly broad"
       },
       "ASSIGNED_TO": {
-        "weight": "calculated based on reachable_users (range: 5-25)",
-        "description": "App is assigned to principals approximating accessible users"
+        "weight": 25,
+        "description": "App is assigned to principals approximating accessible users",
+        "details": "If the app does NOT require assignment and has zero explicit assignments, it is broadly reachable (any user can consent/sign-in). Treat as high risk by default."
       },
       "BROAD_REACHABILITY": {
-        "weight": 15,
-        "description": "No assignments but appRoleAssignmentRequired=false implies broad reach"
+        "weight": 12,
+        "description": "No assignments but appRoleAssignmentRequired=false implies broad reach",
+        "details": "High reachability when assignment required AND assignments are large (direct + group-expanded). Thresholds: >50 (groups-only), >100 (users-only or mixed). Prefer true effective user count via group expansion."
       },
       "PRIVILEGE": {
         "weight": "calculated as 10 + 5 * roles_reachable (max 30)",
@@ -89,7 +89,9 @@
         "identity_laundering_weight": 15,
         "identity_laundering_description": "Identity laundering signal: reply URLs use domains not aligned with homepage/branding",
         "attribution_ambiguity_weight": 5,
-        "attribution_ambiguity_description": "Attribution ambiguity: multiple distinct domains in reply URLs"
+        "attribution_ambiguity_description": "Attribution ambiguity: multiple distinct domains in reply URLs",
+        "weight": 2,
+        "details": "Multiple eTLD+1 values is a weak signal (locales/admin portals are common). Only elevate when an outlier domain is unrelated to primary vendor domain(s)."
       },
       "CREDENTIAL_HYGIENE": {
         "long_lived_secret_weight": 10,
@@ -124,6 +126,30 @@
       "GOVERNANCE_UNKNOWN": {
         "weight": 3,
         "description": "Assignment requirement unknown"
+      },
+      "UNVERIFIED_PUBLISHER": {
+        "weight": 6,
+        "details": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies)."
+      },
+      "OFFLINE_ACCESS_PERSISTENCE": {
+        "weight": 8,
+        "details": "App requests offline_access (delegated) or otherwise gains refresh-token style persistence. This is persistence risk, not impersonation by itself."
+      },
+      "CREDENTIALS_PRESENT": {
+        "weight": 10,
+        "details": "Service principal has keyCredentials and/or passwordCredentials present (including 'hidden' secrets where value is not retrievable). Raises persistence and lateral reuse risk."
+      },
+      "PASSWORD_CREDENTIALS_PRESENT": {
+        "weight": 12,
+        "details": "Service principal has passwordCredentials present. Password secrets are easier to exfiltrate/misuse than certs; treat as higher risk than keyCredentials alone."
+      },
+      "IDENTITY_LAUNDERING": {
+        "weight": 15,
+        "details": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps."
+      },
+      "REPLYURL_OUTLIER_DOMAIN": {
+        "weight": 10,
+        "details": "One or more replyUrls are on a domain that is not in the main vendor domain set (eTLD+1 cluster) for the app. This is stronger than simply 'multiple domains'."
       }
     },
     "final_score_limitation": {
@@ -139,5 +165,9 @@
         "info": "score < 15"
       }
     }
+  },
+  "notes": {
+    "sourceScope": "Graph-only scoring. Sign-in logs excluded by design at this stage.",
+    "assignments": "Assignment reachability should be computed using effective user count via group expansion where possible."
   }
 }
