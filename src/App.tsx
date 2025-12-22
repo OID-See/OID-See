@@ -13,14 +13,14 @@ type SavedQuery = { name: string; query: string }
 const EMOJI_REGEX = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{FE00}-\u{FE0F}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F251}]/u
 
 const PRESET_QUERIES: SavedQuery[] = [
-  { name: '🔴 High Risk Apps', query: 'n.risk.score>=70' },
-  { name: '🔐 Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
-  { name: '⚡ Can Impersonate', query: 'e.type=CAN_IMPERSONATE' },
-  { name: '📊 Too Many Scopes', query: 'e.type=HAS_TOO_MANY_SCOPES' },
-  { name: '🛡️ Privileged Scopes', query: 'e.type=HAS_PRIVILEGED_SCOPES' },
-  { name: '🔄 Persistence Paths', query: 'e.type=PERSISTENCE_PATH' },
-  { name: '👤 Users Only', query: 'n.type=User' },
-  { name: '🔑 Applications', query: 'n.type=Application' },
+  { name: 'High Risk Apps', query: 'n.risk.score>=70' },
+  { name: 'Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
+  { name: 'Can Impersonate', query: 'e.type=CAN_IMPERSONATE' },
+  { name: 'Too Many Scopes', query: 'e.type=HAS_TOO_MANY_SCOPES' },
+  { name: 'Privileged Scopes', query: 'e.type=HAS_PRIVILEGED_SCOPES' },
+  { name: 'Persistence Paths', query: 'e.type=PERSISTENCE_PATH' },
+  { name: 'Users Only', query: 'n.type=User' },
+  { name: 'Applications', query: 'n.type=Application' },
 ]
 
 function loadSaved(): SavedQuery[] {
@@ -344,8 +344,8 @@ export default function App() {
       </header>
 
       <section className={`panel--filter${filterCollapsed ? ' collapsed' : ''}`}>
-        <div className="panel__header-content" style={{ marginBottom: filterCollapsed ? '0' : '.5rem' }}>
-          <span style={{ fontWeight: 700, color: 'rgba(234,242,255,0.82)' }}>Filters</span>
+        <div className={`panel__header-content filter-header${filterCollapsed ? ' collapsed' : ''}`}>
+          <span className="filter-label">Filters</span>
           <button 
             className="btn btn--ghost" 
             onClick={() => setFilterCollapsed(!filterCollapsed)}

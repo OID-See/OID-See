@@ -175,6 +175,19 @@ body{
   gap: .5rem;
 }
 
+.filter-header {
+  margin-bottom: .5rem;
+}
+
+.filter-header.collapsed {
+  margin-bottom: 0;
+}
+
+.filter-label {
+  font-weight: 700;
+  color: rgba(234,242,255,0.82);
+}
+
 .json-input{
   width:100%;
   min-height: 360px;
