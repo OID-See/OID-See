@@ -9,6 +9,10 @@
   --purple:#9B5CFF;
   --danger:#FF6B6B;
   --shadow: 0 10px 30px rgba(0,0,0,0.35);
+  
+  /* Panel collapse sizes */
+  --collapsed-panel-height: 48px;
+  --filter-panel-height: 180px;
 }
 
 *{ box-sizing:border-box; }
@@ -104,13 +108,13 @@ body{
   background: transparent;
   border-bottom: 1px solid rgba(255,255,255,0.06);
   margin: 0 1rem;
-  max-height: 180px;
+  max-height: var(--filter-panel-height);
   overflow-y: auto;
   transition: max-height 0.3s ease;
 }
 
 .panel--filter.collapsed {
-  max-height: 48px;
+  max-height: var(--collapsed-panel-height);
   overflow: hidden;
 }
 
@@ -157,6 +161,18 @@ body{
 
 .panel__collapse-btn:hover {
   background: rgba(255,255,255,0.05);
+}
+
+.panel__header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.panel__header-actions {
+  display: flex;
+  gap: .5rem;
 }
 
 .json-input{

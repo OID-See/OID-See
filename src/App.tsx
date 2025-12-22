@@ -9,6 +9,9 @@ import { JSONEditor } from './components/JSONEditor'
 
 type SavedQuery = { name: string; query: string }
 
+// Emoji regex for cross-browser compatibility validation
+const EMOJI_REGEX = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{FE00}-\u{FE0F}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F251}]/u
+
 const PRESET_QUERIES: SavedQuery[] = [
   { name: '🔴 High Risk Apps', query: 'n.risk.score>=70' },
   { name: '🔐 Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
@@ -256,8 +259,7 @@ export default function App() {
     if (!name) return
     
     // Check for emojis
-    const emojiRegex = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{FE00}-\u{FE0F}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F251}]/u
-    if (emojiRegex.test(name)) {
+    if (EMOJI_REGEX.test(name)) {
       alert('Emojis are not supported in query names for cross-browser compatibility. Please use text only.')
       return
     }
@@ -341,8 +343,8 @@ export default function App() {
         </div>
       </header>
 
-      <section className={`panel panel--filter${filterCollapsed ? ' collapsed' : ''}`}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: filterCollapsed ? '0' : '.5rem' }}>
+      <section className={`panel--filter${filterCollapsed ? ' collapsed' : ''}`}>
+        <div className="panel__header-content" style={{ marginBottom: filterCollapsed ? '0' : '.5rem' }}>
           <span style={{ fontWeight: 700, color: 'rgba(234,242,255,0.82)' }}>Filters</span>
           <button 
             className="btn btn--ghost" 
@@ -373,9 +375,9 @@ export default function App() {
       <main className="main">
         <section className={`panel${inputCollapsed ? ' collapsed-horizontal' : ''}`} onDragOver={(e) => e.preventDefault()} onDrop={onDrop} title="Drop a .json file here">
           <div className="panel__title">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            <div className="panel__header-content">
               <span>Input</span>
-              <div style={{ display: 'flex', gap: '.5rem' }}>
+              <div className="panel__header-actions">
                 {!inputCollapsed && (
                   <button className="btn btn--ghost" onClick={formatJSON} style={{ padding: '.35rem .55rem', fontSize: '.85rem' }}>
                     Format
