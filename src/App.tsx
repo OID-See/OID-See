@@ -203,8 +203,19 @@ export default function App() {
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768)
     checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
+    
+    // Debounce resize events
+    let timeoutId: NodeJS.Timeout
+    const debouncedResize = () => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(checkMobile, 150)
+    }
+    
+    window.addEventListener('resize', debouncedResize)
+    return () => {
+      clearTimeout(timeoutId)
+      window.removeEventListener('resize', debouncedResize)
+    }
   }, [])
 
   useEffect(() => {
