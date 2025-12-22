@@ -1115,7 +1115,8 @@ def compute_risk_for_sp(
         })
 
     # MIXED_REPLYURL_DOMAINS (heuristic, non-blocking)
-    reply_urls = sp.get("replyUrls") or []
+    reply_urls_value = sp.get("replyUrls")
+    reply_urls = reply_urls_value if isinstance(reply_urls_value, list) else []
     homepage = sp.get("homepage")
     info_value = sp.get("info")
     # Ensure info is always a dict (Graph API might return unexpected types)
@@ -1690,8 +1691,10 @@ class OidSeeCollector:
             appid = sp.get("appId")
             app_obj = self.app_cache_by_appid.get(appid) if appid else None
             
-            sp_password_creds = sp.get("passwordCredentials") or []
-            sp_key_creds = sp.get("keyCredentials") or []
+            sp_password_creds_value = sp.get("passwordCredentials")
+            sp_password_creds = sp_password_creds_value if isinstance(sp_password_creds_value, list) else []
+            sp_key_creds_value = sp.get("keyCredentials")
+            sp_key_creds = sp_key_creds_value if isinstance(sp_key_creds_value, list) else []
             app_password_creds = (app_obj or {}).get("passwordCredentials") or []
             app_key_creds = (app_obj or {}).get("keyCredentials") or []
             app_federated_creds = (app_obj or {}).get("federatedIdentityCredentials") or []
@@ -1702,7 +1705,8 @@ class OidSeeCollector:
             credential_insights = analyze_credentials(all_password_creds, all_key_creds, app_federated_creds)
             
             # Analyze reply URLs (before risk calculation)
-            reply_urls = sp.get("replyUrls") or []
+            reply_urls_value = sp.get("replyUrls")
+            reply_urls = reply_urls_value if isinstance(reply_urls_value, list) else []
             reply_url_analysis = analyze_reply_urls(reply_urls)
 
             # service principal node - compute risk with enhanced insights
@@ -1747,15 +1751,15 @@ class OidSeeCollector:
                 "signInAudience": sp.get("signInAudience"),
                 "appOwnerOrganizationId": sp.get("appOwnerOrganizationId"),
                 "createdDateTime": sp.get("createdDateTime"),
-                "replyUrls": sp.get("replyUrls") or [],
+                "replyUrls": reply_urls,  # Use the type-checked value
                 "homepage": sp.get("homepage"),
                 "logoutUrl": sp.get("logoutUrl"),
                 "requiresAssignment": sp.get("appRoleAssignmentRequired"),
                 "verifiedPublisher": sp.get("verifiedPublisher"),
-                "tags": sp.get("tags") or [],
+                "tags": sp.get("tags") if isinstance(sp.get("tags"), list) else [],
                 "info": info_safe,
-                "keyCredentials": sp.get("keyCredentials") or [],
-                "passwordCredentials": sp.get("passwordCredentials") or [],
+                "keyCredentials": sp.get("keyCredentials") if isinstance(sp.get("keyCredentials"), list) else [],
+                "passwordCredentials": sp.get("passwordCredentials") if isinstance(sp.get("passwordCredentials"), list) else [],
                 # Enhanced fields
                 "credentialInsights": credential_insights,
                 "replyUrlAnalysis": reply_url_analysis,
