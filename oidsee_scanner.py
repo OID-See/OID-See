@@ -2083,8 +2083,14 @@ def main() -> int:
         include_single_tenant=bool(args.include_single_tenant),
     )
 
-    collector = OidSeeCollector(graph, opts)
-    export = collector.build()
+    try:
+        collector = OidSeeCollector(graph, opts)
+        export = collector.build()
+    except Exception as e:
+        print(f"\n✗ Error during collection: {type(e).__name__}: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        return 1
 
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(export, f, indent=2, sort_keys=False)
