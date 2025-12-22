@@ -170,9 +170,24 @@ body{
   display: none;
 }
 
+.panel.collapsed-horizontal .panel__title {
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+  padding: 1rem 0.5rem;
+}
+
 .panel.collapsed-horizontal .panel__title-text {
   writing-mode: vertical-rl;
   text-orientation: mixed;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel.collapsed-horizontal .panel__header-actions {
+  display: none;
 }
 
 .panel__title{
@@ -540,10 +555,14 @@ body{
   position: relative;
   background-image: none !important; /* kill sprite */
   background-color: transparent !important; /* ensure no background */
+  border-radius: 0 !important; /* remove circular appearance */
+  box-shadow: none !important; /* remove any box shadow */
 }
 
 .vis-navigation .vis-button:hover {
   background-color: transparent !important; /* prevent vis-network default hover */
+  border-radius: 0 !important; /* remove circular appearance on hover */
+  box-shadow: none !important; /* remove any box shadow on hover */
 }
 
 .vis-navigation .vis-button::after {
