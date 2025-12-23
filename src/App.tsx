@@ -224,6 +224,7 @@ export default function App() {
   const [inputCollapsed, setInputCollapsed] = useState<boolean>(false)
   const [filterCollapsed, setFilterCollapsed] = useState<boolean>(false)
   const [detailsCollapsed, setDetailsCollapsed] = useState<boolean>(true)
+  const [detailsManuallyCollapsed, setDetailsManuallyCollapsed] = useState<boolean>(false)
   const [isMobile, setIsMobile] = useState<boolean>(false)
   const [physicsConfig, setPhysicsConfig] = useState<PhysicsConfig>(DEFAULT_PHYSICS)
   const [inputWidth, setInputWidth] = useState<number>(420)
@@ -264,11 +265,12 @@ export default function App() {
   }, [])
 
   // Auto-expand details panel when a node or edge is selected
+  // Only auto-expand if the user hasn't manually collapsed it
   useEffect(() => {
-    if (selection && detailsCollapsed) {
+    if (selection && detailsCollapsed && !detailsManuallyCollapsed) {
       setDetailsCollapsed(false)
     }
-  }, [selection])
+  }, [selection, detailsCollapsed, detailsManuallyCollapsed])
 
   // Reset physics configuration when graph data changes
   useEffect(() => {
@@ -431,6 +433,7 @@ export default function App() {
     } else if (panel === 'details') {
       setDetailsWidth(360)
       setDetailsCollapsed(false)
+      setDetailsManuallyCollapsed(false)
     } else if (panel === 'filter') {
       setFilterCollapsed(false)
     }
@@ -443,6 +446,7 @@ export default function App() {
     setDetailsWidth(360)
     setInputCollapsed(false)
     setDetailsCollapsed(false)
+    setDetailsManuallyCollapsed(false)
     setFilterCollapsed(false)
     setMaximizedPanel(null)
   }
@@ -647,7 +651,16 @@ export default function App() {
             <div className="panel__header-content">
               <button 
                 className="panel__collapse-btn" 
-                onClick={() => setDetailsCollapsed(!detailsCollapsed)}
+                onClick={() => {
+                  const newCollapsed = !detailsCollapsed
+                  setDetailsCollapsed(newCollapsed)
+                  // Track if user manually collapsed the panel
+                  if (newCollapsed) {
+                    setDetailsManuallyCollapsed(true)
+                  } else {
+                    setDetailsManuallyCollapsed(false)
+                  }
+                }}
                 title={detailsCollapsed ? 'Expand' : 'Collapse'}
               >
                 {detailsCollapsed ? (isMobile ? '▼' : '◀') : (isMobile ? '▲' : '▶')}

@@ -49,8 +49,6 @@ export const GraphCanvas = forwardRef<
   const networkRef = useRef<Network | null>(null)
   const allNodesRef = useRef<DataSet<VisNode>>(new DataSet([]))
   const allEdgesRef = useRef<DataSet<VisEdge>>(new DataSet([]))
-  const visibleNodesRef = useRef<DataSet<VisNode>>(new DataSet([]))
-  const visibleEdgesRef = useRef<DataSet<VisEdge>>(new DataSet([]))
   const fittedRef = useRef(false)
 
   const physics = useMemo(() => physicsConfig ?? DEFAULT_PHYSICS, [physicsConfig])
@@ -105,25 +103,48 @@ export const GraphCanvas = forwardRef<
       if (!network) return
       
       try {
-        // Re-enable physics temporarily, trigger stabilization, then disable again
-        network.setOptions({ physics: { enabled: true } })
-        network.stabilize()
+        // Re-enable physics temporarily and slightly adjust avoidOverlap to force recalculation
+        // This mimics the effect of the user adjusting the slider
+        const currentPhysics = physics
         
-        // Disable physics after stabilization
-        const onceStabilized = () => {
-          network.setOptions({ physics: { enabled: false } })
-          network.off('stabilized', onceStabilized)
-        }
-        network.once('stabilized', onceStabilized)
+        // Temporarily change avoidOverlap to force spacing recalculation
+        network.setOptions({ 
+          physics: { 
+            enabled: true,
+            barnesHut: {
+              ...currentPhysics,
+              avoidOverlap: currentPhysics.avoidOverlap === 1.0 ? 0.95 : 1.0
+            }
+          } 
+        })
         
-        // Fallback timeout to ensure physics gets disabled
+        // Short delay to allow the change to take effect
         setTimeout(() => {
-          try {
+          // Restore original avoidOverlap value and trigger stabilization
+          network.setOptions({ 
+            physics: { 
+              enabled: true,
+              barnesHut: currentPhysics
+            } 
+          })
+          network.stabilize()
+          
+          // Disable physics after stabilization
+          const onceStabilized = () => {
             network.setOptions({ physics: { enabled: false } })
-          } catch (e) {
-            console.warn('Failed to disable physics in fallback:', e)
+            network.off('stabilized', onceStabilized)
           }
-        }, 3000)
+          network.once('stabilized', onceStabilized)
+          
+          // Fallback timeout to ensure physics gets disabled
+          setTimeout(() => {
+            try {
+              network.setOptions({ physics: { enabled: false } })
+            } catch (e) {
+              console.warn('Failed to disable physics in fallback:', e)
+            }
+          }, 3000)
+        }, 50)
       } catch (e) {
         console.warn('Failed to restabilize graph:', e)
       }
@@ -131,24 +152,52 @@ export const GraphCanvas = forwardRef<
   }))
 
   // Update all and visible datasets when nodes/edges change
+  // Use hide/unhide approach for better performance with large datasets
   useEffect(() => {
     const allNodesDs = allNodesRef.current
     const allEdgesDs = allEdgesRef.current
-    const visibleNodesDs = visibleNodesRef.current
-    const visibleEdgesDs = visibleEdgesRef.current
 
     try {
-      // Update all nodes/edges with complete dataset
-      allNodesDs.clear()
-      allNodesDs.add(allNodes)
-      allEdgesDs.clear()
-      allEdgesDs.add(allEdges)
+      // Create sets of visible IDs for quick lookup
+      const visibleNodeIds = new Set(visibleNodes.map(n => n.id))
+      const visibleEdgeIds = new Set(visibleEdges.map(e => e.id))
 
-      // Update visible nodes/edges with filtered dataset
-      visibleNodesDs.clear()
-      visibleNodesDs.add(visibleNodes)
-      visibleEdgesDs.clear()
-      visibleEdgesDs.add(visibleEdges)
+      // Get current nodes and edges
+      const currentNodeIds = new Set(allNodesDs.getIds())
+      const currentEdgeIds = new Set(allEdgesDs.getIds())
+
+      // Find nodes/edges to add (in allNodes/allEdges but not in dataset)
+      const nodesToAdd = allNodes.filter(n => !currentNodeIds.has(n.id))
+      const edgesToAdd = allEdges.filter(e => !currentEdgeIds.has(e.id))
+
+      // Find nodes/edges to remove (in dataset but not in allNodes/allEdges)
+      const allNodeIds = new Set(allNodes.map(n => n.id))
+      const allEdgeIds = new Set(allEdges.map(e => e.id))
+      const nodeIdsToRemove = Array.from(currentNodeIds).filter(id => !allNodeIds.has(id))
+      const edgeIdsToRemove = Array.from(currentEdgeIds).filter(id => !allEdgeIds.has(id))
+
+      // Update dataset: add new nodes/edges
+      if (nodesToAdd.length > 0) allNodesDs.add(nodesToAdd)
+      if (edgesToAdd.length > 0) allEdgesDs.add(edgesToAdd)
+
+      // Update dataset: remove nodes/edges that are no longer in allNodes/allEdges
+      if (nodeIdsToRemove.length > 0) allNodesDs.remove(nodeIdsToRemove)
+      if (edgeIdsToRemove.length > 0) allEdgesDs.remove(edgeIdsToRemove)
+
+      // Update visibility: hide/show nodes and edges based on filter
+      const nodeUpdates = allNodes.map(n => ({
+        id: n.id,
+        hidden: !visibleNodeIds.has(n.id)
+      }))
+      
+      const edgeUpdates = allEdges.map(e => ({
+        id: e.id,
+        hidden: !visibleEdgeIds.has(e.id)
+      }))
+
+      if (nodeUpdates.length > 0) allNodesDs.update(nodeUpdates)
+      if (edgeUpdates.length > 0) allEdgesDs.update(edgeUpdates)
+
     } catch (e: any) {
       // Catch errors from vis-network DataSet (e.g., duplicate IDs)
       let errorMessage = 'Unknown error occurred'
@@ -178,8 +227,8 @@ export const GraphCanvas = forwardRef<
     networkRef.current?.destroy()
     fittedRef.current = false
 
-    const nodeDs = visibleNodesRef.current
-    const edgeDs = visibleEdgesRef.current
+    const nodeDs = allNodesRef.current
+    const edgeDs = allEdgesRef.current
 
     const network = new Network(
       containerRef.current,
