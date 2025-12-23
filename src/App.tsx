@@ -519,7 +519,7 @@ export default function App() {
       </section>
 
       <main className={`main${maximizedPanel ? ' maximized' : ''}`} style={mainGridStyle}>
-        <section className={`panel${inputCollapsed ? ' collapsed-horizontal' : ''}${maximizedPanel === 'input' ? ' maximized-panel' : ''}`} style={!inputCollapsed && !maximizedPanel ? { width: `${inputWidth}px` } : {}} onDragOver={(e) => e.preventDefault()} onDrop={onDrop} title="Drop a .json file here">
+        <section className={`panel${inputCollapsed ? ' collapsed-horizontal' : ''}${maximizedPanel === 'input' ? ' maximized-panel' : ''}`} onDragOver={(e) => e.preventDefault()} onDrop={onDrop} title="Drop a .json file here">
           <div className="panel__title">
             <div className="panel__header-content">
               <button 
@@ -624,7 +624,7 @@ export default function App() {
 
         {!detailsCollapsed && !maximizedPanel && <ResizeHandle onResize={handleDetailsResize} orientation="horizontal" />}
 
-        <section className={`panel panel--details${detailsCollapsed ? ' collapsed-horizontal' : ''}${maximizedPanel === 'details' ? ' maximized-panel' : ''}`} style={!detailsCollapsed && !maximizedPanel ? { width: `${detailsWidth}px` } : {}}>
+        <section className={`panel panel--details${detailsCollapsed ? ' collapsed-horizontal' : ''}${maximizedPanel === 'details' ? ' maximized-panel' : ''}`}>
           <div className="panel__title">
             <div className="panel__header-content">
               <button 
