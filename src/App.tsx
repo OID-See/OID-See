@@ -270,7 +270,9 @@ export default function App() {
 
   const mainGridStyle = useMemo(() => {
     if (maximizedPanel) return {}
-    if (inputCollapsed) return { gridTemplateColumns: '80px 1fr' }
+    // Only apply custom widths when panels are not collapsed
+    if (inputCollapsed && detailsCollapsed) return { gridTemplateColumns: '80px 1fr 80px' }
+    if (inputCollapsed) return { gridTemplateColumns: `80px 1fr ${detailsWidth}px` }
     if (detailsCollapsed) return { gridTemplateColumns: `${inputWidth}px 1fr 80px` }
     return { gridTemplateColumns: `${inputWidth}px 1fr ${detailsWidth}px` }
   }, [maximizedPanel, inputCollapsed, detailsCollapsed, inputWidth, detailsWidth])
