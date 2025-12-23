@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://oid-see.io/schemas/oidsee-graph-export.schema.json",
-  "title": "OID-See Graph Export",
+  "$id": "https://oidsee.dev/schemas/oidsee-graph-export.vNext.cleaned.schema.json",
+  "title": "OID-See Graph Export Schema (vNext, cleaned - no login endpoint evidence)",
   "type": "object",
   "required": [
     "format",
@@ -315,6 +315,43 @@
           "items": {
             "type": "string"
           }
+        },
+        "replyUrlDomains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "eTLD+1 domains extracted from replyUrls (and other URL fields where applicable)."
+        },
+        "replyUrlDomainSummary": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Computed summary of replyUrl domains (primary domain, counts, anomalies)."
+        },
+        "urlSignals": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "URL-based trust signals (placeholders for future web/WHOIS/DNS enrichment)."
+        },
+        "assignments": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Assignment-related counts and effective exposure estimates (users, groups, roles)."
+        },
+        "secrets": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Credential material presence/visibility signals (passwordCredentials/keyCredentials counts if returned by Graph)."
+        },
+        "oauthPermissions": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "OAuth permission summary (delegated scopes, application roles, offline_access presence, privileged sets)."
+        },
+        "graphSource": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Graph metadata for this object (tenant, apiVersion, fetch timestamps, @odata etag etc)."
         }
       }
     },
@@ -335,16 +372,21 @@
         "type": {
           "type": "string",
           "enum": [
-            "CAN_IMPERSONATE",
             "ASSIGNED_TO",
-            "HAS_SCOPE",
-            "MEMBER_OF",
-            "HAS_ROLE",
-            "OWNS",
-            "GOVERNS",
+            "CAN_IMPERSONATE",
             "EFFECTIVE_IMPERSONATION_PATH",
-            "PERSISTENCE_PATH",
-            "INSTANCE_OF"
+            "GOVERNS",
+            "HAS_APP_ROLE",
+            "HAS_OFFLINE_ACCESS",
+            "HAS_PRIVILEGED_SCOPES",
+            "HAS_ROLE",
+            "HAS_SCOPE",
+            "HAS_SCOPES",
+            "HAS_TOO_MANY_SCOPES",
+            "INSTANCE_OF",
+            "MEMBER_OF",
+            "OWNS",
+            "PERSISTENCE_PATH"
           ]
         },
         "from": {
@@ -443,6 +485,31 @@
             "unknown",
             null
           ]
+        },
+        "scope": {
+          "type": "string",
+          "description": "Scope value for HAS_SCOPE/HAS_SCOPES edges."
+        },
+        "appRoleId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "App role ID for HAS_APP_ROLE edges."
+        },
+        "appRoleValue": {
+          "type": "string",
+          "description": "App role value for HAS_APP_ROLE edges."
+        },
+        "appRoleDisplayName": {
+          "type": "string",
+          "description": "App role display name for HAS_APP_ROLE edges."
+        },
+        "privileged": {
+          "type": "boolean",
+          "description": "Whether this scope/app role is considered privileged by the scoring logic."
+        },
+        "source": {
+          "type": "string",
+          "description": "Source of relationship (Graph endpoint name or derivation)."
         }
       }
     },
@@ -470,6 +537,11 @@
           "items": {
             "$ref": "#/$defs/riskReason"
           }
+        },
+        "breakdown": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Optional per-category or per-rule scoring breakdown."
         }
       }
     },
@@ -495,6 +567,19 @@
           "items": {
             "type": "string"
           }
+        },
+        "category": {
+          "type": "string",
+          "description": "High-level category for the reason (e.g. permissions, persistence, assignments, urls, publisher, secrets)."
+        },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Structured evidence supporting this scoring decision (e.g. matched scopes, counts, domains)."
+        },
+        "ruleId": {
+          "type": "string",
+          "description": "Stable ID of the scoring rule that produced this reason (maps to scoring_logic.json)."
         }
       }
     },
@@ -510,8 +595,6 @@
           "type": "string",
           "enum": [
             "graph",
-            "token",
-            "ests",
             "manual",
             "other"
           ]
@@ -521,10 +604,6 @@
           "enum": [
             "graph_response",
             "graph_delta",
-            "jwt_claims",
-            "ests_config_blob",
-            "consent_page",
-            "screenshot",
             "note"
           ]
         },
@@ -542,7 +621,8 @@
           "type": "string",
           "description": "Content hash if stored elsewhere"
         }
-      }
+      },
+      "description": "Reference to supporting evidence for a node/edge/score finding.\n\nCleaned: evidence kinds are restricted to sources retrievable via Microsoft Graph or public web queries (no Entra login/ scraping)."
     },
     "finding": {
       "type": "object",
