@@ -15,6 +15,9 @@ type SavedQuery = { name: string; query: string }
 // Emoji regex for cross-browser compatibility validation
 const EMOJI_REGEX = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{FE00}-\u{FE0F}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F251}]/u
 
+// Responsive layout breakpoint - matches CSS media query
+const RESPONSIVE_BREAKPOINT = 1100
+
 const PRESET_QUERIES: SavedQuery[] = [
   { name: 'High Risk Apps', query: 'n.risk.score>=70' },
   { name: 'Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
@@ -226,7 +229,7 @@ export default function App() {
   const [inputWidth, setInputWidth] = useState<number>(420)
   const [detailsWidth, setDetailsWidth] = useState<number>(360)
   const [maximizedPanel, setMaximizedPanel] = useState<'input' | 'graph' | 'details' | 'filter' | null>(null)
-  const [viewportWidth, setViewportWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1280)
+  const [viewportWidth, setViewportWidth] = useState<number>(1280)
   const graphRef = useRef<GraphCanvasHandle>(null)
 
   // Load physics config on mount
@@ -275,7 +278,7 @@ export default function App() {
   const mainGridStyle = useMemo(() => {
     if (maximizedPanel) return {}
     // Don't override grid at smaller viewports - let CSS media queries handle it
-    if (viewportWidth <= 1100) {
+    if (viewportWidth <= RESPONSIVE_BREAKPOINT) {
       return {}
     }
     // Apply appropriate grid layout based on collapsed panel states
