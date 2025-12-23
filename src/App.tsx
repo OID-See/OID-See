@@ -405,6 +405,7 @@ export default function App() {
     } else if (panel === 'filter') {
       setFilterCollapsed(false)
     }
+    // Graph panel only has maximized state to reset
     setMaximizedPanel(null)
   }
 
