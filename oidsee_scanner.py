@@ -1854,7 +1854,9 @@ class OidSeeCollector:
                     for arid in role_ids:
                         r = roles_by_id.get(arid, {})
                         role_display = r.get("displayName") or r.get("value") or "Unknown Role"
-                        rnid = node_id("approle", arid, role_display)
+                        # Use the GUID (arid) for node ID to ensure uniqueness, not the display name
+                        # Multiple roles can have the same display name (e.g., "Unknown Role")
+                        rnid = node_id("approle", arid, None)
                         self.add_node(rnid, "Role", role_display, {
                             "roleTemplateId": arid,
                             "value": r.get("value"),
