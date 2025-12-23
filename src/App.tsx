@@ -395,6 +395,28 @@ export default function App() {
     setMaximizedPanel(prev => prev === panel ? null : panel)
   }
 
+  function resetPanelView(panel: 'input' | 'graph' | 'details' | 'filter') {
+    if (panel === 'input') {
+      setInputWidth(420)
+      setInputCollapsed(false)
+    } else if (panel === 'details') {
+      setDetailsWidth(360)
+      setDetailsCollapsed(false)
+    } else if (panel === 'filter') {
+      setFilterCollapsed(false)
+    }
+    setMaximizedPanel(null)
+  }
+
+  function resetAllViews() {
+    setInputWidth(420)
+    setDetailsWidth(360)
+    setInputCollapsed(false)
+    setDetailsCollapsed(false)
+    setFilterCollapsed(false)
+    setMaximizedPanel(null)
+  }
+
   return (
     <div className="app">
       <header className="topbar">
@@ -433,6 +455,10 @@ export default function App() {
             />
             Upload JSON
           </label>
+          
+          <button className="btn btn--ghost" onClick={resetAllViews} title="Reset all panel views">
+            ⟲ Reset View
+          </button>
         </div>
       </header>
 
@@ -445,13 +471,22 @@ export default function App() {
             {filterCollapsed ? '▼' : '▲'}
           </button>
           <span className="filter-label">Filters</span>
-          <button
-            className="btn btn--ghost btn--maximize-sm"
-            onClick={() => toggleMaximize('filter')}
-            title={maximizedPanel === 'filter' ? 'Restore' : 'Maximize'}
-          >
-            {maximizedPanel === 'filter' ? '◱' : '◰'}
-          </button>
+          <div style={{ display: 'flex', gap: '.5rem' }}>
+            <button
+              className="btn btn--ghost btn--maximize-sm"
+              onClick={() => resetPanelView('filter')}
+              title="Reset filter panel view"
+            >
+              ⟲
+            </button>
+            <button
+              className="btn btn--ghost btn--maximize-sm"
+              onClick={() => toggleMaximize('filter')}
+              title={maximizedPanel === 'filter' ? 'Restore' : 'Maximize'}
+            >
+              {maximizedPanel === 'filter' ? '◱' : '◰'}
+            </button>
+          </div>
         </div>
         {!filterCollapsed && (
           <FilterBar
@@ -488,6 +523,13 @@ export default function App() {
                   <>
                     <button className="btn btn--ghost btn--format" onClick={formatJSON}>
                       Format
+                    </button>
+                    <button
+                      className="btn btn--ghost btn--maximize"
+                      onClick={() => resetPanelView('input')}
+                      title="Reset input panel view"
+                    >
+                      ⟲
                     </button>
                     <button
                       className="btn btn--ghost btn--maximize"
@@ -534,6 +576,13 @@ export default function App() {
                 />
                 <button
                   className="btn btn--ghost btn--maximize"
+                  onClick={() => resetPanelView('graph')}
+                  title="Reset graph panel view"
+                >
+                  ⟲
+                </button>
+                <button
+                  className="btn btn--ghost btn--maximize"
                   onClick={() => toggleMaximize('graph')}
                   title={maximizedPanel === 'graph' ? 'Restore' : 'Maximize'}
                 >
@@ -576,13 +625,22 @@ export default function App() {
               <span className="panel__title-text">Details</span>
               <div className="panel__header-actions">
                 {!detailsCollapsed && (
-                  <button
-                    className="btn btn--ghost btn--maximize"
-                    onClick={() => toggleMaximize('details')}
-                    title={maximizedPanel === 'details' ? 'Restore' : 'Maximize'}
-                  >
-                    {maximizedPanel === 'details' ? '◱' : '◰'}
-                  </button>
+                  <>
+                    <button
+                      className="btn btn--ghost btn--maximize"
+                      onClick={() => resetPanelView('details')}
+                      title="Reset details panel view"
+                    >
+                      ⟲
+                    </button>
+                    <button
+                      className="btn btn--ghost btn--maximize"
+                      onClick={() => toggleMaximize('details')}
+                      title={maximizedPanel === 'details' ? 'Restore' : 'Maximize'}
+                    >
+                      {maximizedPanel === 'details' ? '◱' : '◰'}
+                    </button>
+                  </>
                 )}
               </div>
             </div>
