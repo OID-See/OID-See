@@ -25,6 +25,10 @@ export const GraphCanvas = forwardRef<
     onError?: (error: string) => void
   }
 >(({ allNodes, allEdges, visibleNodes, visibleEdges, onSelection, onError }, ref) => {
+  // Constants for physics stabilization
+  const PHYSICS_DISABLE_DELAY = 100 // ms delay before disabling physics after fit
+  const STABILIZATION_FALLBACK_TIMEOUT = 5000 // ms fallback timeout for large graphs
+  
   const containerRef = useRef<HTMLDivElement>(null)
   const networkRef = useRef<Network | null>(null)
   const allNodesRef = useRef<DataSet<VisNode>>(new DataSet([]))
@@ -162,12 +166,17 @@ export const GraphCanvas = forwardRef<
           selectionWidth: 2,
         },
         physics: {
-          stabilization: { iterations: 200, fit: true },
+          enabled: true,
+          stabilization: { 
+            enabled: true,
+            iterations: 250, 
+            fit: true 
+          },
           barnesHut: {
             gravitationalConstant: -9000,
             springLength: 150,
             springConstant: 0.04,
-            damping: 0.25,
+            damping: 0.3,
             avoidOverlap: 0.5,
           },
         },
@@ -187,16 +196,48 @@ export const GraphCanvas = forwardRef<
 
     networkRef.current = network
 
+    // Track if physics has been disabled
+    let physicsDisabled = false
+    
+    const disablePhysics = () => {
+      if (physicsDisabled) return
+      physicsDisabled = true
+      try {
+        network.setOptions({ physics: { enabled: false } })
+      } catch (e) {
+        console.warn('Failed to disable physics:', e)
+      }
+    }
+
     const fitOnce = () => {
       if (fittedRef.current) return
       fittedRef.current = true
       try {
         network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } })
       } catch {}
+      // Disable physics after fitting to prevent constant movement
+      setTimeout(() => disablePhysics(), PHYSICS_DISABLE_DELAY)
     }
 
-    network.on('stabilizationIterationsDone', fitOnce)
-    network.on('afterDrawing', fitOnce)
+    // Multiple events to ensure we catch stabilization
+    network.on('stabilizationIterationsDone', () => {
+      fitOnce()
+    })
+    
+    network.on('stabilized', () => {
+      fitOnce()
+    })
+
+    // Fallback timeout to ensure physics is disabled even if events don't fire
+    // Use longer timeout for large graphs
+    const stabilizationTimeout = setTimeout(() => {
+      if (!fittedRef.current) {
+        fitOnce()
+      } else {
+        // Ensure physics is disabled even if fitOnce ran but physics wasn't disabled
+        disablePhysics()
+      }
+    }, STABILIZATION_FALLBACK_TIMEOUT)
 
     network.on('selectNode', (p: any) => {
       const id = p.nodes?.[0]
@@ -243,6 +284,7 @@ export const GraphCanvas = forwardRef<
     ro.observe(containerRef.current)
 
     return () => {
+      clearTimeout(stabilizationTimeout)
       if (timer) window.clearInterval(timer)
       ro.disconnect()
       network.destroy()

@@ -126,7 +126,6 @@ body{
 /* Mobile portrait - increase filter panel height */
 @media (max-width: 768px) and (orientation: portrait) {
   :root {
-    --filter-panel-height: 240px;
   }
 }
 
@@ -162,9 +161,11 @@ body{
   background: transparent;
   border-bottom: 1px solid rgba(255,255,255,0.06);
   margin: 0 1rem;
-  max-height: var(--filter-panel-height);
-  overflow: hidden;
-  transition: max-height 0.3s ease;
+  overflow: visible;
+  height: auto;
+  min-height: auto;
+  max-height: none;
+  transition: opacity 0.3s ease;
 }
 
 .panel--filter.collapsed {
@@ -412,8 +413,7 @@ body{
   border-bottom: 1px solid rgba(255,255,255,0.06);
   background: rgba(0,0,0,0.12);
   position: relative;
-  max-height: calc(var(--filter-panel-height) - var(--collapsed-panel-height));
-  overflow-y: auto;
+  overflow-y: visible;
   overflow-x: hidden;
 }
 .filterbar__row{
