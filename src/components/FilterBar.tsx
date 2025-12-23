@@ -47,13 +47,15 @@ function getAutocompleteOptions(input: string): string[] {
 function FilterInput({ value, onChange, hasErrors }: { value: string; onChange: (v: string) => void; hasErrors: boolean }) {
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [selectedIndex, setSelectedIndex] = useState(-1)
+  const [isFocused, setIsFocused] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
+    if (!isFocused) return
     const opts = getAutocompleteOptions(value)
     setSuggestions(opts.slice(0, 8))
     setSelectedIndex(-1)
-  }, [value])
+  }, [value, isFocused])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     e.stopPropagation()
@@ -90,10 +92,14 @@ function FilterInput({ value, onChange, hasErrors }: { value: string; onChange: 
         onKeyPress={(e) => e.stopPropagation()}
         onKeyUp={(e) => e.stopPropagation()}
         onFocus={() => {
+          setIsFocused(true)
           const opts = getAutocompleteOptions(value)
           setSuggestions(opts.slice(0, 8))
         }}
-        onBlur={() => setTimeout(() => setSuggestions([]), 150)}
+        onBlur={() => {
+          setIsFocused(false)
+          setTimeout(() => setSuggestions([]), 150)
+        }}
         placeholder="Filter… e.g. e.properties.scopes~offline_access n.risk.score>=70"
         spellCheck={false}
       />
