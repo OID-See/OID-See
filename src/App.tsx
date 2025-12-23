@@ -18,6 +18,12 @@ const EMOJI_REGEX = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\
 // Responsive layout breakpoint - matches CSS media query
 const RESPONSIVE_BREAKPOINT = 1100
 
+// Details panel auto-expand delay
+const DETAILS_AUTO_EXPAND_DELAY = 100 // ms delay before auto-expanding details panel
+
+// Graph restabilization delay
+const GRAPH_RESTABILIZE_DELAY = 100 // ms delay before triggering graph restabilization
+
 const PRESET_QUERIES: SavedQuery[] = [
   { name: 'High Risk Apps', query: 'n.risk.score>=70' },
   { name: 'Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
@@ -286,7 +292,7 @@ export default function App() {
       // Small delay to ensure the graph has updated with new data
       const timer = setTimeout(() => {
         graphRef.current?.restabilize()
-      }, 100)
+      }, GRAPH_RESTABILIZE_DELAY)
       return () => clearTimeout(timer)
     }
   }, [lens, pathAware, query, data])

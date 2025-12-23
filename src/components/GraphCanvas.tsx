@@ -44,6 +44,10 @@ export const GraphCanvas = forwardRef<
   // Constants for physics stabilization
   const PHYSICS_DISABLE_DELAY = 100 // ms delay before disabling physics after fit
   const STABILIZATION_FALLBACK_TIMEOUT = 5000 // ms fallback timeout for large graphs
+  const RESTABILIZE_DELAY = 50 // ms delay before re-enabling physics in restabilize
+  const RESTABILIZE_FALLBACK_TIMEOUT = 3000 // ms fallback timeout for restabilization
+  const RESTABILIZE_AVOID_OVERLAP_LOW = 0.95 // Lower avoidOverlap value for restabilization
+  const RESTABILIZE_AVOID_OVERLAP_HIGH = 1.0 // Higher avoidOverlap value for restabilization
   
   const containerRef = useRef<HTMLDivElement>(null)
   const networkRef = useRef<Network | null>(null)
@@ -108,12 +112,16 @@ export const GraphCanvas = forwardRef<
         const currentPhysics = physics
         
         // Temporarily change avoidOverlap to force spacing recalculation
+        // Use tolerance for floating point comparison
+        const isHighOverlap = Math.abs(currentPhysics.avoidOverlap - RESTABILIZE_AVOID_OVERLAP_HIGH) < 0.01
         network.setOptions({ 
           physics: { 
             enabled: true,
             barnesHut: {
               ...currentPhysics,
-              avoidOverlap: currentPhysics.avoidOverlap === 1.0 ? 0.95 : 1.0
+              avoidOverlap: isHighOverlap 
+                ? RESTABILIZE_AVOID_OVERLAP_LOW 
+                : RESTABILIZE_AVOID_OVERLAP_HIGH
             }
           } 
         })
@@ -136,15 +144,16 @@ export const GraphCanvas = forwardRef<
           }
           network.once('stabilized', onceStabilized)
           
-          // Fallback timeout to ensure physics gets disabled
+          // Fallback timeout to ensure physics gets disabled and listener removed
           setTimeout(() => {
             try {
+              network.off('stabilized', onceStabilized)
               network.setOptions({ physics: { enabled: false } })
             } catch (e) {
               console.warn('Failed to disable physics in fallback:', e)
             }
-          }, 3000)
-        }, 50)
+          }, RESTABILIZE_FALLBACK_TIMEOUT)
+        }, RESTABILIZE_DELAY)
       } catch (e) {
         console.warn('Failed to restabilize graph:', e)
       }
