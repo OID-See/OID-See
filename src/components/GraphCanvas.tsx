@@ -25,6 +25,10 @@ export const GraphCanvas = forwardRef<
     onError?: (error: string) => void
   }
 >(({ allNodes, allEdges, visibleNodes, visibleEdges, onSelection, onError }, ref) => {
+  // Constants for physics stabilization
+  const PHYSICS_DISABLE_DELAY = 100 // ms delay before disabling physics after fit
+  const STABILIZATION_FALLBACK_TIMEOUT = 5000 // ms fallback timeout for large graphs
+  
   const containerRef = useRef<HTMLDivElement>(null)
   const networkRef = useRef<Network | null>(null)
   const allNodesRef = useRef<DataSet<VisNode>>(new DataSet([]))
@@ -212,7 +216,7 @@ export const GraphCanvas = forwardRef<
         network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } })
       } catch {}
       // Disable physics after fitting to prevent constant movement
-      setTimeout(() => disablePhysics(), 100)
+      setTimeout(() => disablePhysics(), PHYSICS_DISABLE_DELAY)
     }
 
     // Multiple events to ensure we catch stabilization
@@ -233,7 +237,7 @@ export const GraphCanvas = forwardRef<
         // Ensure physics is disabled even if fitOnce ran but physics wasn't disabled
         disablePhysics()
       }
-    }, 5000) // 5 seconds timeout as fallback for large graphs
+    }, STABILIZATION_FALLBACK_TIMEOUT)
 
     network.on('selectNode', (p: any) => {
       const id = p.nodes?.[0]

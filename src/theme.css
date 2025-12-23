@@ -126,7 +126,6 @@ body{
 /* Mobile portrait - increase filter panel height */
 @media (max-width: 768px) and (orientation: portrait) {
   :root {
-    /* Mobile-specific overrides can go here */
   }
 }
 
