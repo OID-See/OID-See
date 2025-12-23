@@ -96,6 +96,8 @@ body{
   flex:1;
   display:grid;
   grid-template-columns: 420px 1fr 360px;
+  grid-template-rows: 1fr;
+  grid-auto-rows: 0;
   gap: 1rem;
   padding: 1rem;
 }
