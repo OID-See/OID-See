@@ -1,5 +1,4 @@
-
-import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react'
+import { useEffect, useRef, useImperativeHandle, forwardRef, useMemo } from 'react'
 import { DataSet, Network } from 'vis-network/standalone'
 
 export type Selection =
@@ -53,7 +52,7 @@ export const GraphCanvas = forwardRef<
   const visibleEdgesRef = useRef<DataSet<VisEdge>>(new DataSet([]))
   const fittedRef = useRef(false)
 
-  const physics = physicsConfig ?? DEFAULT_PHYSICS
+  const physics = useMemo(() => physicsConfig ?? DEFAULT_PHYSICS, [physicsConfig])
 
   // Expose focus methods to parent component
   useImperativeHandle(ref, () => ({
