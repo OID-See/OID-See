@@ -1200,7 +1200,6 @@ body{
   border-radius: 2px;
   opacity: 0.3;
   transition: opacity 0.2s ease, background 0.2s ease;
-  pointer-events: auto;
 }
 
 .resize-handle--horizontal:hover::before {
