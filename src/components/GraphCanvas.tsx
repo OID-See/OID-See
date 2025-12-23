@@ -22,8 +22,9 @@ export const GraphCanvas = forwardRef<
     visibleNodes: VisNode[]
     visibleEdges: VisEdge[]
     onSelection?: (s: Selection | null) => void
+    onError?: (error: string) => void
   }
->(({ allNodes, allEdges, visibleNodes, visibleEdges, onSelection }, ref) => {
+>(({ allNodes, allEdges, visibleNodes, visibleEdges, onSelection, onError }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const networkRef = useRef<Network | null>(null)
   const allNodesRef = useRef<DataSet<VisNode>>(new DataSet([]))
@@ -86,18 +87,37 @@ export const GraphCanvas = forwardRef<
     const visibleNodesDs = visibleNodesRef.current
     const visibleEdgesDs = visibleEdgesRef.current
 
-    // Update all nodes/edges with complete dataset
-    allNodesDs.clear()
-    allNodesDs.add(allNodes)
-    allEdgesDs.clear()
-    allEdgesDs.add(allEdges)
+    try {
+      // Update all nodes/edges with complete dataset
+      allNodesDs.clear()
+      allNodesDs.add(allNodes)
+      allEdgesDs.clear()
+      allEdgesDs.add(allEdges)
 
-    // Update visible nodes/edges with filtered dataset
-    visibleNodesDs.clear()
-    visibleNodesDs.add(visibleNodes)
-    visibleEdgesDs.clear()
-    visibleEdgesDs.add(visibleEdges)
-  }, [allNodes, allEdges, visibleNodes, visibleEdges])
+      // Update visible nodes/edges with filtered dataset
+      visibleNodesDs.clear()
+      visibleNodesDs.add(visibleNodes)
+      visibleEdgesDs.clear()
+      visibleEdgesDs.add(visibleEdges)
+    } catch (e: any) {
+      // Catch errors from vis-network DataSet (e.g., duplicate IDs)
+      let errorMessage = 'Unknown error occurred'
+      
+      // Extract error message from various error formats
+      if (typeof e === 'string') {
+        errorMessage = e
+      } else if (e?.message) {
+        errorMessage = e.message
+      } else if (e?.toString) {
+        errorMessage = e.toString()
+      }
+      
+      console.error('Error updating graph data:', errorMessage, e)
+      if (onError) {
+        onError(errorMessage)
+      }
+    }
+  }, [allNodes, allEdges, visibleNodes, visibleEdges, onError])
 
   useEffect(() => {
     if (!containerRef.current) return
