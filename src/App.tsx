@@ -6,6 +6,7 @@ import { DetailsPanel } from './components/DetailsPanel'
 import { FilterBar, Lens } from './components/FilterBar'
 import { parseQuery, evalClause, getPath, isNumericOp, Clause } from './filters/query'
 import { JSONEditor } from './components/JSONEditor'
+import { ErrorDialog } from './components/ErrorDialog'
 
 type SavedQuery = { name: string; query: string }
 
@@ -187,6 +188,7 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
 export default function App() {
   const [raw, setRaw] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
+  const [graphError, setGraphError] = useState<string | null>(null)
   const [data, setData] = useState<VisData | null>(null)
   const [selection, setSelection] = useState<Selection | null>(null)
   const [query, setQuery] = useState<string>('')
@@ -440,7 +442,8 @@ export default function App() {
               allEdges={data.edges}
               visibleNodes={filtered.nodes} 
               visibleEdges={filtered.edges} 
-              onSelection={setSelection} 
+              onSelection={setSelection}
+              onError={setGraphError}
             />
           ) : (
             <div className="empty">
@@ -470,6 +473,13 @@ export default function App() {
       <footer className="footer">
         <span>OID-See processes files locally. No data leaves your browser.</span>
       </footer>
+
+      {graphError && (
+        <ErrorDialog 
+          message={graphError} 
+          onDismiss={() => setGraphError(null)} 
+        />
+      )}
     </div>
   )
 }

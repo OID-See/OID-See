@@ -353,7 +353,9 @@ def sanitize_name_for_id(name: str) -> str:
     import re
     # Replace non-alphanumeric with hyphens, collapse multiple hyphens, strip edges
     safe = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
-    return safe[:50] if safe else "unknown"  # Cap length
+    # Increased from 50 to 100 chars to reduce collisions for long names like
+    # "Microsoft Defender for Cloud Discovery Component Internal/External"
+    return safe[:100] if safe else "unknown"
 
 
 def node_id(kind: str, identifier: str, display_name: Optional[str] = None) -> str:
@@ -386,10 +388,28 @@ def make_edge(src: str, dst: str, etype: str, props: Optional[Dict[str, Any]] = 
     def _extract_name(ref: str) -> str:
         # Extract the display name part after ':' from node ID
         return (ref or "").split(":", 1)[-1]
+    
     friendly = TYPE_ID_MAP.get(etype, etype.lower().replace("_", "-"))
-    # Use display names from node IDs (already sanitized)
-    eid = f"e-{friendly}-{_extract_name(src)}-{_extract_name(dst)}"
-    return {"id": eid, "from": src, "to": dst, "type": etype, "properties": props or {}}
+    base_id = f"e-{friendly}-{_extract_name(src)}-{_extract_name(dst)}"
+    
+    # For edge types that can have multiple instances between the same nodes,
+    # append a differentiating attribute to ensure unique IDs
+    props = props or {}
+    suffix = ""
+    
+    if etype == "ASSIGNED_TO" and "appRoleId" in props:
+        # Multiple assignments can exist between the same principal and app with different appRoleIds
+        suffix = f"-{props['appRoleId']}"
+    elif etype == "HAS_APP_ROLE" and "resourceId" in props:
+        # Multiple app roles can exist between the same SP and different role nodes
+        suffix = f"-{props['resourceId']}"
+    elif etype == "INSTANCE_OF" and "servicePrincipalId" in props:
+        # Multiple SPs can instance the same Application (e.g., multi-tenant apps)
+        # Use SP ID to differentiate when SP display names collide
+        suffix = f"-{props['servicePrincipalId']}"
+    
+    eid = base_id + suffix
+    return {"id": eid, "from": src, "to": dst, "type": etype, "properties": props}
 
 
 def is_verified_publisher(vp: Optional[Dict[str, Any]]) -> bool:
@@ -965,13 +985,9 @@ def compute_risk_for_sp(
     # HAS_APP_ROLE
     if app_role_max_weight > 0:
         app_role_config = contributors.get("HAS_APP_ROLE", {})
-        # Handle case where weight is a description string rather than a number
-        weight_value = app_role_config.get("weight", 35)
-        if isinstance(weight_value, str):
-            # Weight is descriptive; use app_role_max_weight with 35 as minimum
-            min_weight = 35
-        else:
-            min_weight = int(weight_value)
+        min_weight_raw = app_role_config.get("weight", 35)
+        # Handle string weight values gracefully (scoring_logic.json may contain descriptive strings)
+        min_weight = min_weight_raw if isinstance(min_weight_raw, (int, float)) else 35
         weight = max(min_weight, app_role_max_weight)
         description = app_role_config.get("description", "Application permissions (app roles) granted")
         score += weight
@@ -1806,7 +1822,8 @@ class OidSeeCollector:
                     "keyCredentials": (app_obj or {}).get("keyCredentials") or [],
                     "federatedIdentityCredentials": (app_obj or {}).get("federatedIdentityCredentials") or [],
                 })
-                self.add_edge(sp_nid, app_nid, "INSTANCE_OF", {})
+                # Pass servicePrincipalId to ensure unique edge IDs when multiple SPs instance the same app
+                self.add_edge(sp_nid, app_nid, "INSTANCE_OF", {"servicePrincipalId": sp_id})
 
             # Owners
             for o in owners_by_sp.get(sp_id, []):
@@ -1933,7 +1950,9 @@ class OidSeeCollector:
                     for arid in role_ids:
                         r = roles_by_id.get(arid, {})
                         role_display = r.get("displayName") or r.get("value") or "Unknown Role"
-                        rnid = node_id("approle", arid, role_display)
+                        # Use the GUID (arid) for node ID to ensure uniqueness, not the display name
+                        # Multiple roles can have the same display name (e.g., "Unknown Role")
+                        rnid = node_id("approle", arid, None)
                         self.add_node(rnid, "Role", role_display, {
                             "roleTemplateId": arid,
                             "value": r.get("value"),

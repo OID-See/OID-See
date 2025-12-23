@@ -872,3 +872,142 @@ body{
 .hljs-number { color: #79B8FF; } /* blue for numbers */
 .hljs-literal { color: #F97583; } /* pink for true/false/null */
 .hljs-punctuation { color: rgba(234,242,255,0.62); } /* muted for brackets/commas */
+
+/* Error Dialog */
+.error-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.error-dialog {
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+  border: 1px solid rgba(255,107,107,0.3);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  max-width: 580px;
+  width: 90%;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from { 
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.error-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid rgba(255,107,107,0.2);
+  background: rgba(255,107,107,0.08);
+}
+
+.error-dialog-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--danger);
+}
+
+.error-dialog-close {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--fg0);
+  font-size: 1.25rem;
+  transition: all 0.2s ease;
+}
+
+.error-dialog-close:hover {
+  background: rgba(255,255,255,0.15);
+  transform: scale(1.05);
+}
+
+.error-dialog-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.error-dialog-body p {
+  margin: 0 0 1rem 0;
+  color: var(--fg0);
+  line-height: 1.6;
+}
+
+.error-dialog-body p:last-child {
+  margin-bottom: 0;
+}
+
+.error-dialog-hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+  background: rgba(66,232,224,0.08);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border-left: 3px solid var(--teal);
+}
+
+.error-dialog-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.error-dialog-button {
+  border: 1px solid rgba(255,255,255,0.10);
+  background: linear-gradient(135deg, rgba(66,232,224,0.18), rgba(155,92,255,0.16));
+  color: var(--fg0);
+  padding: 0.65rem 1.25rem;
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+}
+
+.error-dialog-button:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+}
+
+.error-dialog-button:active {
+  transform: translateY(0);
+}
