@@ -15,6 +15,7 @@ export function ResizeHandle({ onResize, orientation = 'horizontal' }: ResizeHan
     let startX = 0
     let startY = 0
     let isDragging = false
+    let animationFrameId: number | null = null
 
     const handleMouseDown = (e: MouseEvent) => {
       isDragging = true
@@ -28,20 +29,31 @@ export function ResizeHandle({ onResize, orientation = 'horizontal' }: ResizeHan
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging) return
       
-      const delta = orientation === 'horizontal' ? e.clientX - startX : e.clientY - startY
-      onResize(delta)
+      // Throttle using requestAnimationFrame to avoid excessive re-renders
+      if (animationFrameId !== null) return
       
-      if (orientation === 'horizontal') {
-        startX = e.clientX
-      } else {
-        startY = e.clientY
-      }
+      animationFrameId = requestAnimationFrame(() => {
+        const delta = orientation === 'horizontal' ? e.clientX - startX : e.clientY - startY
+        onResize(delta)
+        
+        if (orientation === 'horizontal') {
+          startX = e.clientX
+        } else {
+          startY = e.clientY
+        }
+        
+        animationFrameId = null
+      })
     }
 
     const handleMouseUp = () => {
       isDragging = false
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId)
+        animationFrameId = null
+      }
     }
 
     handle.addEventListener('mousedown', handleMouseDown)
@@ -52,6 +64,9 @@ export function ResizeHandle({ onResize, orientation = 'horizontal' }: ResizeHan
       handle.removeEventListener('mousedown', handleMouseDown)
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId)
+      }
     }
   }, [onResize, orientation])
 

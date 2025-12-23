@@ -14,6 +14,7 @@
   /* Panel collapse sizes */
   --collapsed-panel-height: 56px;
   --filter-panel-height: 180px;
+  --header-height: 141px; /* Height of topbar + filter section */
 }
 
 *{ box-sizing:border-box; }
@@ -101,30 +102,21 @@ body{
   gap: 0;
 }
 
-.maximized-panel {
+.maximized-panel,
+.panel--filter.maximized {
   position: fixed !important;
-  top: 141px; /* Height of topbar + filter section */
+  top: var(--header-height);
   left: 0;
   right: 0;
   bottom: 0;
   width: 100% !important;
-  height: calc(100vh - 141px) !important;
+  height: calc(100vh - var(--header-height)) !important;
   z-index: 100;
   border-radius: 0 !important;
   margin: 0;
 }
 
 .panel--filter.maximized {
-  position: fixed !important;
-  top: 141px;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100% !important;
-  height: calc(100vh - 141px) !important;
-  z-index: 100;
-  border-radius: 0;
-  margin: 0;
   border: none;
 }
 

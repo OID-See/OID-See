@@ -268,6 +268,13 @@ export default function App() {
     return `Paste an OID-See export (oidsee-graph v1.x) here…\n\nTip: Click "Load sample" to see the expected shape.`
   }, [])
 
+  const mainGridStyle = useMemo(() => {
+    if (maximizedPanel) return {}
+    if (inputCollapsed) return { gridTemplateColumns: '80px 1fr' }
+    if (detailsCollapsed) return { gridTemplateColumns: `${inputWidth}px 1fr 80px` }
+    return { gridTemplateColumns: `${inputWidth}px 1fr ${detailsWidth}px` }
+  }, [maximizedPanel, inputCollapsed, detailsCollapsed, inputWidth, detailsWidth])
+
   async function readFile(file: File) {
     const text = await file.text()
     setRaw(text)
@@ -462,7 +469,7 @@ export default function App() {
         )}
       </section>
 
-      <main className={`main${maximizedPanel ? ' maximized' : ''}`} style={maximizedPanel ? {} : { gridTemplateColumns: inputCollapsed ? '80px 1fr' : detailsCollapsed ? `${inputWidth}px 1fr 80px` : `${inputWidth}px 1fr ${detailsWidth}px` }}>
+      <main className={`main${maximizedPanel ? ' maximized' : ''}`} style={mainGridStyle}>
         <section className={`panel${inputCollapsed ? ' collapsed-horizontal' : ''}${maximizedPanel === 'input' ? ' maximized-panel' : ''}`} style={!inputCollapsed && !maximizedPanel ? { width: `${inputWidth}px` } : {}} onDragOver={(e) => e.preventDefault()} onDrop={onDrop} title="Drop a .json file here">
           <div className="panel__title">
             <div className="panel__header-content">
