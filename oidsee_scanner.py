@@ -973,7 +973,9 @@ def compute_risk_for_sp(
     # HAS_APP_ROLE
     if app_role_max_weight > 0:
         app_role_config = contributors.get("HAS_APP_ROLE", {})
-        min_weight = app_role_config.get("weight", 35)
+        min_weight_raw = app_role_config.get("weight", 35)
+        # Handle string weight values gracefully (scoring_logic.json may contain descriptive strings)
+        min_weight = min_weight_raw if isinstance(min_weight_raw, (int, float)) else 35
         weight = max(min_weight, app_role_max_weight)
         description = app_role_config.get("description", "Application permissions (app roles) granted")
         score += weight
