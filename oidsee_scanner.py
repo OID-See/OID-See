@@ -347,7 +347,9 @@ def sanitize_name_for_id(name: str) -> str:
     import re
     # Replace non-alphanumeric with hyphens, collapse multiple hyphens, strip edges
     safe = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
-    return safe[:50] if safe else "unknown"  # Cap length
+    # Increased from 50 to 100 chars to reduce collisions for long names like
+    # "Microsoft Defender for Cloud Discovery Component Internal/External"
+    return safe[:100] if safe else "unknown"
 
 
 def node_id(kind: str, identifier: str, display_name: Optional[str] = None) -> str:
