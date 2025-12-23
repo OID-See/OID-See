@@ -8,6 +8,7 @@ import { parseQuery, evalClause, getPath, isNumericOp, Clause } from './filters/
 import { JSONEditor } from './components/JSONEditor'
 import { ErrorDialog } from './components/ErrorDialog'
 import { PhysicsControls } from './components/PhysicsControls'
+import { ResizeHandle } from './components/ResizeHandle'
 
 type SavedQuery = { name: string; query: string }
 
@@ -222,6 +223,9 @@ export default function App() {
   const [detailsCollapsed, setDetailsCollapsed] = useState<boolean>(false)
   const [isMobile, setIsMobile] = useState<boolean>(false)
   const [physicsConfig, setPhysicsConfig] = useState<PhysicsConfig>(DEFAULT_PHYSICS)
+  const [inputWidth, setInputWidth] = useState<number>(420)
+  const [detailsWidth, setDetailsWidth] = useState<number>(360)
+  const [maximizedPanel, setMaximizedPanel] = useState<'input' | 'graph' | 'details' | 'filter' | null>(null)
   const graphRef = useRef<GraphCanvasHandle>(null)
 
   // Load physics config on mount
@@ -370,6 +374,18 @@ export default function App() {
     savePhysicsConfig(DEFAULT_PHYSICS)
   }
 
+  function handleInputResize(delta: number) {
+    setInputWidth(prev => Math.max(200, Math.min(800, prev + delta)))
+  }
+
+  function handleDetailsResize(delta: number) {
+    setDetailsWidth(prev => Math.max(200, Math.min(800, prev - delta)))
+  }
+
+  function toggleMaximize(panel: 'input' | 'graph' | 'details' | 'filter') {
+    setMaximizedPanel(prev => prev === panel ? null : panel)
+  }
+
   return (
     <div className="app">
       <header className="topbar">
@@ -411,7 +427,7 @@ export default function App() {
         </div>
       </header>
 
-      <section className={`panel--filter${filterCollapsed ? ' collapsed' : ''}`}>
+      <section className={`panel--filter${filterCollapsed ? ' collapsed' : ''}${maximizedPanel === 'filter' ? ' maximized' : ''}`}>
         <div className={`panel__header-content filter-header${filterCollapsed ? ' collapsed' : ''}`}>
           <button 
             className="btn btn--ghost btn--collapse-sm" 
@@ -420,6 +436,13 @@ export default function App() {
             {filterCollapsed ? '▼' : '▲'}
           </button>
           <span className="filter-label">Filters</span>
+          <button
+            className="btn btn--ghost btn--maximize-sm"
+            onClick={() => toggleMaximize('filter')}
+            title={maximizedPanel === 'filter' ? 'Restore' : 'Maximize'}
+          >
+            {maximizedPanel === 'filter' ? '◱' : '◰'}
+          </button>
         </div>
         {!filterCollapsed && (
           <FilterBar
@@ -439,8 +462,8 @@ export default function App() {
         )}
       </section>
 
-      <main className="main">
-        <section className={`panel${inputCollapsed ? ' collapsed-horizontal' : ''}`} onDragOver={(e) => e.preventDefault()} onDrop={onDrop} title="Drop a .json file here">
+      <main className={`main${maximizedPanel ? ' maximized' : ''}`} style={maximizedPanel ? {} : { gridTemplateColumns: inputCollapsed ? '80px 1fr' : detailsCollapsed ? `${inputWidth}px 1fr 80px` : `${inputWidth}px 1fr ${detailsWidth}px` }}>
+        <section className={`panel${inputCollapsed ? ' collapsed-horizontal' : ''}${maximizedPanel === 'input' ? ' maximized-panel' : ''}`} style={!inputCollapsed && !maximizedPanel ? { width: `${inputWidth}px` } : {}} onDragOver={(e) => e.preventDefault()} onDrop={onDrop} title="Drop a .json file here">
           <div className="panel__title">
             <div className="panel__header-content">
               <button 
@@ -453,9 +476,18 @@ export default function App() {
               <span className="panel__title-text">Input</span>
               <div className="panel__header-actions">
                 {!inputCollapsed && (
-                  <button className="btn btn--ghost btn--format" onClick={formatJSON}>
-                    Format
-                  </button>
+                  <>
+                    <button className="btn btn--ghost btn--format" onClick={formatJSON}>
+                      Format
+                    </button>
+                    <button
+                      className="btn btn--ghost btn--maximize"
+                      onClick={() => toggleMaximize('input')}
+                      title={maximizedPanel === 'input' ? 'Restore' : 'Maximize'}
+                    >
+                      {maximizedPanel === 'input' ? '◱' : '◰'}
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -479,7 +511,9 @@ export default function App() {
           )}
         </section>
 
-        <section className="panel panel--graph">
+        {!inputCollapsed && !maximizedPanel && <ResizeHandle onResize={handleInputResize} orientation="horizontal" />}
+
+        <section className={`panel panel--graph${maximizedPanel === 'graph' ? ' maximized-panel' : ''}`}>
           <div className="panel__title">
             <div className="panel__header-content">
               <span className="panel__title-text">Graph</span>
@@ -489,6 +523,13 @@ export default function App() {
                   onChange={handlePhysicsChange}
                   onReset={handlePhysicsReset}
                 />
+                <button
+                  className="btn btn--ghost btn--maximize"
+                  onClick={() => toggleMaximize('graph')}
+                  title={maximizedPanel === 'graph' ? 'Restore' : 'Maximize'}
+                >
+                  {maximizedPanel === 'graph' ? '◱' : '◰'}
+                </button>
               </div>
             </div>
           </div>
@@ -511,7 +552,9 @@ export default function App() {
           )}
         </section>
 
-        <section className={`panel panel--details${detailsCollapsed ? ' collapsed-horizontal' : ''}`}>
+        {!detailsCollapsed && !maximizedPanel && <ResizeHandle onResize={handleDetailsResize} orientation="horizontal" />}
+
+        <section className={`panel panel--details${detailsCollapsed ? ' collapsed-horizontal' : ''}${maximizedPanel === 'details' ? ' maximized-panel' : ''}`} style={!detailsCollapsed && !maximizedPanel ? { width: `${detailsWidth}px` } : {}}>
           <div className="panel__title">
             <div className="panel__header-content">
               <button 
@@ -522,6 +565,17 @@ export default function App() {
                 {detailsCollapsed ? (isMobile ? '▼' : '◀') : (isMobile ? '▲' : '▶')}
               </button>
               <span className="panel__title-text">Details</span>
+              <div className="panel__header-actions">
+                {!detailsCollapsed && (
+                  <button
+                    className="btn btn--ghost btn--maximize"
+                    onClick={() => toggleMaximize('details')}
+                    title={maximizedPanel === 'details' ? 'Restore' : 'Maximize'}
+                  >
+                    {maximizedPanel === 'details' ? '◱' : '◰'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
           {!detailsCollapsed && <DetailsPanel selection={selection} onFocus={handleFocus} />}

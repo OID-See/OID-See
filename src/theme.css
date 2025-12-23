@@ -22,9 +22,9 @@ body{
   margin:0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   background:
-    radial-gradient(900px 500px at 25% 10%, rgba(66,232,224,0.16), transparent 60%),
-    radial-gradient(700px 450px at 60% 30%, rgba(155,92,255,0.14), transparent 60%),
-    linear-gradient(180deg, var(--bg0), var(--bg1));
+    radial-gradient(900px 500px at 25% 10%, rgba(66,232,224,0.08), transparent 60%),
+    radial-gradient(700px 450px at 60% 30%, rgba(155,92,255,0.07), transparent 60%),
+    var(--bg0);
   color: var(--fg0);
 }
 
@@ -92,6 +92,40 @@ body{
   grid-template-columns: 420px 1fr 360px;
   gap: 1rem;
   padding: 1rem;
+  position: relative;
+}
+
+/* Maximized panel state */
+.main.maximized {
+  padding: 0;
+  gap: 0;
+}
+
+.maximized-panel {
+  position: fixed !important;
+  top: 141px; /* Height of topbar + filter section */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100% !important;
+  height: calc(100vh - 141px) !important;
+  z-index: 100;
+  border-radius: 0 !important;
+  margin: 0;
+}
+
+.panel--filter.maximized {
+  position: fixed !important;
+  top: 141px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100% !important;
+  height: calc(100vh - 141px) !important;
+  z-index: 100;
+  border-radius: 0;
+  margin: 0;
+  border: none;
 }
 
 /* Adjust grid when Input panel is collapsed */
@@ -327,6 +361,12 @@ body{
 }
 
 .btn--format {
+  padding: .35rem .55rem;
+  font-size: .85rem;
+}
+
+.btn--maximize,
+.btn--maximize-sm {
   padding: .35rem .55rem;
   font-size: .85rem;
 }
@@ -1022,7 +1062,8 @@ body{
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+  background: linear-gradient(180deg, rgba(11,14,18,0.98), rgba(6,8,11,0.98));
+  backdrop-filter: blur(12px);
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: 12px;
   box-shadow: 0 12px 40px rgba(0,0,0,0.6);
@@ -1123,3 +1164,70 @@ body{
   color: var(--muted);
   font-style: italic;
 }
+
+/* Resize Handle */
+.resize-handle {
+  position: relative;
+  z-index: 10;
+}
+
+.resize-handle--horizontal {
+  width: 8px;
+  cursor: ew-resize;
+  background: transparent;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.resize-handle--horizontal:hover {
+  background: rgba(66,232,224,0.2);
+}
+
+.resize-handle--horizontal::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3px;
+  height: 60px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.resize-handle--horizontal:hover::before {
+  opacity: 1;
+}
+
+.resize-handle--vertical {
+  height: 8px;
+  cursor: ns-resize;
+  background: transparent;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.resize-handle--vertical:hover {
+  background: rgba(66,232,224,0.2);
+}
+
+.resize-handle--vertical::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60px;
+  height: 3px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.resize-handle--vertical:hover::before {
+  opacity: 1;
+}
+
