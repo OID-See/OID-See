@@ -223,7 +223,7 @@ export default function App() {
   const [saved, setSaved] = useState<SavedQuery[]>([])
   const [inputCollapsed, setInputCollapsed] = useState<boolean>(false)
   const [filterCollapsed, setFilterCollapsed] = useState<boolean>(false)
-  const [detailsCollapsed, setDetailsCollapsed] = useState<boolean>(false)
+  const [detailsCollapsed, setDetailsCollapsed] = useState<boolean>(true)
   const [isMobile, setIsMobile] = useState<boolean>(false)
   const [physicsConfig, setPhysicsConfig] = useState<PhysicsConfig>(DEFAULT_PHYSICS)
   const [inputWidth, setInputWidth] = useState<number>(420)
@@ -263,6 +263,13 @@ export default function App() {
     setSaved(loadSaved())
   }, [])
 
+  // Auto-expand details panel when a node or edge is selected
+  useEffect(() => {
+    if (selection && detailsCollapsed) {
+      setDetailsCollapsed(false)
+    }
+  }, [selection])
+
   // Reset physics configuration when graph data changes
   useEffect(() => {
     if (data) {
@@ -270,6 +277,17 @@ export default function App() {
       savePhysicsConfig(DEFAULT_PHYSICS)
     }
   }, [data, lens, pathAware])
+
+  // Trigger graph restabilization when filters change
+  useEffect(() => {
+    if (data && graphRef.current) {
+      // Small delay to ensure the graph has updated with new data
+      const timer = setTimeout(() => {
+        graphRef.current?.restabilize()
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [lens, pathAware, query, data])
 
   const placeholder = useMemo(() => {
     return `Paste an OID-See export (oidsee-graph v1.x) here…\n\nTip: Click "Load sample" to see the expected shape.`
@@ -468,7 +486,7 @@ export default function App() {
             Upload JSON
           </label>
           
-          <button className="btn btn--ghost" onClick={resetAllViews} title="Reset all panel views">
+          <button className="btn file" onClick={resetAllViews} title="Reset all panel views">
             ⟲ Reset View
           </button>
         </div>

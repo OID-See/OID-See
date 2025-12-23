@@ -26,6 +26,7 @@ export const DEFAULT_PHYSICS: PhysicsConfig = {
 export interface GraphCanvasHandle {
   focusNode: (nodeId: string) => void
   focusEdge: (edgeId: string) => void
+  restabilize: () => void
 }
 
 export const GraphCanvas = forwardRef<
@@ -97,6 +98,34 @@ export const GraphCanvas = forwardRef<
         }, 500)
       } catch (e) {
         console.warn('Failed to focus edge:', edgeId, e)
+      }
+    },
+    restabilize: () => {
+      const network = networkRef.current
+      if (!network) return
+      
+      try {
+        // Re-enable physics temporarily, trigger stabilization, then disable again
+        network.setOptions({ physics: { enabled: true } })
+        network.stabilize()
+        
+        // Disable physics after stabilization
+        const onceStabilized = () => {
+          network.setOptions({ physics: { enabled: false } })
+          network.off('stabilized', onceStabilized)
+        }
+        network.once('stabilized', onceStabilized)
+        
+        // Fallback timeout to ensure physics gets disabled
+        setTimeout(() => {
+          try {
+            network.setOptions({ physics: { enabled: false } })
+          } catch (e) {
+            console.warn('Failed to disable physics in fallback:', e)
+          }
+        }, 3000)
+      } catch (e) {
+        console.warn('Failed to restabilize graph:', e)
       }
     },
   }))
