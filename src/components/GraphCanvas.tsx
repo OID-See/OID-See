@@ -205,6 +205,13 @@ export const GraphCanvas = forwardRef<
     network.on('stabilizationIterationsDone', fitOnce)
     network.on('afterDrawing', fitOnce)
 
+    // Fallback timeout to ensure physics is disabled even if events don't fire
+    const stabilizationTimeout = setTimeout(() => {
+      if (!fittedRef.current) {
+        fitOnce()
+      }
+    }, 3000) // 3 seconds timeout as fallback
+
     network.on('selectNode', (p: any) => {
       const id = p.nodes?.[0]
       if (!id) return
@@ -250,6 +257,7 @@ export const GraphCanvas = forwardRef<
     ro.observe(containerRef.current)
 
     return () => {
+      clearTimeout(stabilizationTimeout)
       if (timer) window.clearInterval(timer)
       ro.disconnect()
       network.destroy()
