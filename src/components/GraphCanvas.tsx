@@ -162,7 +162,12 @@ export const GraphCanvas = forwardRef<
           selectionWidth: 2,
         },
         physics: {
-          stabilization: { iterations: 200, fit: true },
+          enabled: true,
+          stabilization: { 
+            enabled: true,
+            iterations: 200, 
+            fit: true 
+          },
           barnesHut: {
             gravitationalConstant: -9000,
             springLength: 150,
@@ -192,6 +197,8 @@ export const GraphCanvas = forwardRef<
       fittedRef.current = true
       try {
         network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } })
+        // Disable physics after stabilization to prevent constant node movement
+        network.setOptions({ physics: { enabled: false } })
       } catch {}
     }
 

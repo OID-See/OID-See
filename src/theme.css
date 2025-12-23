@@ -14,6 +14,7 @@
   /* Panel collapse sizes */
   --collapsed-panel-height: 56px;
   --filter-panel-height: 180px;
+  --filter-panel-max-height: 600px;
 }
 
 *{ box-sizing:border-box; }
@@ -126,7 +127,7 @@ body{
 /* Mobile portrait - increase filter panel height */
 @media (max-width: 768px) and (orientation: portrait) {
   :root {
-    --filter-panel-height: 240px;
+    --filter-panel-max-height: 400px;
   }
 }
 
@@ -162,8 +163,8 @@ body{
   background: transparent;
   border-bottom: 1px solid rgba(255,255,255,0.06);
   margin: 0 1rem;
-  max-height: var(--filter-panel-height);
-  overflow: hidden;
+  max-height: var(--filter-panel-max-height);
+  overflow: visible;
   transition: max-height 0.3s ease;
 }
 
@@ -412,7 +413,7 @@ body{
   border-bottom: 1px solid rgba(255,255,255,0.06);
   background: rgba(0,0,0,0.12);
   position: relative;
-  max-height: calc(var(--filter-panel-height) - var(--collapsed-panel-height));
+  max-height: calc(var(--filter-panel-max-height) - var(--collapsed-panel-height));
   overflow-y: auto;
   overflow-x: hidden;
 }
