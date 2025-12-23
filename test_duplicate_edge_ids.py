@@ -6,7 +6,6 @@ Tests for duplicate edge ID fix:
 """
 
 import sys
-from typing import Dict, Any, List
 
 # Import the functions we're testing
 from oidsee_scanner import make_edge

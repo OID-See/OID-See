@@ -33,9 +33,18 @@ export function ErrorDialog({ message, onDismiss }: ErrorDialogProps) {
         <div className="error-dialog-body">
           <p>{message}</p>
           <p className="error-dialog-hint">
-            This error typically occurs when the exported JSON contains duplicate IDs.
-            If you're using the scanner, try updating to the latest version which includes
-            duplicate ID fixes.
+            {message.toLowerCase().includes('already exists') || message.toLowerCase().includes('duplicate') ? (
+              <>
+                This error typically occurs when the exported JSON contains duplicate IDs. 
+                If you're using the scanner, try updating to the latest version which includes 
+                duplicate ID fixes.
+              </>
+            ) : (
+              <>
+                This error occurred while loading the graph data. Please check that your JSON 
+                export is properly formatted and valid.
+              </>
+            )}
           </p>
         </div>
         <div className="error-dialog-footer">

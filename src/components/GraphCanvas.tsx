@@ -101,8 +101,18 @@ export const GraphCanvas = forwardRef<
       visibleEdgesDs.add(visibleEdges)
     } catch (e: any) {
       // Catch errors from vis-network DataSet (e.g., duplicate IDs)
-      const errorMessage = e?.message ?? String(e)
-      console.error('Error updating graph data:', errorMessage)
+      let errorMessage = 'Unknown error occurred'
+      
+      // Extract error message from various error formats
+      if (typeof e === 'string') {
+        errorMessage = e
+      } else if (e?.message) {
+        errorMessage = e.message
+      } else if (e?.toString) {
+        errorMessage = e.toString()
+      }
+      
+      console.error('Error updating graph data:', errorMessage, e)
       if (onError) {
         onError(errorMessage)
       }
