@@ -163,13 +163,14 @@ body{
   margin: 0 1rem;
   overflow: visible;
   height: auto;
-  min-height: auto;
+  min-height: 420px;
   max-height: none;
   transition: opacity 0.3s ease;
 }
 
 .panel--filter.collapsed {
   max-height: var(--collapsed-panel-height);
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -413,8 +414,8 @@ body{
   border-bottom: 1px solid rgba(255,255,255,0.06);
   background: rgba(0,0,0,0.12);
   position: relative;
-  overflow-y: visible;
-  overflow-x: hidden;
+  overflow: visible;
+  min-height: 340px;
 }
 .filterbar__row{
   display:flex;
@@ -1010,4 +1011,115 @@ body{
 
 .error-dialog-button:active {
   transform: translateY(0);
+}
+
+/* Physics Controls */
+.physics-controls {
+  position: relative;
+}
+
+.physics-controls__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+  padding: 1rem;
+  z-index: 1000;
+  min-width: 320px;
+  max-width: 400px;
+}
+
+.physics-controls__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+}
+
+.physics-controls__title {
+  font-weight: 700;
+  color: rgba(234,242,255,0.95);
+  font-size: 0.95rem;
+}
+
+.physics-controls__item {
+  margin-bottom: 1.25rem;
+}
+
+.physics-controls__item:last-child {
+  margin-bottom: 0;
+}
+
+.physics-controls__label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  color: rgba(234,242,255,0.9);
+  font-weight: 600;
+}
+
+.physics-controls__label-text {
+  flex: 1;
+}
+
+.physics-controls__label-value {
+  color: var(--teal);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.physics-controls__slider {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.1);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.physics-controls__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--teal), var(--purple));
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  transition: transform 0.15s ease;
+}
+
+.physics-controls__slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.physics-controls__slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--teal), var(--purple));
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  transition: transform 0.15s ease;
+}
+
+.physics-controls__slider::-moz-range-thumb:hover {
+  transform: scale(1.15);
+}
+
+.physics-controls__hint {
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-style: italic;
 }

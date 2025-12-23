@@ -1,5 +1,4 @@
-
-import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react'
+import { useEffect, useRef, useImperativeHandle, forwardRef, useMemo } from 'react'
 import { DataSet, Network } from 'vis-network/standalone'
 
 export type Selection =
@@ -8,6 +7,21 @@ export type Selection =
 
 type VisNode = any
 type VisEdge = any
+
+export interface PhysicsConfig {
+  gravitationalConstant: number
+  springLength: number
+  springConstant: number
+  avoidOverlap: number
+}
+
+// Default physics configuration
+export const DEFAULT_PHYSICS: PhysicsConfig = {
+  gravitationalConstant: -40000,
+  springLength: 500,
+  springConstant: 0.015,
+  avoidOverlap: 0.95,
+}
 
 export interface GraphCanvasHandle {
   focusNode: (nodeId: string) => void
@@ -21,10 +35,11 @@ export const GraphCanvas = forwardRef<
     allEdges: VisEdge[]
     visibleNodes: VisNode[]
     visibleEdges: VisEdge[]
+    physicsConfig?: PhysicsConfig
     onSelection?: (s: Selection | null) => void
     onError?: (error: string) => void
   }
->(({ allNodes, allEdges, visibleNodes, visibleEdges, onSelection, onError }, ref) => {
+>(({ allNodes, allEdges, visibleNodes, visibleEdges, physicsConfig, onSelection, onError }, ref) => {
   // Constants for physics stabilization
   const PHYSICS_DISABLE_DELAY = 100 // ms delay before disabling physics after fit
   const STABILIZATION_FALLBACK_TIMEOUT = 5000 // ms fallback timeout for large graphs
@@ -36,6 +51,8 @@ export const GraphCanvas = forwardRef<
   const visibleNodesRef = useRef<DataSet<VisNode>>(new DataSet([]))
   const visibleEdgesRef = useRef<DataSet<VisEdge>>(new DataSet([]))
   const fittedRef = useRef(false)
+
+  const physics = useMemo(() => physicsConfig ?? DEFAULT_PHYSICS, [physicsConfig])
 
   // Expose focus methods to parent component
   useImperativeHandle(ref, () => ({
@@ -173,11 +190,11 @@ export const GraphCanvas = forwardRef<
             fit: true 
           },
           barnesHut: {
-            gravitationalConstant: -9000,
-            springLength: 150,
-            springConstant: 0.04,
-            damping: 0.3,
-            avoidOverlap: 0.5,
+            gravitationalConstant: physics.gravitationalConstant,
+            springLength: physics.springLength,
+            springConstant: physics.springConstant,
+            damping: 0.35,
+            avoidOverlap: physics.avoidOverlap,
           },
         },
         groups: {
@@ -289,7 +306,7 @@ export const GraphCanvas = forwardRef<
       ro.disconnect()
       network.destroy()
     }
-  }, [onSelection])
+  }, [onSelection, physicsConfig])
 
   return <div ref={containerRef} className="graph" />
 })

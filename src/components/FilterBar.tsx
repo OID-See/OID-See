@@ -15,7 +15,10 @@ const AUTOCOMPLETE_SUGGESTIONS = {
   commonValues: ['User', 'Application', 'Group', 'Role', 'offline_access', 'true', 'false'],
 }
 
-function getAutocompleteOptions(input: string): string[] {
+function getAutocompleteOptions(input: string, userHasInteracted: boolean): string[] {
+  // Don't show suggestions until user has interacted with the input
+  if (!userHasInteracted) return []
+  
   if (!input) return ['n.', 'e.']
   
   const lastWord = input.split(/[\s]/g).pop() || ''
@@ -47,13 +50,16 @@ function getAutocompleteOptions(input: string): string[] {
 function FilterInput({ value, onChange, hasErrors }: { value: string; onChange: (v: string) => void; hasErrors: boolean }) {
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [selectedIndex, setSelectedIndex] = useState(-1)
+  const [isFocused, setIsFocused] = useState(false)
+  const [hasInteracted, setHasInteracted] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    const opts = getAutocompleteOptions(value)
+    if (!isFocused) return
+    const opts = getAutocompleteOptions(value, hasInteracted)
     setSuggestions(opts.slice(0, 8))
     setSelectedIndex(-1)
-  }, [value])
+  }, [value, isFocused, hasInteracted])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     e.stopPropagation()
@@ -90,10 +96,15 @@ function FilterInput({ value, onChange, hasErrors }: { value: string; onChange: 
         onKeyPress={(e) => e.stopPropagation()}
         onKeyUp={(e) => e.stopPropagation()}
         onFocus={() => {
-          const opts = getAutocompleteOptions(value)
+          setIsFocused(true)
+          setHasInteracted(true)
+          const opts = getAutocompleteOptions(value, true)
           setSuggestions(opts.slice(0, 8))
         }}
-        onBlur={() => setTimeout(() => setSuggestions([]), 150)}
+        onBlur={() => {
+          setIsFocused(false)
+          setTimeout(() => setSuggestions([]), 150)
+        }}
         placeholder="Filter… e.g. e.properties.scopes~offline_access n.risk.score>=70"
         spellCheck={false}
       />

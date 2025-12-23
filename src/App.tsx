@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { GraphCanvas, Selection, GraphCanvasHandle } from './components/GraphCanvas'
+import { GraphCanvas, Selection, GraphCanvasHandle, PhysicsConfig, DEFAULT_PHYSICS } from './components/GraphCanvas'
 import { toVisData, VisData } from './adapters/toVisData'
 import sampleObj from './samples/sample-oidsee-graph.json'
 import { DetailsPanel } from './components/DetailsPanel'
@@ -7,6 +7,7 @@ import { FilterBar, Lens } from './components/FilterBar'
 import { parseQuery, evalClause, getPath, isNumericOp, Clause } from './filters/query'
 import { JSONEditor } from './components/JSONEditor'
 import { ErrorDialog } from './components/ErrorDialog'
+import { PhysicsControls } from './components/PhysicsControls'
 
 type SavedQuery = { name: string; query: string }
 
@@ -23,6 +24,27 @@ const PRESET_QUERIES: SavedQuery[] = [
   { name: 'Users Only', query: 'n.type=User' },
   { name: 'Applications', query: 'n.type=Application' },
 ]
+
+function loadPhysicsConfig(): PhysicsConfig {
+  try {
+    const raw = localStorage.getItem('oidsee.physicsConfig')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      return { ...DEFAULT_PHYSICS, ...parsed }
+    }
+  } catch {
+    // ignore
+  }
+  return DEFAULT_PHYSICS
+}
+
+function savePhysicsConfig(config: PhysicsConfig) {
+  try {
+    localStorage.setItem('oidsee.physicsConfig', JSON.stringify(config))
+  } catch {
+    // ignore
+  }
+}
 
 function loadSaved(): SavedQuery[] {
   try {
@@ -199,7 +221,13 @@ export default function App() {
   const [filterCollapsed, setFilterCollapsed] = useState<boolean>(false)
   const [detailsCollapsed, setDetailsCollapsed] = useState<boolean>(false)
   const [isMobile, setIsMobile] = useState<boolean>(false)
+  const [physicsConfig, setPhysicsConfig] = useState<PhysicsConfig>(DEFAULT_PHYSICS)
   const graphRef = useRef<GraphCanvasHandle>(null)
+
+  // Load physics config on mount
+  useEffect(() => {
+    setPhysicsConfig(loadPhysicsConfig())
+  }, [])
 
   // Detect mobile viewport
   useEffect(() => {
@@ -223,6 +251,14 @@ export default function App() {
   useEffect(() => {
     setSaved(loadSaved())
   }, [])
+
+  // Reset physics configuration when graph data changes
+  useEffect(() => {
+    if (data) {
+      setPhysicsConfig(DEFAULT_PHYSICS)
+      savePhysicsConfig(DEFAULT_PHYSICS)
+    }
+  }, [data, lens, pathAware])
 
   const placeholder = useMemo(() => {
     return `Paste an OID-See export (oidsee-graph v1.x) here…\n\nTip: Click "Load sample" to see the expected shape.`
@@ -322,6 +358,16 @@ export default function App() {
     } else if (sel.kind === 'edge') {
       graphRef.current?.focusEdge(sel.id)
     }
+  }
+
+  function handlePhysicsChange(config: PhysicsConfig) {
+    setPhysicsConfig(config)
+    savePhysicsConfig(config)
+  }
+
+  function handlePhysicsReset() {
+    setPhysicsConfig(DEFAULT_PHYSICS)
+    savePhysicsConfig(DEFAULT_PHYSICS)
   }
 
   return (
@@ -434,14 +480,26 @@ export default function App() {
         </section>
 
         <section className="panel panel--graph">
-          <div className="panel__title">Graph</div>
+          <div className="panel__title">
+            <div className="panel__header-content">
+              <span className="panel__title-text">Graph</span>
+              <div className="panel__header-actions">
+                <PhysicsControls 
+                  config={physicsConfig} 
+                  onChange={handlePhysicsChange}
+                  onReset={handlePhysicsReset}
+                />
+              </div>
+            </div>
+          </div>
           {data && filtered ? (
             <GraphCanvas 
               ref={graphRef} 
               allNodes={data.nodes} 
               allEdges={data.edges}
               visibleNodes={filtered.nodes} 
-              visibleEdges={filtered.edges} 
+              visibleEdges={filtered.edges}
+              physicsConfig={physicsConfig}
               onSelection={setSelection}
               onError={setGraphError}
             />
