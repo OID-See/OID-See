@@ -18,6 +18,12 @@ const EMOJI_REGEX = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\
 // Responsive layout breakpoint - matches CSS media query
 const RESPONSIVE_BREAKPOINT = 1100
 
+// Details panel auto-expand delay
+const DETAILS_AUTO_EXPAND_DELAY = 100 // ms delay before auto-expanding details panel
+
+// Graph restabilization delay
+const GRAPH_RESTABILIZE_DELAY = 100 // ms delay before triggering graph restabilization
+
 const PRESET_QUERIES: SavedQuery[] = [
   { name: 'High Risk Apps', query: 'n.risk.score>=70' },
   { name: 'Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
@@ -223,7 +229,8 @@ export default function App() {
   const [saved, setSaved] = useState<SavedQuery[]>([])
   const [inputCollapsed, setInputCollapsed] = useState<boolean>(false)
   const [filterCollapsed, setFilterCollapsed] = useState<boolean>(false)
-  const [detailsCollapsed, setDetailsCollapsed] = useState<boolean>(false)
+  const [detailsCollapsed, setDetailsCollapsed] = useState<boolean>(true)
+  const [detailsManuallyCollapsed, setDetailsManuallyCollapsed] = useState<boolean>(false)
   const [isMobile, setIsMobile] = useState<boolean>(false)
   const [physicsConfig, setPhysicsConfig] = useState<PhysicsConfig>(DEFAULT_PHYSICS)
   const [inputWidth, setInputWidth] = useState<number>(420)
@@ -263,6 +270,14 @@ export default function App() {
     setSaved(loadSaved())
   }, [])
 
+  // Auto-expand details panel when a node or edge is selected
+  // Only auto-expand if the user hasn't manually collapsed it
+  useEffect(() => {
+    if (selection && detailsCollapsed && !detailsManuallyCollapsed) {
+      setDetailsCollapsed(false)
+    }
+  }, [selection, detailsCollapsed, detailsManuallyCollapsed])
+
   // Reset physics configuration when graph data changes
   useEffect(() => {
     if (data) {
@@ -270,6 +285,17 @@ export default function App() {
       savePhysicsConfig(DEFAULT_PHYSICS)
     }
   }, [data, lens, pathAware])
+
+  // Trigger graph restabilization when filters change
+  useEffect(() => {
+    if (data && graphRef.current) {
+      // Small delay to ensure the graph has updated with new data
+      const timer = setTimeout(() => {
+        graphRef.current?.restabilize()
+      }, GRAPH_RESTABILIZE_DELAY)
+      return () => clearTimeout(timer)
+    }
+  }, [lens, pathAware, query, data])
 
   const placeholder = useMemo(() => {
     return `Paste an OID-See export (oidsee-graph v1.x) here…\n\nTip: Click "Load sample" to see the expected shape.`
@@ -413,6 +439,7 @@ export default function App() {
     } else if (panel === 'details') {
       setDetailsWidth(360)
       setDetailsCollapsed(false)
+      setDetailsManuallyCollapsed(false)
     } else if (panel === 'filter') {
       setFilterCollapsed(false)
     }
@@ -425,6 +452,7 @@ export default function App() {
     setDetailsWidth(360)
     setInputCollapsed(false)
     setDetailsCollapsed(false)
+    setDetailsManuallyCollapsed(false)
     setFilterCollapsed(false)
     setMaximizedPanel(null)
   }
@@ -468,7 +496,7 @@ export default function App() {
             Upload JSON
           </label>
           
-          <button className="btn btn--ghost" onClick={resetAllViews} title="Reset all panel views">
+          <button className="btn file" onClick={resetAllViews} title="Reset all panel views">
             ⟲ Reset View
           </button>
         </div>
@@ -629,7 +657,16 @@ export default function App() {
             <div className="panel__header-content">
               <button 
                 className="panel__collapse-btn" 
-                onClick={() => setDetailsCollapsed(!detailsCollapsed)}
+                onClick={() => {
+                  const newCollapsed = !detailsCollapsed
+                  setDetailsCollapsed(newCollapsed)
+                  // Track if user manually collapsed the panel
+                  if (newCollapsed) {
+                    setDetailsManuallyCollapsed(true)
+                  } else {
+                    setDetailsManuallyCollapsed(false)
+                  }
+                }}
                 title={detailsCollapsed ? 'Expand' : 'Collapse'}
               >
                 {detailsCollapsed ? (isMobile ? '▼' : '◀') : (isMobile ? '▲' : '▶')}
