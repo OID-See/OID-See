@@ -1181,29 +1181,26 @@ body{
 }
 
 .resize-handle--horizontal {
-  width: 8px;
+  width: 0;
   cursor: ew-resize;
   background: transparent;
   transition: background 0.2s ease;
   flex-shrink: 0;
-}
-
-.resize-handle--horizontal:hover {
-  background: rgba(66,232,224,0.25);
+  position: relative;
 }
 
 .resize-handle--horizontal::before {
   content: '';
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 3px;
-  height: 60px;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
   background: rgba(255,255,255,0.15);
   border-radius: 2px;
   opacity: 0.3;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.2s ease, background 0.2s ease;
+  pointer-events: auto;
 }
 
 .resize-handle--horizontal:hover::before {
