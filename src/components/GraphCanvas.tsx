@@ -173,11 +173,11 @@ export const GraphCanvas = forwardRef<
             fit: true 
           },
           barnesHut: {
-            gravitationalConstant: -30000,
-            springLength: 450,
-            springConstant: 0.02,
+            gravitationalConstant: -40000,
+            springLength: 500,
+            springConstant: 0.015,
             damping: 0.35,
-            avoidOverlap: 0.9,
+            avoidOverlap: 0.95,
           },
         },
         groups: {

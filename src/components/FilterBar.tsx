@@ -15,7 +15,10 @@ const AUTOCOMPLETE_SUGGESTIONS = {
   commonValues: ['User', 'Application', 'Group', 'Role', 'offline_access', 'true', 'false'],
 }
 
-function getAutocompleteOptions(input: string): string[] {
+function getAutocompleteOptions(input: string, userHasInteracted: boolean): string[] {
+  // Don't show suggestions until user has interacted with the input
+  if (!userHasInteracted) return []
+  
   if (!input) return ['n.', 'e.']
   
   const lastWord = input.split(/[\s]/g).pop() || ''
@@ -48,14 +51,15 @@ function FilterInput({ value, onChange, hasErrors }: { value: string; onChange: 
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const [isFocused, setIsFocused] = useState(false)
+  const [hasInteracted, setHasInteracted] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!isFocused) return
-    const opts = getAutocompleteOptions(value)
+    const opts = getAutocompleteOptions(value, hasInteracted)
     setSuggestions(opts.slice(0, 8))
     setSelectedIndex(-1)
-  }, [value, isFocused])
+  }, [value, isFocused, hasInteracted])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     e.stopPropagation()
@@ -93,7 +97,8 @@ function FilterInput({ value, onChange, hasErrors }: { value: string; onChange: 
         onKeyUp={(e) => e.stopPropagation()}
         onFocus={() => {
           setIsFocused(true)
-          const opts = getAutocompleteOptions(value)
+          setHasInteracted(true)
+          const opts = getAutocompleteOptions(value, true)
           setSuggestions(opts.slice(0, 8))
         }}
         onBlur={() => {
