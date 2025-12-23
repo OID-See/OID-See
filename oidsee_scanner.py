@@ -380,10 +380,24 @@ def make_edge(src: str, dst: str, etype: str, props: Optional[Dict[str, Any]] = 
     def _extract_name(ref: str) -> str:
         # Extract the display name part after ':' from node ID
         return (ref or "").split(":", 1)[-1]
+    
     friendly = TYPE_ID_MAP.get(etype, etype.lower().replace("_", "-"))
-    # Use display names from node IDs (already sanitized)
-    eid = f"e-{friendly}-{_extract_name(src)}-{_extract_name(dst)}"
-    return {"id": eid, "from": src, "to": dst, "type": etype, "properties": props or {}}
+    base_id = f"e-{friendly}-{_extract_name(src)}-{_extract_name(dst)}"
+    
+    # For edge types that can have multiple instances between the same nodes,
+    # append a differentiating attribute to ensure unique IDs
+    props = props or {}
+    suffix = ""
+    
+    if etype == "ASSIGNED_TO" and "appRoleId" in props:
+        # Multiple assignments can exist between the same principal and app with different appRoleIds
+        suffix = f"-{props['appRoleId']}"
+    elif etype == "HAS_APP_ROLE" and "resourceId" in props:
+        # Multiple app roles can exist between the same SP and different role nodes
+        suffix = f"-{props['resourceId']}"
+    
+    eid = base_id + suffix
+    return {"id": eid, "from": src, "to": dst, "type": etype, "properties": props}
 
 
 def is_verified_publisher(vp: Optional[Dict[str, Any]]) -> bool:
