@@ -395,6 +395,10 @@ def make_edge(src: str, dst: str, etype: str, props: Optional[Dict[str, Any]] = 
     elif etype == "HAS_APP_ROLE" and "resourceId" in props:
         # Multiple app roles can exist between the same SP and different role nodes
         suffix = f"-{props['resourceId']}"
+    elif etype == "INSTANCE_OF" and "servicePrincipalId" in props:
+        # Multiple SPs can instance the same Application (e.g., multi-tenant apps)
+        # Use SP ID to differentiate when SP display names collide
+        suffix = f"-{props['servicePrincipalId']}"
     
     eid = base_id + suffix
     return {"id": eid, "from": src, "to": dst, "type": etype, "properties": props}
@@ -1727,7 +1731,8 @@ class OidSeeCollector:
                     "keyCredentials": (app_obj or {}).get("keyCredentials") or [],
                     "federatedIdentityCredentials": (app_obj or {}).get("federatedIdentityCredentials") or [],
                 })
-                self.add_edge(sp_nid, app_nid, "INSTANCE_OF", {})
+                # Pass servicePrincipalId to ensure unique edge IDs when multiple SPs instance the same app
+                self.add_edge(sp_nid, app_nid, "INSTANCE_OF", {"servicePrincipalId": sp_id})
 
             # Owners
             for o in owners_by_sp.get(sp_id, []):
