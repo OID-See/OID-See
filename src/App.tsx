@@ -226,6 +226,7 @@ export default function App() {
   const [inputWidth, setInputWidth] = useState<number>(420)
   const [detailsWidth, setDetailsWidth] = useState<number>(360)
   const [maximizedPanel, setMaximizedPanel] = useState<'input' | 'graph' | 'details' | 'filter' | null>(null)
+  const [viewportWidth, setViewportWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1280)
   const graphRef = useRef<GraphCanvasHandle>(null)
 
   // Load physics config on mount
@@ -233,9 +234,12 @@ export default function App() {
     setPhysicsConfig(loadPhysicsConfig())
   }, [])
 
-  // Detect mobile viewport
+  // Detect mobile viewport and track viewport width
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth <= 768)
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768)
+      setViewportWidth(window.innerWidth)
+    }
     checkMobile()
     
     // Debounce resize events
@@ -270,12 +274,16 @@ export default function App() {
 
   const mainGridStyle = useMemo(() => {
     if (maximizedPanel) return {}
+    // Don't override grid at smaller viewports - let CSS media queries handle it
+    if (viewportWidth <= 1100) {
+      return {}
+    }
     // Apply appropriate grid layout based on collapsed panel states
     if (inputCollapsed && detailsCollapsed) return { gridTemplateColumns: '80px 1fr 80px' }
     if (inputCollapsed) return { gridTemplateColumns: `80px 1fr ${detailsWidth}px` }
     if (detailsCollapsed) return { gridTemplateColumns: `${inputWidth}px 1fr 80px` }
     return { gridTemplateColumns: `${inputWidth}px 1fr ${detailsWidth}px` }
-  }, [maximizedPanel, inputCollapsed, detailsCollapsed, inputWidth, detailsWidth])
+  }, [maximizedPanel, inputCollapsed, detailsCollapsed, inputWidth, detailsWidth, viewportWidth])
 
   async function readFile(file: File) {
     const text = await file.text()
