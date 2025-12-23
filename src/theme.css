@@ -164,7 +164,10 @@ body{
   border-bottom: 1px solid rgba(255,255,255,0.06);
   margin: 0 1rem;
   overflow: visible;
-  transition: max-height 0.3s ease;
+  height: auto;
+  min-height: auto;
+  max-height: none;
+  transition: max-height 0.3s ease, opacity 0.3s ease;
 }
 
 .panel--filter.collapsed {

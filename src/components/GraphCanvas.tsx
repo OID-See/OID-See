@@ -165,14 +165,14 @@ export const GraphCanvas = forwardRef<
           enabled: true,
           stabilization: { 
             enabled: true,
-            iterations: 200, 
+            iterations: 250, 
             fit: true 
           },
           barnesHut: {
             gravitationalConstant: -9000,
             springLength: 150,
             springConstant: 0.04,
-            damping: 0.25,
+            damping: 0.3,
             avoidOverlap: 0.5,
           },
         },
@@ -192,25 +192,50 @@ export const GraphCanvas = forwardRef<
 
     networkRef.current = network
 
+    // Track if physics has been disabled
+    let physicsDisabled = false
+    
+    const disablePhysics = () => {
+      if (physicsDisabled) return
+      physicsDisabled = true
+      try {
+        network.setOptions({ physics: { enabled: false } })
+        console.log('Physics disabled for map stability')
+      } catch (e) {
+        console.warn('Failed to disable physics:', e)
+      }
+    }
+
     const fitOnce = () => {
       if (fittedRef.current) return
       fittedRef.current = true
       try {
         network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } })
-        // Disable physics after stabilization to prevent constant node movement
-        network.setOptions({ physics: { enabled: false } })
       } catch {}
+      // Disable physics after fitting to prevent constant movement
+      setTimeout(() => disablePhysics(), 100)
     }
 
-    network.on('stabilizationIterationsDone', fitOnce)
-    network.on('afterDrawing', fitOnce)
+    // Multiple events to ensure we catch stabilization
+    network.on('stabilizationIterationsDone', () => {
+      fitOnce()
+    })
+    
+    network.on('stabilized', () => {
+      fitOnce()
+    })
 
     // Fallback timeout to ensure physics is disabled even if events don't fire
+    // Use longer timeout for large graphs
     const stabilizationTimeout = setTimeout(() => {
       if (!fittedRef.current) {
+        console.log('Stabilization timeout reached, fitting and disabling physics')
         fitOnce()
+      } else {
+        // Ensure physics is disabled even if fitOnce ran but physics wasn't disabled
+        disablePhysics()
       }
-    }, 3000) // 3 seconds timeout as fallback
+    }, 5000) // 5 seconds timeout as fallback for large graphs
 
     network.on('selectNode', (p: any) => {
       const id = p.nodes?.[0]
