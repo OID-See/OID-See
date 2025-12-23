@@ -170,6 +170,7 @@ body{
 
 .panel--filter.collapsed {
   max-height: var(--collapsed-panel-height);
+  min-height: 0;
   overflow: hidden;
 }
 

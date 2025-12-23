@@ -252,6 +252,14 @@ export default function App() {
     setSaved(loadSaved())
   }, [])
 
+  // Reset physics configuration when graph data changes
+  useEffect(() => {
+    if (data) {
+      setPhysicsConfig(DEFAULT_PHYSICS)
+      savePhysicsConfig(DEFAULT_PHYSICS)
+    }
+  }, [data, lens, pathAware])
+
   const placeholder = useMemo(() => {
     return `Paste an OID-See export (oidsee-graph v1.x) here…\n\nTip: Click "Load sample" to see the expected shape.`
   }, [])
