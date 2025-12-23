@@ -200,7 +200,6 @@ export const GraphCanvas = forwardRef<
       physicsDisabled = true
       try {
         network.setOptions({ physics: { enabled: false } })
-        console.log('Physics disabled for map stability')
       } catch (e) {
         console.warn('Failed to disable physics:', e)
       }
@@ -229,7 +228,6 @@ export const GraphCanvas = forwardRef<
     // Use longer timeout for large graphs
     const stabilizationTimeout = setTimeout(() => {
       if (!fittedRef.current) {
-        console.log('Stabilization timeout reached, fitting and disabling physics')
         fitOnce()
       } else {
         // Ensure physics is disabled even if fitOnce ran but physics wasn't disabled

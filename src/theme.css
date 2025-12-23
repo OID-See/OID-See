@@ -14,7 +14,6 @@
   /* Panel collapse sizes */
   --collapsed-panel-height: 56px;
   --filter-panel-height: 180px;
-  --filter-panel-max-height: 600px;
 }
 
 *{ box-sizing:border-box; }
@@ -127,7 +126,7 @@ body{
 /* Mobile portrait - increase filter panel height */
 @media (max-width: 768px) and (orientation: portrait) {
   :root {
-    --filter-panel-max-height: 400px;
+    /* Mobile-specific overrides can go here */
   }
 }
 
@@ -167,7 +166,7 @@ body{
   height: auto;
   min-height: auto;
   max-height: none;
-  transition: max-height 0.3s ease, opacity 0.3s ease;
+  transition: opacity 0.3s ease;
 }
 
 .panel--filter.collapsed {
