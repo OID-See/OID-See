@@ -163,7 +163,7 @@ body{
   margin: 0 1rem;
   overflow: visible;
   height: auto;
-  min-height: 280px;
+  min-height: 420px;
   max-height: none;
   transition: opacity 0.3s ease;
 }
@@ -414,7 +414,7 @@ body{
   background: rgba(0,0,0,0.12);
   position: relative;
   overflow: visible;
-  min-height: 240px;
+  min-height: 340px;
 }
 .filterbar__row{
   display:flex;
