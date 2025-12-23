@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { GraphCanvas, Selection, GraphCanvasHandle, PhysicsConfig } from './components/GraphCanvas'
+import { GraphCanvas, Selection, GraphCanvasHandle, PhysicsConfig, DEFAULT_PHYSICS } from './components/GraphCanvas'
 import { toVisData, VisData } from './adapters/toVisData'
 import sampleObj from './samples/sample-oidsee-graph.json'
 import { DetailsPanel } from './components/DetailsPanel'
@@ -24,13 +24,6 @@ const PRESET_QUERIES: SavedQuery[] = [
   { name: 'Users Only', query: 'n.type=User' },
   { name: 'Applications', query: 'n.type=Application' },
 ]
-
-const DEFAULT_PHYSICS: PhysicsConfig = {
-  gravitationalConstant: -40000,
-  springLength: 500,
-  springConstant: 0.015,
-  avoidOverlap: 0.95,
-}
 
 function loadPhysicsConfig(): PhysicsConfig {
   try {

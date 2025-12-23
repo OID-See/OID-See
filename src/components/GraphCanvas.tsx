@@ -16,6 +16,14 @@ export interface PhysicsConfig {
   avoidOverlap: number
 }
 
+// Default physics configuration
+export const DEFAULT_PHYSICS: PhysicsConfig = {
+  gravitationalConstant: -40000,
+  springLength: 500,
+  springConstant: 0.015,
+  avoidOverlap: 0.95,
+}
+
 export interface GraphCanvasHandle {
   focusNode: (nodeId: string) => void
   focusEdge: (edgeId: string) => void
@@ -45,15 +53,7 @@ export const GraphCanvas = forwardRef<
   const visibleEdgesRef = useRef<DataSet<VisEdge>>(new DataSet([]))
   const fittedRef = useRef(false)
 
-  // Default physics configuration
-  const defaultPhysics: PhysicsConfig = {
-    gravitationalConstant: -40000,
-    springLength: 500,
-    springConstant: 0.015,
-    avoidOverlap: 0.95,
-  }
-  
-  const physics = physicsConfig ?? defaultPhysics
+  const physics = physicsConfig ?? DEFAULT_PHYSICS
 
   // Expose focus methods to parent component
   useImperativeHandle(ref, () => ({

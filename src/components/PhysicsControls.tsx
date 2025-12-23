@@ -1,12 +1,6 @@
 
 import { useState } from 'react'
-
-export interface PhysicsConfig {
-  gravitationalConstant: number
-  springLength: number
-  springConstant: number
-  avoidOverlap: number
-}
+import { PhysicsConfig } from './GraphCanvas'
 
 interface PhysicsControlsProps {
   config: PhysicsConfig
