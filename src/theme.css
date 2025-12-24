@@ -1196,15 +1196,15 @@ body{
   bottom: 0;
   left: -4px;
   width: 8px;
-  background: rgba(255,255,255,0.15);
+  background: rgba(66,232,224,0.35);
   border-radius: 2px;
-  opacity: 0.3;
+  opacity: 0.6;
   transition: opacity 0.2s ease, background 0.2s ease;
 }
 
 .resize-handle--horizontal:hover::before {
   opacity: 1;
-  background: rgba(66,232,224,0.6);
+  background: rgba(66,232,224,0.75);
 }
 
 .resize-handle--vertical {

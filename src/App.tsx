@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { GraphCanvas, Selection, GraphCanvasHandle, PhysicsConfig, DEFAULT_PHYSICS } from './components/GraphCanvas'
 import { toVisData, VisData } from './adapters/toVisData'
 import sampleObj from './samples/sample-oidsee-graph.json'
@@ -271,12 +271,24 @@ export default function App() {
   }, [])
 
   // Auto-expand details panel when a node or edge is selected
+  // Auto-collapse when nothing is selected (if it was auto-expanded)
   // Only auto-expand if the user hasn't manually collapsed it
   useEffect(() => {
     if (selection && detailsCollapsed && !detailsManuallyCollapsed) {
+      // Expand details panel when something is selected
       setDetailsCollapsed(false)
+      
+      // Auto-focus on the selected item
+      const timer = setTimeout(() => {
+        handleFocus(selection)
+      }, DETAILS_AUTO_EXPAND_DELAY)
+      
+      return () => clearTimeout(timer)
+    } else if (!selection && !detailsCollapsed && !detailsManuallyCollapsed) {
+      // Auto-collapse when nothing is selected (only if it was auto-expanded)
+      setDetailsCollapsed(true)
     }
-  }, [selection, detailsCollapsed, detailsManuallyCollapsed])
+  }, [selection, detailsCollapsed, detailsManuallyCollapsed, handleFocus])
 
   // Reset physics configuration when graph data changes
   useEffect(() => {
@@ -402,13 +414,13 @@ export default function App() {
     }
   }
 
-  function handleFocus(sel: Selection) {
+  const handleFocus = useCallback((sel: Selection) => {
     if (sel.kind === 'node') {
       graphRef.current?.focusNode(sel.id)
     } else if (sel.kind === 'edge') {
       graphRef.current?.focusEdge(sel.id)
     }
-  }
+  }, [])
 
   function handlePhysicsChange(config: PhysicsConfig) {
     setPhysicsConfig(config)
@@ -602,7 +614,7 @@ export default function App() {
           )}
         </section>
 
-        {!inputCollapsed && !maximizedPanel && <ResizeHandle onResize={handleInputResize} orientation="horizontal" />}
+        {!maximizedPanel && <ResizeHandle onResize={handleInputResize} orientation="horizontal" />}
 
         <section className={`panel panel--graph${maximizedPanel === 'graph' ? ' maximized-panel' : ''}`}>
           <div className="panel__title">
@@ -650,7 +662,7 @@ export default function App() {
           )}
         </section>
 
-        {!detailsCollapsed && !maximizedPanel && <ResizeHandle onResize={handleDetailsResize} orientation="horizontal" />}
+        {!maximizedPanel && <ResizeHandle onResize={handleDetailsResize} orientation="horizontal" />}
 
         <section className={`panel panel--details${detailsCollapsed ? ' collapsed-horizontal' : ''}${maximizedPanel === 'details' ? ' maximized-panel' : ''}`}>
           <div className="panel__title">
