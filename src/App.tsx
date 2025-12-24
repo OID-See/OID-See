@@ -21,6 +21,9 @@ const RESPONSIVE_BREAKPOINT = 1100
 // Details panel auto-expand delay
 const DETAILS_AUTO_EXPAND_DELAY = 100 // ms delay before auto-expanding details panel
 
+// Scroll delay offset for portrait mode auto-expand
+const SCROLL_DELAY_OFFSET = 50 // ms additional delay to ensure panel has expanded before scrolling
+
 // Graph restabilization delay
 const GRAPH_RESTABILIZE_DELAY = 100 // ms delay before triggering graph restabilization
 
@@ -232,12 +235,14 @@ export default function App() {
   const [detailsCollapsed, setDetailsCollapsed] = useState<boolean>(true)
   const [detailsManuallyCollapsed, setDetailsManuallyCollapsed] = useState<boolean>(false)
   const [isMobile, setIsMobile] = useState<boolean>(false)
+  const [isPortrait, setIsPortrait] = useState<boolean>(false)
   const [physicsConfig, setPhysicsConfig] = useState<PhysicsConfig>(DEFAULT_PHYSICS)
   const [inputWidth, setInputWidth] = useState<number>(420)
   const [detailsWidth, setDetailsWidth] = useState<number>(360)
   const [maximizedPanel, setMaximizedPanel] = useState<'input' | 'graph' | 'details' | 'filter' | null>(null)
   const [viewportWidth, setViewportWidth] = useState<number>(1280)
   const graphRef = useRef<GraphCanvasHandle>(null)
+  const detailsPanelRef = useRef<HTMLElement>(null)
 
   // Load physics config on mount
   useEffect(() => {
@@ -247,8 +252,11 @@ export default function App() {
   // Detect mobile viewport and track viewport width
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768)
-      setViewportWidth(window.innerWidth)
+      const width = window.innerWidth
+      const height = window.innerHeight
+      setIsMobile(width <= 768)
+      setIsPortrait(width <= 768 && height > width)
+      setViewportWidth(width)
     }
     checkMobile()
     
@@ -275,8 +283,28 @@ export default function App() {
   useEffect(() => {
     if (selection && detailsCollapsed && !detailsManuallyCollapsed) {
       setDetailsCollapsed(false)
+      // In portrait mode, scroll the details panel into view after expanding
+      if (isPortrait && detailsPanelRef.current) {
+        setTimeout(() => {
+          detailsPanelRef.current!.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        }, DETAILS_AUTO_EXPAND_DELAY + SCROLL_DELAY_OFFSET) // Additional delay to ensure panel has expanded
+      }
     }
-  }, [selection, detailsCollapsed, detailsManuallyCollapsed])
+  }, [selection, detailsCollapsed, detailsManuallyCollapsed, isPortrait])
+
+  // Auto-focus graph on selection
+  useEffect(() => {
+    if (selection && graphRef.current) {
+      const timer = setTimeout(() => {
+        if (selection.kind === 'node') {
+          graphRef.current?.focusNode(selection.id)
+        } else if (selection.kind === 'edge') {
+          graphRef.current?.focusEdge(selection.id)
+        }
+      }, DETAILS_AUTO_EXPAND_DELAY)
+      return () => clearTimeout(timer)
+    }
+  }, [selection])
 
   // Reset physics configuration when graph data changes
   useEffect(() => {
@@ -303,6 +331,8 @@ export default function App() {
 
   const mainGridStyle = useMemo(() => {
     if (maximizedPanel) return {}
+    // In portrait mode, don't apply grid layout at all
+    if (isPortrait) return {}
     // Don't override grid at smaller viewports - let CSS media queries handle it
     if (viewportWidth <= RESPONSIVE_BREAKPOINT) {
       return {}
@@ -313,7 +343,7 @@ export default function App() {
     if (inputCollapsed) return { gridTemplateColumns: `80px 8px 1fr 8px ${detailsWidth}px` }
     if (detailsCollapsed) return { gridTemplateColumns: `${inputWidth}px 8px 1fr 8px 80px` }
     return { gridTemplateColumns: `${inputWidth}px 8px 1fr 8px ${detailsWidth}px` }
-  }, [maximizedPanel, inputCollapsed, detailsCollapsed, inputWidth, detailsWidth, viewportWidth])
+  }, [maximizedPanel, inputCollapsed, detailsCollapsed, inputWidth, detailsWidth, viewportWidth, isPortrait])
 
   async function readFile(file: File) {
     const text = await file.text()
@@ -653,7 +683,7 @@ export default function App() {
 
         <ResizeHandle onResize={handleDetailsResize} orientation="horizontal" />
 
-        <section className={`panel panel--details${detailsCollapsed ? ' collapsed-horizontal' : ''}${maximizedPanel === 'details' ? ' maximized-panel' : ''}`}>
+        <section ref={detailsPanelRef} className={`panel panel--details${detailsCollapsed ? ' collapsed-horizontal' : ''}${maximizedPanel === 'details' ? ' maximized-panel' : ''}`}>
           <div className="panel__title">
             <div className="panel__header-content">
               <button 
