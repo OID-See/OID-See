@@ -1,3 +1,8 @@
+/**
+ * Props for the Legend component
+ * @property {boolean} visible - Controls whether the legend panel is displayed
+ * @property {() => void} onClose - Callback function invoked when the legend should be closed
+ */
 interface LegendProps {
   visible: boolean
   onClose: () => void
@@ -8,7 +13,7 @@ export function Legend({ visible, onClose }: LegendProps) {
 
   return (
     <div className="legend-overlay" onClick={onClose}>
-      <div className="legend-panel">
+      <div className="legend-panel" onClick={(e) => e.stopPropagation()}>
         <div className="legend-header">
           <h3>Graph Legend</h3>
           <button className="legend-close" onClick={onClose} title="Close">×</button>
