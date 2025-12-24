@@ -286,7 +286,7 @@ export default function App() {
       // In portrait mode, scroll the details panel into view after expanding
       if (isPortrait && detailsPanelRef.current) {
         setTimeout(() => {
-          detailsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+          detailsPanelRef.current!.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
         }, DETAILS_AUTO_EXPAND_DELAY + SCROLL_DELAY_OFFSET) // Additional delay to ensure panel has expanded
       }
     }
