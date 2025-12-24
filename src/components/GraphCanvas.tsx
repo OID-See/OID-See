@@ -227,6 +227,7 @@ export const GraphCanvas = forwardRef<
     }
   }, [allNodes, allEdges, visibleNodes, visibleEdges, onError])
 
+  // Initialize network once on mount
   useEffect(() => {
     if (!containerRef.current) return
 
@@ -382,7 +383,7 @@ export const GraphCanvas = forwardRef<
     const ro = new ResizeObserver(() => {
       try {
         network.redraw()
-        network.fit({ animation: false })
+        // Only fit on initial render, not on every resize
       } catch {}
     })
     ro.observe(containerRef.current)
@@ -393,7 +394,29 @@ export const GraphCanvas = forwardRef<
       ro.disconnect()
       network.destroy()
     }
-  }, [onSelection, physicsConfig])
+  }, [onSelection])
+
+  // Update physics configuration without recreating the network
+  useEffect(() => {
+    const network = networkRef.current
+    if (!network) return
+
+    try {
+      network.setOptions({
+        physics: {
+          barnesHut: {
+            gravitationalConstant: physics.gravitationalConstant,
+            springLength: physics.springLength,
+            springConstant: physics.springConstant,
+            damping: 0.35,
+            avoidOverlap: physics.avoidOverlap,
+          },
+        },
+      })
+    } catch (e) {
+      console.warn('Failed to update physics configuration:', e)
+    }
+  }, [physics])
 
   return <div ref={containerRef} className="graph" />
 })

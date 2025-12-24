@@ -308,10 +308,11 @@ export default function App() {
       return {}
     }
     // Apply appropriate grid layout based on collapsed panel states
-    if (inputCollapsed && detailsCollapsed) return { gridTemplateColumns: '80px 1fr 80px' }
-    if (inputCollapsed) return { gridTemplateColumns: `80px 1fr ${detailsWidth}px` }
-    if (detailsCollapsed) return { gridTemplateColumns: `${inputWidth}px 1fr 80px` }
-    return { gridTemplateColumns: `${inputWidth}px 1fr ${detailsWidth}px` }
+    // Include 8px for each visible resize handle
+    if (inputCollapsed && detailsCollapsed) return { gridTemplateColumns: '80px 8px 1fr 8px 80px' }
+    if (inputCollapsed) return { gridTemplateColumns: `80px 8px 1fr 8px ${detailsWidth}px` }
+    if (detailsCollapsed) return { gridTemplateColumns: `${inputWidth}px 8px 1fr 8px 80px` }
+    return { gridTemplateColumns: `${inputWidth}px 8px 1fr 8px ${detailsWidth}px` }
   }, [maximizedPanel, inputCollapsed, detailsCollapsed, inputWidth, detailsWidth, viewportWidth])
 
   async function readFile(file: File) {
@@ -602,7 +603,7 @@ export default function App() {
           )}
         </section>
 
-        {!inputCollapsed && !maximizedPanel && <ResizeHandle onResize={handleInputResize} orientation="horizontal" />}
+        <ResizeHandle onResize={handleInputResize} orientation="horizontal" />
 
         <section className={`panel panel--graph${maximizedPanel === 'graph' ? ' maximized-panel' : ''}`}>
           <div className="panel__title">
@@ -650,7 +651,7 @@ export default function App() {
           )}
         </section>
 
-        {!detailsCollapsed && !maximizedPanel && <ResizeHandle onResize={handleDetailsResize} orientation="horizontal" />}
+        <ResizeHandle onResize={handleDetailsResize} orientation="horizontal" />
 
         <section className={`panel panel--details${detailsCollapsed ? ' collapsed-horizontal' : ''}${maximizedPanel === 'details' ? ' maximized-panel' : ''}`}>
           <div className="panel__title">
