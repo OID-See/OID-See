@@ -270,6 +270,14 @@ export default function App() {
     setSaved(loadSaved())
   }, [])
 
+  const handleFocus = useCallback((sel: Selection) => {
+    if (sel.kind === 'node') {
+      graphRef.current?.focusNode(sel.id)
+    } else if (sel.kind === 'edge') {
+      graphRef.current?.focusEdge(sel.id)
+    }
+  }, [])
+
   // Auto-expand details panel when a node or edge is selected
   // Auto-collapse when nothing is selected (if it was auto-expanded)
   // Only auto-expand if the user hasn't manually collapsed it
@@ -413,14 +421,6 @@ export default function App() {
       setError(`Format failed: ${e?.message ?? String(e)}`)
     }
   }
-
-  const handleFocus = useCallback((sel: Selection) => {
-    if (sel.kind === 'node') {
-      graphRef.current?.focusNode(sel.id)
-    } else if (sel.kind === 'edge') {
-      graphRef.current?.focusEdge(sel.id)
-    }
-  }, [])
 
   function handlePhysicsChange(config: PhysicsConfig) {
     setPhysicsConfig(config)
