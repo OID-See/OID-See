@@ -171,9 +171,27 @@ body{
   
   /* Ensure collapsed panels still show in portrait */
   .panel.collapsed-horizontal {
-    min-height: 48px;
-    max-height: 48px;
+    min-height: 48px !important;
+    max-height: 48px !important;
     width: 100% !important;
+  }
+  
+  /* Override vertical text in portrait mode - keep text horizontal */
+  .panel.collapsed-horizontal .panel__title {
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    padding: 0.75rem 1rem !important;
+  }
+  
+  .panel.collapsed-horizontal .panel__title-text {
+    writing-mode: horizontal-tb !important;
+    text-orientation: mixed !important;
+    letter-spacing: normal !important;
+  }
+  
+  .panel.collapsed-horizontal .panel__header-content {
+    flex-direction: row !important;
+    justify-content: space-between !important;
   }
 }
 
