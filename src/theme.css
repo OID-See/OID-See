@@ -99,6 +99,7 @@ body{
   grid-auto-flow: column;
   gap: 0;
   padding: 1rem;
+  min-height: 0; /* Allow flex shrinking */
 }
 
 /* Maximized panel state */
@@ -132,38 +133,8 @@ body{
   background: var(--bg0) !important;
 }
 
-/* Adjust grid when Input panel is collapsed */
-.main:has(.panel:first-child.collapsed-horizontal) {
-  grid-template-columns: 80px 8px 1fr 8px 360px;
-}
-
-/* Adjust grid when Details panel is collapsed */
-.main:has(.panel--details.collapsed-horizontal) {
-  grid-template-columns: 420px 8px 1fr 8px 80px;
-}
-
-/* Adjust grid when both are collapsed */
-.main:has(.panel:first-child.collapsed-horizontal):has(.panel--details.collapsed-horizontal) {
-  grid-template-columns: 80px 8px 1fr 8px 80px;
-}
-
 @media (max-width: 1100px){
   .main{ grid-template-columns: 280px 8px 1fr 8px 240px; }
-  
-  /* Adjust for collapsed Input on medium screens */
-  .main:has(.panel:first-child.collapsed-horizontal) {
-    grid-template-columns: 80px 8px 1fr 8px 240px;
-  }
-  
-  /* Adjust for collapsed Details on medium screens */
-  .main:has(.panel--details.collapsed-horizontal) {
-    grid-template-columns: 280px 8px 1fr 8px 80px;
-  }
-  
-  /* Both collapsed */
-  .main:has(.panel:first-child.collapsed-horizontal):has(.panel--details.collapsed-horizontal) {
-    grid-template-columns: 80px 8px 1fr 8px 80px;
-  }
 }
 @media (max-width: 768px){
   .main{ 
@@ -178,9 +149,31 @@ body{
   }
 }
 
-/* Mobile portrait - increase filter panel height */
+/* Mobile portrait - increase filter panel height and ensure vertical stacking */
 @media (max-width: 768px) and (orientation: portrait) {
-  :root {
+  .main {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: unset !important;
+  }
+  
+  .panel, .panel--details {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    min-height: 300px;
+    margin-bottom: 0.5rem;
+  }
+  
+  .panel:last-child {
+    margin-bottom: 0;
+  }
+  
+  /* Ensure collapsed panels still show in portrait */
+  .panel.collapsed-horizontal {
+    min-height: 48px;
+    max-height: 48px;
+    width: 100% !important;
   }
 }
 
@@ -227,6 +220,12 @@ body{
   max-height: var(--collapsed-panel-height);
   min-height: 0;
   overflow: hidden;
+}
+
+.panel--graph {
+  min-width: 0; /* Allow flex/grid shrinking if needed */
+  display: flex;
+  flex-direction: column;
 }
 
 .panel{

@@ -232,6 +232,7 @@ export default function App() {
   const [detailsCollapsed, setDetailsCollapsed] = useState<boolean>(true)
   const [detailsManuallyCollapsed, setDetailsManuallyCollapsed] = useState<boolean>(false)
   const [isMobile, setIsMobile] = useState<boolean>(false)
+  const [isPortrait, setIsPortrait] = useState<boolean>(false)
   const [physicsConfig, setPhysicsConfig] = useState<PhysicsConfig>(DEFAULT_PHYSICS)
   const [inputWidth, setInputWidth] = useState<number>(420)
   const [detailsWidth, setDetailsWidth] = useState<number>(360)
@@ -247,8 +248,11 @@ export default function App() {
   // Detect mobile viewport and track viewport width
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768)
-      setViewportWidth(window.innerWidth)
+      const width = window.innerWidth
+      const height = window.innerHeight
+      setIsMobile(width <= 768)
+      setIsPortrait(width <= 768 && height > width)
+      setViewportWidth(width)
     }
     checkMobile()
     
@@ -278,6 +282,20 @@ export default function App() {
     }
   }, [selection, detailsCollapsed, detailsManuallyCollapsed])
 
+  // Auto-focus graph on selection
+  useEffect(() => {
+    if (selection && graphRef.current) {
+      const timer = setTimeout(() => {
+        if (selection.kind === 'node') {
+          graphRef.current?.focusNode(selection.id)
+        } else if (selection.kind === 'edge') {
+          graphRef.current?.focusEdge(selection.id)
+        }
+      }, DETAILS_AUTO_EXPAND_DELAY)
+      return () => clearTimeout(timer)
+    }
+  }, [selection])
+
   // Reset physics configuration when graph data changes
   useEffect(() => {
     if (data) {
@@ -303,6 +321,8 @@ export default function App() {
 
   const mainGridStyle = useMemo(() => {
     if (maximizedPanel) return {}
+    // In portrait mode, don't apply grid layout at all
+    if (isPortrait) return {}
     // Don't override grid at smaller viewports - let CSS media queries handle it
     if (viewportWidth <= RESPONSIVE_BREAKPOINT) {
       return {}
@@ -313,7 +333,7 @@ export default function App() {
     if (inputCollapsed) return { gridTemplateColumns: `80px 8px 1fr 8px ${detailsWidth}px` }
     if (detailsCollapsed) return { gridTemplateColumns: `${inputWidth}px 8px 1fr 8px 80px` }
     return { gridTemplateColumns: `${inputWidth}px 8px 1fr 8px ${detailsWidth}px` }
-  }, [maximizedPanel, inputCollapsed, detailsCollapsed, inputWidth, detailsWidth, viewportWidth])
+  }, [maximizedPanel, inputCollapsed, detailsCollapsed, inputWidth, detailsWidth, viewportWidth, isPortrait])
 
   async function readFile(file: File) {
     const text = await file.text()
