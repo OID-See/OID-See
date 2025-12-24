@@ -9,6 +9,7 @@ import { JSONEditor } from './components/JSONEditor'
 import { ErrorDialog } from './components/ErrorDialog'
 import { PhysicsControls } from './components/PhysicsControls'
 import { ResizeHandle } from './components/ResizeHandle'
+import { Legend } from './components/Legend'
 
 type SavedQuery = { name: string; query: string }
 
@@ -241,6 +242,7 @@ export default function App() {
   const [detailsWidth, setDetailsWidth] = useState<number>(360)
   const [maximizedPanel, setMaximizedPanel] = useState<'input' | 'graph' | 'details' | 'filter' | null>(null)
   const [viewportWidth, setViewportWidth] = useState<number>(1280)
+  const [legendVisible, setLegendVisible] = useState<boolean>(false)
   const graphRef = useRef<GraphCanvasHandle>(null)
   const detailsPanelRef = useRef<HTMLElement>(null)
 
@@ -640,6 +642,13 @@ export default function App() {
             <div className="panel__header-content">
               <span className="panel__title-text">Graph</span>
               <div className="panel__header-actions">
+                <button
+                  className="btn btn--ghost btn--maximize"
+                  onClick={() => setLegendVisible(!legendVisible)}
+                  title="Show legend"
+                >
+                  ?
+                </button>
                 <PhysicsControls 
                   config={physicsConfig} 
                   onChange={handlePhysicsChange}
@@ -739,6 +748,11 @@ export default function App() {
           onDismiss={() => setGraphError(null)} 
         />
       )}
+      
+      <Legend 
+        visible={legendVisible}
+        onClose={() => setLegendVisible(false)}
+      />
     </div>
   )
 }
