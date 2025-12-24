@@ -40,6 +40,7 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from threading import Lock
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import requests
@@ -1407,6 +1408,12 @@ class OidSeeCollector:
         self._principal_ids_needed: Set[str] = set()
         self._role_def_ids_needed: Set[str] = set()
         self._role_defs: Dict[str, Dict[str, Any]] = {}
+        
+        # Thread safety locks for parallel operations
+        self._app_cache_lock = Lock()
+        self._sp_cache_lock = Lock()
+        self._role_defs_lock = Lock()
+        self._id_collection_lock = Lock()  # For _resource_sp_needed, _principal_ids_needed, _role_def_ids_needed
 
     # ---- add nodes with de-dupe
 
@@ -1494,7 +1501,8 @@ class OidSeeCollector:
                 result = future.result()
                 if result:
                     appid, app_obj = result
-                    self.app_cache_by_appid[appid] = app_obj
+                    with self._app_cache_lock:
+                        self.app_cache_by_appid[appid] = app_obj
 
     def fetch_oauth2_permission_grants(self, client_sp_id: str) -> List[Dict[str, Any]]:
         # /oauth2PermissionGrants supports filter by clientId
@@ -1635,7 +1643,8 @@ class OidSeeCollector:
             future_to_rid = {executor.submit(fetch_single_role, rid): rid for rid in ids_to_fetch}
             for future in as_completed(future_to_rid):
                 rid, rd = future.result()
-                self._role_defs[rid] = rd
+                with self._role_defs_lock:
+                    self._role_defs[rid] = rd
 
     # ---- resource SP lookup
 
@@ -1657,7 +1666,8 @@ class OidSeeCollector:
             future_to_rid = {executor.submit(fetch_single_sp, rid): rid for rid in missing}
             for future in as_completed(future_to_rid):
                 rid, sp = future.result()
-                self.sp_cache[rid] = sp
+                with self._sp_cache_lock:
+                    self.sp_cache[rid] = sp
 
     # ---- graph build
 
@@ -1715,10 +1725,11 @@ class OidSeeCollector:
                 dir_roles_by_sp[sp_id] = result["dir_roles"]
                 sp_delegated_scopes[sp_id] = result["scopes_by_res"]
                 
-                # Collect referenced IDs
-                self._resource_sp_needed.update(result["resource_sp_ids"])
-                self._principal_ids_needed.update(result["principal_ids"])
-                self._role_def_ids_needed.update(result["role_def_ids"])
+                # Collect referenced IDs with thread safety
+                with self._id_collection_lock:
+                    self._resource_sp_needed.update(result["resource_sp_ids"])
+                    self._principal_ids_needed.update(result["principal_ids"])
+                    self._role_def_ids_needed.update(result["role_def_ids"])
 
         # Summaries
         grants_total = sum(len(v) for v in grants_by_sp.values())
