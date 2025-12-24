@@ -1672,15 +1672,20 @@ class OidSeeCollector:
     # ---- graph build
 
     def build(self) -> Dict[str, Any]:
+        overall_start = time.time()
+        
         print("→ Fetching tenant metadata...", file=sys.stderr)
+        stage_start = time.time()
         tenant = self.fetch_tenant()
         tenant_id = tenant.get("tenantId")
         if not tenant_id:
             raise RuntimeError("Could not determine tenantId from /organization")
+        print(f"  ✓ Completed in {time.time() - stage_start:.2f}s", file=sys.stderr)
 
         print("→ Listing service principals...", file=sys.stderr)
+        stage_start = time.time()
         sps = self.list_service_principals()
-        print(f"  found {len(sps)} service principals (pre-filter)", file=sys.stderr)
+        print(f"  found {len(sps)} service principals (pre-filter) in {time.time() - stage_start:.2f}s", file=sys.stderr)
         # cache all quickly (id->sp)
         for sp in sps:
             sid = sp.get("id")
@@ -1696,8 +1701,9 @@ class OidSeeCollector:
 
         # best-effort application objects
         print("→ Fetching in-tenant application objects (best-effort)...", file=sys.stderr)
+        stage_start = time.time()
         self.fetch_applications_for_sps(target_sps)
-        print(f"  application cache populated for {len(self.app_cache_by_appid)} appIds", file=sys.stderr)
+        print(f"  application cache populated for {len(self.app_cache_by_appid)} appIds in {time.time() - stage_start:.2f}s", file=sys.stderr)
 
         # First pass: gather grants, assignments, owners, role assignments and collect referenced IDs
         sp_delegated_scopes: Dict[str, Dict[str, Set[str]]] = {}  # spId -> resourceId -> scopes set
@@ -1709,6 +1715,7 @@ class OidSeeCollector:
         dir_roles_by_sp: Dict[str, List[Dict[str, Any]]] = {}
 
         print("→ Collecting delegated grants, app permissions, assignments, owners, and directory roles...", file=sys.stderr)
+        stage_start = time.time()
         
         # Parallel collection with ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -1737,21 +1744,29 @@ class OidSeeCollector:
         assigned_total = sum(len(v) for v in assigned_to_by_sp.values())
         owners_total = sum(len(v) for v in owners_by_sp.values())
         dir_roles_total = sum(len(v) for v in dir_roles_by_sp.values())
-        print(f"  collected: {grants_total} grants, {app_perms_total} app-perms, {assigned_total} assignments, {owners_total} owners, {dir_roles_total} role assignments", file=sys.stderr)
+        print(f"  collected: {grants_total} grants, {app_perms_total} app-perms, {assigned_total} assignments, {owners_total} owners, {dir_roles_total} role assignments in {time.time() - stage_start:.2f}s", file=sys.stderr)
 
         # Resolve referenced directory objects and resource SPs
         print(f"→ Resolving {len(self._principal_ids_needed)} principals via getByIds...", file=sys.stderr)
+        stage_start = time.time()
         self.dir_cache.get_many(self._principal_ids_needed)
+        print(f"  ✓ Completed in {time.time() - stage_start:.2f}s", file=sys.stderr)
+        
         missing_before = len([rid for rid in self._resource_sp_needed if rid not in self.sp_cache])
         print(f"→ Loading {missing_before} resource service principals...", file=sys.stderr)
+        stage_start = time.time()
         self.ensure_resource_sps_loaded()
         missing_after = len([rid for rid in self._resource_sp_needed if rid not in self.sp_cache])
-        print(f"  loaded {missing_before - missing_after} resources (remaining {missing_after})", file=sys.stderr)
+        print(f"  loaded {missing_before - missing_after} resources (remaining {missing_after}) in {time.time() - stage_start:.2f}s", file=sys.stderr)
+        
         print(f"→ Fetching {len(self._role_def_ids_needed)} role definitions...", file=sys.stderr)
+        stage_start = time.time()
         self.fetch_role_definitions(self._role_def_ids_needed)
+        print(f"  ✓ Completed in {time.time() - stage_start:.2f}s", file=sys.stderr)
 
         # Second pass: emit nodes and edges
         print("→ Emitting nodes and edges...", file=sys.stderr)
+        stage_start = time.time()
         for sp in target_sps:
             sp_id = sp["id"]
             sp_display = sp.get("displayName") or sp.get("appDisplayName")
@@ -2133,6 +2148,8 @@ class OidSeeCollector:
         if governs_by_sp:
             print(f"→ Applied governance deductions to {len(governs_by_sp)} apps", file=sys.stderr)
 
+        print(f"  ✓ Emitted {len(self.nodes)} nodes and {len(self.edges)} edges in {time.time() - stage_start:.2f}s", file=sys.stderr)
+
         export = {
             "format": {
                 "name": "oidsee-graph",
@@ -2147,6 +2164,10 @@ class OidSeeCollector:
             "nodes": list(self.nodes.values()),
             "edges": self.edges,
         }
+        
+        overall_time = time.time() - overall_start
+        print(f"\n✓ Collection completed in {overall_time:.2f}s total", file=sys.stderr)
+        
         return export
 
 
