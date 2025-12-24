@@ -95,9 +95,9 @@ body{
 .main{
   flex:1;
   display:grid;
-  grid-template-columns: 420px 1fr 360px;
+  grid-template-columns: 420px 8px 1fr 8px 360px;
   grid-auto-flow: column;
-  gap: 1rem;
+  gap: 0;
   padding: 1rem;
 }
 
@@ -105,6 +105,10 @@ body{
 .main.maximized {
   padding: 0;
   gap: 0;
+}
+
+.main.maximized .resize-handle {
+  display: none;
 }
 
 .maximized-panel,
@@ -130,40 +134,48 @@ body{
 
 /* Adjust grid when Input panel is collapsed */
 .main:has(.panel:first-child.collapsed-horizontal) {
-  grid-template-columns: 80px 1fr 360px;
+  grid-template-columns: 80px 8px 1fr 8px 360px;
 }
 
 /* Adjust grid when Details panel is collapsed */
 .main:has(.panel--details.collapsed-horizontal) {
-  grid-template-columns: 420px 1fr 80px;
+  grid-template-columns: 420px 8px 1fr 8px 80px;
 }
 
 /* Adjust grid when both are collapsed */
 .main:has(.panel:first-child.collapsed-horizontal):has(.panel--details.collapsed-horizontal) {
-  grid-template-columns: 80px 1fr 80px;
+  grid-template-columns: 80px 8px 1fr 8px 80px;
 }
 
 @media (max-width: 1100px){
-  .main{ grid-template-columns: 280px 1fr 240px; }
+  .main{ grid-template-columns: 280px 8px 1fr 8px 240px; }
   
   /* Adjust for collapsed Input on medium screens */
   .main:has(.panel:first-child.collapsed-horizontal) {
-    grid-template-columns: 80px 1fr 240px;
+    grid-template-columns: 80px 8px 1fr 8px 240px;
   }
   
   /* Adjust for collapsed Details on medium screens */
   .main:has(.panel--details.collapsed-horizontal) {
-    grid-template-columns: 280px 1fr 80px;
+    grid-template-columns: 280px 8px 1fr 8px 80px;
   }
   
   /* Both collapsed */
   .main:has(.panel:first-child.collapsed-horizontal):has(.panel--details.collapsed-horizontal) {
-    grid-template-columns: 80px 1fr 80px;
+    grid-template-columns: 80px 8px 1fr 8px 80px;
   }
 }
 @media (max-width: 768px){
-  .main{ grid-template-columns: 1fr; }
+  .main{ 
+    grid-template-columns: 1fr; 
+    gap: 0.5rem;
+  }
   .panel--details{ grid-column: auto; }
+  
+  /* Hide resize handles on mobile */
+  .resize-handle {
+    display: none;
+  }
 }
 
 /* Mobile portrait - increase filter panel height */
@@ -1181,12 +1193,15 @@ body{
 }
 
 .resize-handle--horizontal {
-  width: 0;
+  width: 8px;
   cursor: ew-resize;
   background: transparent;
   transition: background 0.2s ease;
   flex-shrink: 0;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .resize-handle--horizontal::before {
@@ -1194,17 +1209,19 @@ body{
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -4px;
-  width: 8px;
-  background: rgba(255,255,255,0.15);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  background: rgba(66,232,224,0.3);
   border-radius: 2px;
-  opacity: 0.3;
-  transition: opacity 0.2s ease, background 0.2s ease;
+  opacity: 0.6;
+  transition: opacity 0.2s ease, background 0.2s ease, width 0.2s ease;
 }
 
 .resize-handle--horizontal:hover::before {
   opacity: 1;
-  background: rgba(66,232,224,0.6);
+  background: rgba(66,232,224,0.8);
+  width: 6px;
 }
 
 .resize-handle--vertical {
