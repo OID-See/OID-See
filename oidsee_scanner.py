@@ -38,7 +38,9 @@ import os
 import re
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from threading import Lock
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import requests
@@ -1406,6 +1408,12 @@ class OidSeeCollector:
         self._principal_ids_needed: Set[str] = set()
         self._role_def_ids_needed: Set[str] = set()
         self._role_defs: Dict[str, Dict[str, Any]] = {}
+        
+        # Thread safety locks for parallel operations
+        self._app_cache_lock = Lock()
+        self._sp_cache_lock = Lock()
+        self._role_defs_lock = Lock()
+        self._id_collection_lock = Lock()  # For _resource_sp_needed, _principal_ids_needed, _role_def_ids_needed
 
     # ---- add nodes with de-dupe
 
@@ -1474,16 +1482,27 @@ class OidSeeCollector:
     def fetch_applications_for_sps(self, sps: List[Dict[str, Any]]) -> None:
         # In-tenant apps only. For many 3P apps, /applications won't contain them.
         app_ids = sorted({sp.get("appId") for sp in sps if sp.get("appId")})
-        # Graph can't filter by a list directly; do best-effort: just skip, or do per-appId query.
-        for appid in app_ids:
+        
+        def fetch_single_app(appid: str) -> Optional[Tuple[str, Dict[str, Any]]]:
             try:
                 # Include credentials and federated identity credentials in the select
                 apps = self.graph.get_paged(f"{GRAPH_BETA}/applications?$filter=appId eq '{appid}'&$select=id,appId,displayName,createdDateTime,signInAudience,web,spa,publicClient,requiredResourceAccess,passwordCredentials,keyCredentials,federatedIdentityCredentials")
                 if apps:
-                    self.app_cache_by_appid[appid] = apps[0]
+                    return (appid, apps[0])
             except Exception:
                 # placeholder - app not readable or doesn't exist in tenant
-                continue
+                pass
+            return None
+        
+        # Parallel fetch with ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_appid = {executor.submit(fetch_single_app, appid): appid for appid in app_ids}
+            for future in as_completed(future_to_appid):
+                result = future.result()
+                if result:
+                    appid, app_obj = result
+                    with self._app_cache_lock:
+                        self.app_cache_by_appid[appid] = app_obj
 
     def fetch_oauth2_permission_grants(self, client_sp_id: str) -> List[Dict[str, Any]]:
         # /oauth2PermissionGrants supports filter by clientId
@@ -1514,16 +1533,118 @@ class OidSeeCollector:
         url = f"{GRAPH_V1}/roleManagement/directory/roleAssignments?$filter=principalId eq '{principal_id}'&$select={select}"
         return self.graph.get_paged(url)
 
+    def fetch_all_data_for_sp(self, sp: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Fetch all data for a single service principal.
+        Returns a dict with grants, app_perms, assigned_to, owners, dir_roles,
+        and extracted IDs for resource_sps, principals, and role_defs.
+        """
+        sp_id = sp["id"]
+        result = {
+            "sp_id": sp_id,
+            "grants": [],
+            "app_perms": [],
+            "assigned_to": [],
+            "owners": [],
+            "dir_roles": [],
+            "resource_sp_ids": set(),
+            "principal_ids": set(),
+            "role_def_ids": set(),
+            "scopes_by_res": {},
+        }
+        
+        # Delegated grants
+        try:
+            grants = self.fetch_oauth2_permission_grants(sp_id)
+        except Exception as e:
+            print(f"⚠️  oauth2PermissionGrants failed for {sp_id}: {e}", file=sys.stderr)
+            grants = []
+        result["grants"] = grants
+        
+        scopes_by_res: Dict[str, Set[str]] = {}
+        for g in grants:
+            rid = g.get("resourceId")
+            if rid:
+                result["resource_sp_ids"].add(rid)
+                scopes = set((g.get("scope") or "").split())
+                scopes_by_res.setdefault(rid, set()).update(scopes)
+            pid = g.get("principalId")
+            if pid:
+                result["principal_ids"].add(pid)
+        result["scopes_by_res"] = scopes_by_res
+        
+        # App permissions (appRoleAssignments)
+        try:
+            app_perms = self.fetch_app_role_assignments(sp_id)
+        except Exception as e:
+            print(f"⚠️  appRoleAssignments failed for {sp_id}: {e}", file=sys.stderr)
+            app_perms = []
+        result["app_perms"] = app_perms
+        
+        for a in app_perms:
+            rid = a.get("resourceId")
+            if rid:
+                result["resource_sp_ids"].add(rid)
+        
+        # Assigned to (who can use it, if assignment required / optional)
+        try:
+            assigned_to = self.fetch_app_role_assigned_to(sp_id)
+        except Exception as e:
+            print(f"⚠️  appRoleAssignedTo failed for {sp_id}: {e}", file=sys.stderr)
+            assigned_to = []
+        result["assigned_to"] = assigned_to
+        
+        for a in assigned_to:
+            pid = a.get("principalId")
+            if pid:
+                result["principal_ids"].add(pid)
+        
+        # Owners
+        try:
+            owners = self.fetch_owners(sp_id)
+        except Exception as e:
+            print(f"⚠️  owners failed for {sp_id}: {e}", file=sys.stderr)
+            owners = []
+        result["owners"] = owners
+        
+        for o in owners:
+            oid = o.get("id")
+            if oid:
+                result["principal_ids"].add(oid)
+        
+        # Directory role assignments (Azure AD roles to the SP itself)
+        try:
+            dras = self.fetch_directory_role_assignments_to_principal(sp_id)
+        except Exception as e:
+            print(f"⚠️  directory roleAssignments failed for {sp_id}: {e}", file=sys.stderr)
+            dras = []
+        result["dir_roles"] = dras
+        
+        for ra in dras:
+            rid = ra.get("roleDefinitionId")
+            if rid:
+                result["role_def_ids"].add(rid)
+        
+        return result
+
     def fetch_role_definitions(self, ids: Set[str]) -> None:
-        # roleDefinitions are queryable; do per-id (small usually)
-        for rid in ids:
-            if rid in self._role_defs:
-                continue
+        # roleDefinitions are queryable; fetch in parallel
+        ids_to_fetch = [rid for rid in ids if rid not in self._role_defs]
+        
+        def fetch_single_role(rid: str) -> Tuple[str, Dict[str, Any]]:
             try:
                 rd = self.graph.get(f"{GRAPH_V1}/roleManagement/directory/roleDefinitions/{rid}?$select=id,displayName,description,isBuiltIn")
-                self._role_defs[rid] = rd
+                return (rid, rd)
             except Exception:
-                self._role_defs[rid] = {"id": rid, "displayName": None}
+                return (rid, {"id": rid, "displayName": None})
+        
+        # Parallel fetch with ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_rid = {executor.submit(fetch_single_role, rid): rid for rid in ids_to_fetch}
+            for future in as_completed(future_to_rid):
+                rid, rd = future.result()
+                with self._role_defs_lock:
+                    self._role_defs[rid] = rd
 
     # ---- resource SP lookup
 
@@ -1531,26 +1652,40 @@ class OidSeeCollector:
         if not self._resource_sp_needed:
             return
         missing = [rid for rid in self._resource_sp_needed if rid not in self.sp_cache]
-        for rid in missing:
+        
+        def fetch_single_sp(rid: str) -> Tuple[str, Dict[str, Any]]:
             try:
                 sp = self.graph.get(f"{GRAPH_BETA}/servicePrincipals/{rid}?$select=id,appId,displayName,appDisplayName,publisherName,replyUrls,servicePrincipalType,signInAudience,verifiedPublisher,appRoles,publishedPermissionScopes,oauth2PermissionScopes,api")
-                self.sp_cache[rid] = sp
+                return (rid, sp)
             except Exception:
                 # keep minimal placeholder
-                self.sp_cache[rid] = {"id": rid, "displayName": None, "appId": None}
+                return (rid, {"id": rid, "displayName": None, "appId": None})
+        
+        # Parallel fetch with ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_rid = {executor.submit(fetch_single_sp, rid): rid for rid in missing}
+            for future in as_completed(future_to_rid):
+                rid, sp = future.result()
+                with self._sp_cache_lock:
+                    self.sp_cache[rid] = sp
 
     # ---- graph build
 
     def build(self) -> Dict[str, Any]:
+        overall_start = time.time()
+        
         print("→ Fetching tenant metadata...", file=sys.stderr)
+        stage_start = time.time()
         tenant = self.fetch_tenant()
         tenant_id = tenant.get("tenantId")
         if not tenant_id:
             raise RuntimeError("Could not determine tenantId from /organization")
+        print(f"  ✓ Completed in {time.time() - stage_start:.2f}s", file=sys.stderr)
 
         print("→ Listing service principals...", file=sys.stderr)
+        stage_start = time.time()
         sps = self.list_service_principals()
-        print(f"  found {len(sps)} service principals (pre-filter)", file=sys.stderr)
+        print(f"  found {len(sps)} service principals (pre-filter) in {time.time() - stage_start:.2f}s", file=sys.stderr)
         # cache all quickly (id->sp)
         for sp in sps:
             sid = sp.get("id")
@@ -1566,8 +1701,9 @@ class OidSeeCollector:
 
         # best-effort application objects
         print("→ Fetching in-tenant application objects (best-effort)...", file=sys.stderr)
+        stage_start = time.time()
         self.fetch_applications_for_sps(target_sps)
-        print(f"  application cache populated for {len(self.app_cache_by_appid)} appIds", file=sys.stderr)
+        print(f"  application cache populated for {len(self.app_cache_by_appid)} appIds in {time.time() - stage_start:.2f}s", file=sys.stderr)
 
         # First pass: gather grants, assignments, owners, role assignments and collect referenced IDs
         sp_delegated_scopes: Dict[str, Dict[str, Set[str]]] = {}  # spId -> resourceId -> scopes set
@@ -1579,76 +1715,28 @@ class OidSeeCollector:
         dir_roles_by_sp: Dict[str, List[Dict[str, Any]]] = {}
 
         print("→ Collecting delegated grants, app permissions, assignments, owners, and directory roles...", file=sys.stderr)
-        for sp in target_sps:
-            sp_id = sp["id"]
-            # Delegated grants
-            try:
-                grants = self.fetch_oauth2_permission_grants(sp_id)
-            except Exception as e:
-                print(f"⚠️  oauth2PermissionGrants failed for {sp_id}: {e}", file=sys.stderr)
-                grants = []
-            grants_by_sp[sp_id] = grants
-
-            scopes_by_res: Dict[str, Set[str]] = {}
-            for g in grants:
-                rid = g.get("resourceId")
-                if rid:
-                    self._resource_sp_needed.add(rid)
-                    scopes = set((g.get("scope") or "").split())
-                    scopes_by_res.setdefault(rid, set()).update(scopes)
-                pid = g.get("principalId")
-                if pid:
-                    self._principal_ids_needed.add(pid)
-            sp_delegated_scopes[sp_id] = scopes_by_res
-
-            # App permissions (appRoleAssignments)
-            try:
-                app_perms = self.fetch_app_role_assignments(sp_id)
-            except Exception as e:
-                print(f"⚠️  appRoleAssignments failed for {sp_id}: {e}", file=sys.stderr)
-                app_perms = []
-            app_perms_by_sp[sp_id] = app_perms
-
-            for a in app_perms:
-                rid = a.get("resourceId")
-                if rid:
-                    self._resource_sp_needed.add(rid)
-
-            # Assigned to (who can use it, if assignment required / optional)
-            try:
-                assigned_to = self.fetch_app_role_assigned_to(sp_id)
-            except Exception as e:
-                print(f"⚠️  appRoleAssignedTo failed for {sp_id}: {e}", file=sys.stderr)
-                assigned_to = []
-            assigned_to_by_sp[sp_id] = assigned_to
-            for a in assigned_to:
-                pid = a.get("principalId")
-                if pid:
-                    self._principal_ids_needed.add(pid)
-
-            # Owners
-            try:
-                owners = self.fetch_owners(sp_id)
-            except Exception as e:
-                print(f"⚠️  owners failed for {sp_id}: {e}", file=sys.stderr)
-                owners = []
-            owners_by_sp[sp_id] = owners
-            for o in owners:
-                oid = o.get("id")
-                if oid:
-                    self._principal_ids_needed.add(oid)
-
-            # Directory role assignments (Azure AD roles to the SP itself)
-            try:
-                dras = self.fetch_directory_role_assignments_to_principal(sp_id)
-            except Exception as e:
-                print(f"⚠️  directory roleAssignments failed for {sp_id}: {e}", file=sys.stderr)
-                dras = []
-            dir_roles_by_sp[sp_id] = dras
-            for ra in dras:
-                rid = ra.get("roleDefinitionId")
-                if rid:
-                    self._role_def_ids_needed.add(rid)
+        stage_start = time.time()
+        
+        # Parallel collection with ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_sp = {executor.submit(self.fetch_all_data_for_sp, sp): sp for sp in target_sps}
+            for future in as_completed(future_to_sp):
+                result = future.result()
+                sp_id = result["sp_id"]
+                
+                # Store results
+                grants_by_sp[sp_id] = result["grants"]
+                app_perms_by_sp[sp_id] = result["app_perms"]
+                assigned_to_by_sp[sp_id] = result["assigned_to"]
+                owners_by_sp[sp_id] = result["owners"]
+                dir_roles_by_sp[sp_id] = result["dir_roles"]
+                sp_delegated_scopes[sp_id] = result["scopes_by_res"]
+                
+                # Collect referenced IDs with thread safety
+                with self._id_collection_lock:
+                    self._resource_sp_needed.update(result["resource_sp_ids"])
+                    self._principal_ids_needed.update(result["principal_ids"])
+                    self._role_def_ids_needed.update(result["role_def_ids"])
 
         # Summaries
         grants_total = sum(len(v) for v in grants_by_sp.values())
@@ -1656,21 +1744,29 @@ class OidSeeCollector:
         assigned_total = sum(len(v) for v in assigned_to_by_sp.values())
         owners_total = sum(len(v) for v in owners_by_sp.values())
         dir_roles_total = sum(len(v) for v in dir_roles_by_sp.values())
-        print(f"  collected: {grants_total} grants, {app_perms_total} app-perms, {assigned_total} assignments, {owners_total} owners, {dir_roles_total} role assignments", file=sys.stderr)
+        print(f"  collected: {grants_total} grants, {app_perms_total} app-perms, {assigned_total} assignments, {owners_total} owners, {dir_roles_total} role assignments in {time.time() - stage_start:.2f}s", file=sys.stderr)
 
         # Resolve referenced directory objects and resource SPs
         print(f"→ Resolving {len(self._principal_ids_needed)} principals via getByIds...", file=sys.stderr)
+        stage_start = time.time()
         self.dir_cache.get_many(self._principal_ids_needed)
+        print(f"  ✓ Completed in {time.time() - stage_start:.2f}s", file=sys.stderr)
+        
         missing_before = len([rid for rid in self._resource_sp_needed if rid not in self.sp_cache])
         print(f"→ Loading {missing_before} resource service principals...", file=sys.stderr)
+        stage_start = time.time()
         self.ensure_resource_sps_loaded()
         missing_after = len([rid for rid in self._resource_sp_needed if rid not in self.sp_cache])
-        print(f"  loaded {missing_before - missing_after} resources (remaining {missing_after})", file=sys.stderr)
+        print(f"  loaded {missing_before - missing_after} resources (remaining {missing_after}) in {time.time() - stage_start:.2f}s", file=sys.stderr)
+        
         print(f"→ Fetching {len(self._role_def_ids_needed)} role definitions...", file=sys.stderr)
+        stage_start = time.time()
         self.fetch_role_definitions(self._role_def_ids_needed)
+        print(f"  ✓ Completed in {time.time() - stage_start:.2f}s", file=sys.stderr)
 
         # Second pass: emit nodes and edges
         print("→ Emitting nodes and edges...", file=sys.stderr)
+        stage_start = time.time()
         for sp in target_sps:
             sp_id = sp["id"]
             sp_display = sp.get("displayName") or sp.get("appDisplayName")
@@ -2052,6 +2148,8 @@ class OidSeeCollector:
         if governs_by_sp:
             print(f"→ Applied governance deductions to {len(governs_by_sp)} apps", file=sys.stderr)
 
+        print(f"  ✓ Emitted {len(self.nodes)} nodes and {len(self.edges)} edges in {time.time() - stage_start:.2f}s", file=sys.stderr)
+
         export = {
             "format": {
                 "name": "oidsee-graph",
@@ -2066,6 +2164,10 @@ class OidSeeCollector:
             "nodes": list(self.nodes.values()),
             "edges": self.edges,
         }
+        
+        overall_time = time.time() - overall_start
+        print(f"\n✓ Collection completed in {overall_time:.2f}s total", file=sys.stderr)
+        
         return export
 
 
