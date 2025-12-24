@@ -382,7 +382,8 @@ export const GraphCanvas = forwardRef<
     const ro = new ResizeObserver(() => {
       try {
         network.redraw()
-        network.fit({ animation: false })
+        // Don't reset the view on resize - only redraw to maintain current zoom/pan
+        // network.fit({ animation: false }) // Removed: causes unwanted reset
       } catch {}
     })
     ro.observe(containerRef.current)
