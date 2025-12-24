@@ -149,7 +149,33 @@ body{
   }
 }
 
+/* Mobile - all panels collapse vertically */
+@media (max-width: 768px) {
+  /* Override horizontal collapse on mobile */
+  .panel.collapsed-horizontal {
+    min-width: auto;
+    width: auto;
+    max-height: 48px;
+    overflow: hidden;
+  }
+  
+  .panel.collapsed-horizontal .panel__title {
+    display: flex;
+  }
+  
+  .panel.collapsed-horizontal .panel__content {
+    display: none;
+  }
+  
+  /* Change collapse button icons for vertical collapse on mobile */
+  .panel__collapse-btn {
+    min-width: 48px;
+    min-height: 48px;
+  }
+}
+
 /* Mobile portrait - increase filter panel height and ensure vertical stacking */
+/* This must come AFTER the general mobile styles to override them */
 @media (max-width: 768px) and (orientation: portrait) {
   .main {
     display: flex !important;
@@ -187,36 +213,13 @@ body{
     writing-mode: horizontal-tb !important;
     text-orientation: mixed !important;
     letter-spacing: normal !important;
+    text-align: left !important;
   }
   
   .panel.collapsed-horizontal .panel__header-content {
     flex-direction: row !important;
     justify-content: space-between !important;
-  }
-}
-
-/* Mobile - all panels collapse vertically */
-@media (max-width: 768px) {
-  /* Override horizontal collapse on mobile */
-  .panel.collapsed-horizontal {
-    min-width: auto;
-    width: auto;
-    max-height: 48px;
-    overflow: hidden;
-  }
-  
-  .panel.collapsed-horizontal .panel__title {
-    display: flex;
-  }
-  
-  .panel.collapsed-horizontal .panel__content {
-    display: none;
-  }
-  
-  /* Change collapse button icons for vertical collapse on mobile */
-  .panel__collapse-btn {
-    min-width: 48px;
-    min-height: 48px;
+    width: 100%;
   }
 }
 

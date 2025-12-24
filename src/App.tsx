@@ -239,6 +239,7 @@ export default function App() {
   const [maximizedPanel, setMaximizedPanel] = useState<'input' | 'graph' | 'details' | 'filter' | null>(null)
   const [viewportWidth, setViewportWidth] = useState<number>(1280)
   const graphRef = useRef<GraphCanvasHandle>(null)
+  const detailsPanelRef = useRef<HTMLElement>(null)
 
   // Load physics config on mount
   useEffect(() => {
@@ -279,8 +280,14 @@ export default function App() {
   useEffect(() => {
     if (selection && detailsCollapsed && !detailsManuallyCollapsed) {
       setDetailsCollapsed(false)
+      // In portrait mode, scroll the details panel into view after expanding
+      if (isPortrait && detailsPanelRef.current) {
+        setTimeout(() => {
+          detailsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        }, DETAILS_AUTO_EXPAND_DELAY + 50) // Slightly longer delay to ensure panel has expanded
+      }
     }
-  }, [selection, detailsCollapsed, detailsManuallyCollapsed])
+  }, [selection, detailsCollapsed, detailsManuallyCollapsed, isPortrait])
 
   // Auto-focus graph on selection
   useEffect(() => {
@@ -673,7 +680,7 @@ export default function App() {
 
         <ResizeHandle onResize={handleDetailsResize} orientation="horizontal" />
 
-        <section className={`panel panel--details${detailsCollapsed ? ' collapsed-horizontal' : ''}${maximizedPanel === 'details' ? ' maximized-panel' : ''}`}>
+        <section ref={detailsPanelRef} className={`panel panel--details${detailsCollapsed ? ' collapsed-horizontal' : ''}${maximizedPanel === 'details' ? ' maximized-panel' : ''}`}>
           <div className="panel__title">
             <div className="panel__header-content">
               <button 
