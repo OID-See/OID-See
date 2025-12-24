@@ -219,7 +219,7 @@ body{
   .panel.collapsed-horizontal .panel__header-content {
     flex-direction: row !important;
     justify-content: space-between !important;
-    width: 100%;
+    width: 100% !important;
   }
 }
 

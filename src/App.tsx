@@ -21,6 +21,9 @@ const RESPONSIVE_BREAKPOINT = 1100
 // Details panel auto-expand delay
 const DETAILS_AUTO_EXPAND_DELAY = 100 // ms delay before auto-expanding details panel
 
+// Scroll delay offset for portrait mode auto-expand
+const SCROLL_DELAY_OFFSET = 50 // ms additional delay to ensure panel has expanded before scrolling
+
 // Graph restabilization delay
 const GRAPH_RESTABILIZE_DELAY = 100 // ms delay before triggering graph restabilization
 
@@ -284,7 +287,7 @@ export default function App() {
       if (isPortrait && detailsPanelRef.current) {
         setTimeout(() => {
           detailsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-        }, DETAILS_AUTO_EXPAND_DELAY + 50) // Slightly longer delay to ensure panel has expanded
+        }, DETAILS_AUTO_EXPAND_DELAY + SCROLL_DELAY_OFFSET) // Additional delay to ensure panel has expanded
       }
     }
   }, [selection, detailsCollapsed, detailsManuallyCollapsed, isPortrait])
