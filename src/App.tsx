@@ -335,16 +335,16 @@ export default function App() {
     if (maximizedPanel) return {}
     // In portrait mode, don't apply grid layout at all
     if (isPortrait) return {}
-    // Don't override grid at smaller viewports - let CSS media queries handle it
-    if (viewportWidth <= RESPONSIVE_BREAKPOINT) {
-      return {}
-    }
     // Apply appropriate grid layout based on collapsed panel states
     // Include 8px for each visible resize handle
+    // For mobile/tablet viewports, use smaller default widths but still support collapse
+    const effectiveInputWidth = viewportWidth <= RESPONSIVE_BREAKPOINT ? 280 : inputWidth
+    const effectiveDetailsWidth = viewportWidth <= RESPONSIVE_BREAKPOINT ? 240 : detailsWidth
+    
     if (inputCollapsed && detailsCollapsed) return { gridTemplateColumns: '80px 8px 1fr 8px 80px' }
-    if (inputCollapsed) return { gridTemplateColumns: `80px 8px 1fr 8px ${detailsWidth}px` }
-    if (detailsCollapsed) return { gridTemplateColumns: `${inputWidth}px 8px 1fr 8px 80px` }
-    return { gridTemplateColumns: `${inputWidth}px 8px 1fr 8px ${detailsWidth}px` }
+    if (inputCollapsed) return { gridTemplateColumns: `80px 8px 1fr 8px ${effectiveDetailsWidth}px` }
+    if (detailsCollapsed) return { gridTemplateColumns: `${effectiveInputWidth}px 8px 1fr 8px 80px` }
+    return { gridTemplateColumns: `${effectiveInputWidth}px 8px 1fr 8px ${effectiveDetailsWidth}px` }
   }, [maximizedPanel, inputCollapsed, detailsCollapsed, inputWidth, detailsWidth, viewportWidth, isPortrait])
 
   async function readFile(file: File) {
@@ -709,7 +709,7 @@ export default function App() {
                 }}
                 title={detailsCollapsed ? 'Expand' : 'Collapse'}
               >
-                {detailsCollapsed ? (isMobile ? '▼' : '◀') : (isMobile ? '▲' : '▶')}
+                {detailsCollapsed ? (isMobile ? '▼' : '▶') : (isMobile ? '▲' : '◀')}
               </button>
               <span className="panel__title-text">Details</span>
               <div className="panel__header-actions">
