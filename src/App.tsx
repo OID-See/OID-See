@@ -19,6 +19,10 @@ const EMOJI_REGEX = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\
 // Responsive layout breakpoint - matches CSS media query
 const RESPONSIVE_BREAKPOINT = 1100
 
+// Responsive panel widths for mobile/tablet viewports
+const MOBILE_INPUT_WIDTH = 280
+const MOBILE_DETAILS_WIDTH = 240
+
 // Details panel auto-expand delay
 const DETAILS_AUTO_EXPAND_DELAY = 100 // ms delay before auto-expanding details panel
 
@@ -338,8 +342,8 @@ export default function App() {
     // Apply appropriate grid layout based on collapsed panel states
     // Include 8px for each visible resize handle
     // For mobile/tablet viewports, use smaller default widths but still support collapse
-    const effectiveInputWidth = viewportWidth <= RESPONSIVE_BREAKPOINT ? 280 : inputWidth
-    const effectiveDetailsWidth = viewportWidth <= RESPONSIVE_BREAKPOINT ? 240 : detailsWidth
+    const effectiveInputWidth = viewportWidth <= RESPONSIVE_BREAKPOINT ? MOBILE_INPUT_WIDTH : inputWidth
+    const effectiveDetailsWidth = viewportWidth <= RESPONSIVE_BREAKPOINT ? MOBILE_DETAILS_WIDTH : detailsWidth
     
     if (inputCollapsed && detailsCollapsed) return { gridTemplateColumns: '80px 8px 1fr 8px 80px' }
     if (inputCollapsed) return { gridTemplateColumns: `80px 8px 1fr 8px ${effectiveDetailsWidth}px` }
