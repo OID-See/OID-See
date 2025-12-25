@@ -653,7 +653,7 @@ def analyze_reply_urls(reply_urls: List[str]) -> Dict[str, Any]:
     
     Returns:
     - Normalized URLs with scheme + host + eTLD+1
-    - Flags for non-HTTPS schemes, IP literals, localhost, punycode
+    - Flags for non-HTTPS schemes, IP literals, localhost, punycode, wildcards
     - Domain cluster summary
     """
     analysis = {
@@ -663,12 +663,17 @@ def analyze_reply_urls(reply_urls: List[str]) -> Dict[str, Any]:
         "ip_literal_urls": [],
         "localhost_urls": [],
         "punycode_urls": [],
+        "wildcard_urls": [],
         "schemes": set(),
     }
     
     for url in reply_urls:
         if not url:
             continue
+            
+        # Check for wildcard URLs (e.g., https://*.contoso.com/callback)
+        if '*' in url:
+            analysis["wildcard_urls"].append(url)
             
         # Parse URL components
         try:
@@ -703,10 +708,11 @@ def analyze_reply_urls(reply_urls: List[str]) -> Dict[str, Any]:
                 elif 'xn--' in hostname.lower():
                     analysis["punycode_urls"].append(url)
             
-            # Extract eTLD+1 for domain clustering
-            domain = extract_etldplus1(url)
-            if domain:
-                analysis["normalized_domains"].add(domain)
+            # Extract eTLD+1 for domain clustering (skip wildcards for domain extraction)
+            if '*' not in url:
+                domain = extract_etldplus1(url)
+                if domain:
+                    analysis["normalized_domains"].add(domain)
         except Exception:
             # Skip malformed URLs
             continue
@@ -716,6 +722,72 @@ def analyze_reply_urls(reply_urls: List[str]) -> Dict[str, Any]:
     analysis["schemes"] = sorted(analysis["schemes"])
     
     return analysis
+
+
+def analyze_public_client_indicators(app_obj: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Analyze application for public client flow indicators.
+    
+    Public clients (native/mobile apps) and implicit flow grants pose additional risk
+    because they cannot securely store secrets and rely on redirect URIs for security.
+    
+    Returns:
+    - is_public_client: bool - Whether the app allows public client flows
+    - is_implicit_flow: bool - Whether implicit flow is enabled
+    - is_spa: bool - Whether the app is configured as a SPA
+    - fallback_to_default_client: bool - Whether the app falls back to default client settings
+    - risk_indicators: list - List of risk indicator strings
+    """
+    if not app_obj:
+        return {
+            "is_public_client": None,
+            "is_implicit_flow": None,
+            "is_spa": None,
+            "fallback_to_default_client": None,
+            "risk_indicators": [],
+        }
+    
+    # Extract relevant properties from the Application object
+    public_client = app_obj.get("publicClient") or {}
+    web = app_obj.get("web") or {}
+    spa = app_obj.get("spa") or {}
+    
+    # Check if public client flows are allowed
+    is_public_client = public_client.get("redirectUris") is not None and len(public_client.get("redirectUris", [])) > 0
+    
+    # Check if implicit flow is enabled (web.implicitGrantSettings)
+    implicit_grant_settings = web.get("implicitGrantSettings") or {}
+    enable_access_token_issuance = implicit_grant_settings.get("enableAccessTokenIssuance", False)
+    enable_id_token_issuance = implicit_grant_settings.get("enableIdTokenIssuance", False)
+    is_implicit_flow = enable_access_token_issuance or enable_id_token_issuance
+    
+    # Check if SPA redirect URIs are configured
+    is_spa = spa.get("redirectUris") is not None and len(spa.get("redirectUris", [])) > 0
+    
+    # Check if fallback to default client is allowed
+    fallback_to_default_client = public_client.get("redirectUris") is None and web.get("redirectUris") is None
+    
+    # Build risk indicators list
+    risk_indicators = []
+    if is_public_client:
+        risk_indicators.append("PUBLIC_CLIENT_FLOWS_ENABLED")
+    if is_implicit_flow:
+        risk_indicators.append("IMPLICIT_FLOW_ENABLED")
+    if enable_access_token_issuance:
+        risk_indicators.append("IMPLICIT_ACCESS_TOKEN_ISSUANCE")
+    if enable_id_token_issuance:
+        risk_indicators.append("IMPLICIT_ID_TOKEN_ISSUANCE")
+    if is_spa:
+        risk_indicators.append("SPA_REDIRECT_URIS_CONFIGURED")
+    
+    return {
+        "is_public_client": is_public_client,
+        "is_implicit_flow": is_implicit_flow,
+        "is_spa": is_spa,
+        "fallback_to_default_client": fallback_to_default_client,
+        "risk_indicators": risk_indicators,
+    }
+
 
 
 def resolve_permission_details(
@@ -963,6 +1035,7 @@ def compute_risk_for_sp(
     dir_cache: DirectoryCache,
     credential_insights: Optional[Dict[str, Any]] = None,
     reply_url_analysis: Optional[Dict[str, Any]] = None,
+    public_client_indicators: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Compute risk score for service principal based on loaded configuration."""
     config = SCORING_CONFIG.get("compute_risk_for_sp", {})
@@ -1367,6 +1440,47 @@ def compute_risk_for_sp(
                 "message": f"{description} ({count} URLs)",
                 "weight": weight,
                 "subtype": "punycode",
+            })
+        
+        # Wildcard URLs
+        if reply_url_analysis.get("wildcard_urls"):
+            weight = anomaly_config.get("wildcard_weight", 15)
+            description = anomaly_config.get("wildcard_description", "Wildcard domains in reply URLs")
+            count = len(reply_url_analysis["wildcard_urls"])
+            score += weight
+            reasons.append({
+                "code": "REPLY_URL_ANOMALIES",
+                "message": f"{description} ({count} URLs)",
+                "weight": weight,
+                "subtype": "wildcard",
+            })
+
+    # PUBLIC_CLIENT_FLOW_RISK (public client or implicit flow indicators)
+    if public_client_indicators and public_client_indicators.get("risk_indicators"):
+        public_client_config = contributors.get("PUBLIC_CLIENT_FLOW_RISK", {})
+        risk_indicators = public_client_indicators.get("risk_indicators", [])
+        
+        # Assign risk based on specific indicators
+        if "PUBLIC_CLIENT_FLOWS_ENABLED" in risk_indicators:
+            weight = public_client_config.get("public_client_weight", 12)
+            description = public_client_config.get("public_client_description", "Public client flows enabled")
+            score += weight
+            reasons.append({
+                "code": "PUBLIC_CLIENT_FLOW_RISK",
+                "message": description,
+                "weight": weight,
+                "subtype": "public_client",
+            })
+        
+        if "IMPLICIT_FLOW_ENABLED" in risk_indicators:
+            weight = public_client_config.get("implicit_flow_weight", 15)
+            description = public_client_config.get("implicit_flow_description", "Implicit flow enabled")
+            score += weight
+            reasons.append({
+                "code": "PUBLIC_CLIENT_FLOW_RISK",
+                "message": description,
+                "weight": weight,
+                "subtype": "implicit_flow",
             })
 
     # Apply min/max clamping
@@ -1826,6 +1940,9 @@ class OidSeeCollector:
             reply_urls_value = sp.get("replyUrls")
             reply_urls = reply_urls_value if isinstance(reply_urls_value, list) else []
             reply_url_analysis = analyze_reply_urls(reply_urls)
+            
+            # Analyze public client indicators from Application object
+            public_client_indicators = analyze_public_client_indicators(app_obj)
 
             # service principal node - compute risk with enhanced insights
             risk = compute_risk_for_sp(
@@ -1844,6 +1961,7 @@ class OidSeeCollector:
                 self.dir_cache,
                 credential_insights,
                 reply_url_analysis,
+                public_client_indicators,
             )
             
             # Check for identity laundering signals
@@ -1889,6 +2007,7 @@ class OidSeeCollector:
                 # Enhanced fields
                 "credentialInsights": credential_insights,
                 "replyUrlAnalysis": reply_url_analysis,
+                "publicClientIndicators": public_client_indicators,
                 "trustSignals": trust_signals,
                 # Non-Graph data placeholders (WHOIS/DNS - not populated by Graph-only scanner)
                 "domainWhois": None,
@@ -1984,7 +2103,6 @@ class OidSeeCollector:
                     "classification": classification["classification"],
                     "resourceAppId": permission_details.get("resource_app_id"),
                     "resourceDisplayName": permission_details.get("resource_display_name"),
-                    "resolvedScopes": permission_details.get("resolved_scopes", []),
                 }
                 if classification["too_broad"]:
                     edge_props["tooBroadScopes"] = sorted(classification["too_broad"])
@@ -2187,6 +2305,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--include-all-sps", action="store_true", help="Include all service principals (overrides filters)")
     p.add_argument("--max-retries", type=int, default=6, help="Max HTTP retries for Graph requests (throttling/transient)")
     p.add_argument("--retry-base-delay", type=float, default=0.8, help="Base delay (seconds) for exponential backoff")
+    
+    # Optional enrichment flags (for future implementation)
+    p.add_argument("--enable-dns-enrichment", action="store_true", help="Enable DNS lookups for reply URL domains (optional)")
+    p.add_argument("--enable-rdap-enrichment", action="store_true", help="Enable RDAP lookups for reply URL domains (optional)")
+    p.add_argument("--enable-ipwhois-enrichment", action="store_true", help="Enable IP WHOIS lookups for IP literals in reply URLs (optional)")
+    
     return p.parse_args()
 
 
