@@ -1429,6 +1429,81 @@ def _level_from_score(score: int) -> str:
     return "info"
 
 
+def _check_same_organization(enrichment_data: Optional[Dict[str, Any]], domains: List[str]) -> bool:
+    """
+    Check if all domains belong to the same organization based on RDAP/WHOIS enrichment data.
+    
+    Returns True if:
+    - Enrichment data is available and shows all domains have the same registrant organization
+    - No enrichment data is available (benefit of the doubt)
+    
+    Returns False if:
+    - Enrichment shows different organizations own different domains
+    """
+    if not enrichment_data or not domains:
+        # No enrichment data or no domains - can't determine, give benefit of doubt
+        return True
+    
+    rdap_queries = enrichment_data.get("rdap_queries", {})
+    if not rdap_queries:
+        # No RDAP data available - can't determine, give benefit of doubt
+        return True
+    
+    # Extract organizations from RDAP data for each domain
+    organizations = set()
+    for domain in domains:
+        rdap_data = rdap_queries.get(domain, {})
+        if not rdap_data.get("success"):
+            # If lookup failed for any domain, can't determine - give benefit of doubt
+            continue
+        
+        # Try to extract organization from raw RDAP data
+        raw_data = rdap_data.get("raw_data", {})
+        if not raw_data:
+            continue
+        
+        # RDAP data structure: objects -> entities -> vcardArray
+        # Look for organization in various places
+        org_name = None
+        
+        # Try to get from network object
+        network = raw_data.get("network", {})
+        if network:
+            # Some registries put org name in network name
+            network_name = network.get("name", "").lower()
+            if network_name:
+                org_name = network_name
+        
+        # Try to get from objects/entities with role "registrant"
+        objects = raw_data.get("objects", {})
+        for obj_key, obj_data in objects.items():
+            if isinstance(obj_data, dict):
+                roles = obj_data.get("roles", [])
+                if "registrant" in roles or "administrative" in roles:
+                    # Look for organization in vcard
+                    vcard = obj_data.get("vcardArray")
+                    if vcard and len(vcard) > 1:
+                        for field in vcard[1]:
+                            if isinstance(field, list) and len(field) > 3:
+                                # vCard format: ["org", {}, "text", "Organization Name"]
+                                if field[0] == "org" and len(field) > 3:
+                                    org_name = str(field[3]).lower()
+                                    break
+                if org_name:
+                    break
+        
+        if org_name:
+            organizations.add(org_name)
+    
+    # If we found organizations for multiple domains, check if they're all the same
+    if len(organizations) > 1:
+        # Multiple different organizations found
+        return False
+    
+    # Either all same organization or couldn't determine - give benefit of doubt
+    return True
+
+
 def compute_risk_for_sp(
     sp: Dict[str, Any],
     has_impersonation: bool,
@@ -1447,6 +1522,7 @@ def compute_risk_for_sp(
     reply_url_analysis: Optional[Dict[str, Any]] = None,
     public_client_indicators: Optional[Dict[str, Any]] = None,
     platform_signals: Optional[Dict[str, Any]] = None,
+    reply_url_enrichment: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Compute risk score for service principal based on loaded configuration."""
     config = SCORING_CONFIG.get("compute_risk_for_sp", {})
@@ -1651,50 +1727,66 @@ def compute_risk_for_sp(
         mixed_domains_config = contributors.get("MIXED_REPLYURL_DOMAINS", {})
         signal_type = mixed_domains_result["signal_type"]
         
-        # Different weights for different signal types
-        if signal_type == "identity_laundering":
-            weight = mixed_domains_config.get("identity_laundering_weight", 15)
-            description = mixed_domains_config.get(
-                "identity_laundering_description",
-                "Identity laundering signal: reply URLs use domains not aligned with homepage/branding"
-            )
-            reasons.append({
-                "code": "MIXED_REPLYURL_DOMAINS",
-                "message": description,
-                "weight": weight,
-                "signal_type": "identity_laundering",
-                "domains": mixed_domains_result["domains"],
-                "non_aligned_domains": mixed_domains_result["non_aligned_domains"],
-            })
-            score += weight
-        elif signal_type == "attribution_ambiguity":
-            weight = mixed_domains_config.get("attribution_ambiguity_weight", 5)
-            description = mixed_domains_config.get(
-                "attribution_ambiguity_description",
-                "Attribution ambiguity: multiple distinct domains in reply URLs"
-            )
-            reasons.append({
-                "code": "MIXED_REPLYURL_DOMAINS",
-                "message": description,
-                "weight": weight,
-                "signal_type": "attribution_ambiguity",
-                "domains": mixed_domains_result["domains"],
-            })
-            score += weight
+        # Check if all domains belong to the same organization via enrichment data
+        all_domains = mixed_domains_result.get("domains", [])
+        same_org = _check_same_organization(reply_url_enrichment, all_domains)
+        
+        # Only flag if enrichment doesn't show they're all owned by same organization
+        if not same_org:
+            # Different weights for different signal types
+            if signal_type == "identity_laundering":
+                weight = mixed_domains_config.get("identity_laundering_weight", 15)
+                description = mixed_domains_config.get(
+                    "identity_laundering_description",
+                    "Identity laundering signal: reply URLs use domains not aligned with homepage/branding"
+                )
+                reasons.append({
+                    "code": "MIXED_REPLYURL_DOMAINS",
+                    "message": description,
+                    "weight": weight,
+                    "signal_type": "identity_laundering",
+                    "domains": mixed_domains_result["domains"],
+                    "non_aligned_domains": mixed_domains_result["non_aligned_domains"],
+                })
+                score += weight
+            elif signal_type == "attribution_ambiguity":
+                weight = mixed_domains_config.get("attribution_ambiguity_weight", 5)
+                description = mixed_domains_config.get(
+                    "attribution_ambiguity_description",
+                    "Attribution ambiguity: multiple distinct domains in reply URLs"
+                )
+                reasons.append({
+                    "code": "MIXED_REPLYURL_DOMAINS",
+                    "message": description,
+                    "weight": weight,
+                    "signal_type": "attribution_ambiguity",
+                    "domains": mixed_domains_result["domains"],
+                })
+                score += weight
     
     # REPLYURL_OUTLIER_DOMAIN (domain not in main vendor domain set)
     # Only check for outlier domains if there are reply URLs to analyze
+    # Also check enrichment data to see if non-aligned domains belong to same organization
     if reply_url_analysis and total_urls > 0 and mixed_domains_result.get("non_aligned_domains"):
-        outlier_config = contributors.get("REPLYURL_OUTLIER_DOMAIN", {})
-        weight = outlier_config.get("weight", 10)
-        details = outlier_config.get("details", "Reply URLs on domains outside main vendor domain set")
-        score += weight
-        reasons.append({
-            "code": "REPLYURL_OUTLIER_DOMAIN",
-            "message": details,
-            "weight": weight,
-            "outlier_domains": mixed_domains_result["non_aligned_domains"],
-        })
+        non_aligned_domains = mixed_domains_result["non_aligned_domains"]
+        
+        # Check if non-aligned domains belong to the same organization as reference domains
+        # If enrichment data shows they're all owned by the same org, don't flag as outlier
+        all_domains = mixed_domains_result.get("domains", [])
+        same_org = _check_same_organization(reply_url_enrichment, all_domains)
+        
+        if not same_org:
+            # Different organizations confirmed via enrichment - this is a real outlier
+            outlier_config = contributors.get("REPLYURL_OUTLIER_DOMAIN", {})
+            weight = outlier_config.get("weight", 10)
+            details = outlier_config.get("details", "Reply URLs on domains outside main vendor domain set")
+            score += weight
+            reasons.append({
+                "code": "REPLYURL_OUTLIER_DOMAIN",
+                "message": details,
+                "weight": weight,
+                "outlier_domains": non_aligned_domains,
+            })
 
     # LEGACY
     created = _parse_iso_datetime(sp.get("createdDateTime"))
@@ -2464,6 +2556,7 @@ class OidSeeCollector:
                 reply_url_analysis,
                 public_client_indicators,
                 platform_signals,
+                reply_url_enrichment,
             )
             
             # Check for identity laundering signals
