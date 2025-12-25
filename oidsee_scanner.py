@@ -1641,7 +1641,9 @@ def compute_risk_for_sp(
     # Skip for well-known Microsoft platform apps
     is_well_known_ms = platform_signals and platform_signals.get("isWellKnownMicrosoftAppId", False)
     
-    if mixed_domains_result.get("has_mixed_domains") and mixed_domains_result.get("signal_type") and not is_well_known_ms:
+    # Only check mixed domains if there are reply URLs to analyze
+    total_urls = reply_url_analysis.get("total_urls", 0) if reply_url_analysis else 0
+    if total_urls > 0 and mixed_domains_result.get("has_mixed_domains") and mixed_domains_result.get("signal_type") and not is_well_known_ms:
         mixed_domains_config = contributors.get("MIXED_REPLYURL_DOMAINS", {})
         signal_type = mixed_domains_result["signal_type"]
         
@@ -1677,7 +1679,8 @@ def compute_risk_for_sp(
             score += weight
     
     # REPLYURL_OUTLIER_DOMAIN (domain not in main vendor domain set)
-    if reply_url_analysis and mixed_domains_result.get("non_aligned_domains"):
+    # Only check for outlier domains if there are reply URLs to analyze
+    if reply_url_analysis and total_urls > 0 and mixed_domains_result.get("non_aligned_domains"):
         outlier_config = contributors.get("REPLYURL_OUTLIER_DOMAIN", {})
         weight = outlier_config.get("weight", 10)
         details = outlier_config.get("details", "Reply URLs on domains outside main vendor domain set")
@@ -1821,7 +1824,8 @@ def compute_risk_for_sp(
         })
 
     # REPLY_URL_ANOMALIES
-    if reply_url_analysis:
+    # Only check for anomalies if there are reply URLs to analyze
+    if reply_url_analysis and total_urls > 0:
         anomaly_config = contributors.get("REPLY_URL_ANOMALIES", {})
         
         # Non-HTTPS URLs
