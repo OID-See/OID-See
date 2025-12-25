@@ -4,10 +4,11 @@ import { isOidSeeExport, OidSeeExport } from './types'
 export type VisData = { nodes: any[]; edges: any[] }
 
 // Custom double-circle renderer for group nodes
-function doubleCircleRenderer(ctx: CanvasRenderingContext2D, x: number, y: number, selected: boolean, _hover: boolean, node: any) {
-  const radius = node.size || 10
+function doubleCircleRenderer({ ctx, x, y, state, style }: any) {
+  const { selected } = state
+  const radius = style.size || 10
   const borderWidth = selected ? 3 : 2
-  const color = node.color || { border: 'rgba(234,242,255,0.75)', background: 'rgba(234,242,255,0.08)' }
+  const color = style.color || { border: 'rgba(234,242,255,0.75)', background: 'rgba(234,242,255,0.08)' }
   
   // Draw outer circle
   ctx.beginPath()
