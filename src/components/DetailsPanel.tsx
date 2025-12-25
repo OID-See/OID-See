@@ -70,7 +70,8 @@ export function DetailsPanel({
   const isNode = selection.kind === 'node'
   const isServicePrincipalNode = isNode && o.type === 'ServicePrincipal'
   const isInstanceOfEdge = !isNode && o.type === 'INSTANCE_OF'
-  const shouldShowProperties = !isServicePrincipalNode
+  // Show properties for edges (especially INSTANCE_OF) and non-ServicePrincipal nodes
+  const shouldShowProperties = !isNode || !isServicePrincipalNode
 
   return (
     <div className="details">
