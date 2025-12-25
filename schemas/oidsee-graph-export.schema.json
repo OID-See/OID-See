@@ -343,6 +343,31 @@
           "additionalProperties": true,
           "description": "Public client and implicit flow indicators from Application object (is_public_client, is_implicit_flow, is_spa, risk_indicators)."
         },
+        "platformSignals": {
+          "type": "object",
+          "description": "Platform classification signals for well-known Microsoft service principals",
+          "additionalProperties": false,
+          "required": ["isWellKnownMicrosoftAppId", "wellKnownMicrosoftAppName", "isMostlyZeroMicrosoftStyleAppId", "platformAppIdCategory"],
+          "properties": {
+            "isWellKnownMicrosoftAppId": {
+              "type": "boolean",
+              "description": "Whether this appId is a recognized Microsoft platform service"
+            },
+            "wellKnownMicrosoftAppName": {
+              "type": ["string", "null"],
+              "description": "Human-readable name of the well-known Microsoft service, if applicable"
+            },
+            "isMostlyZeroMicrosoftStyleAppId": {
+              "type": "boolean",
+              "description": "Heuristic: Whether the appId follows Microsoft's mostly-zero pattern (e.g., starts with 00000)"
+            },
+            "platformAppIdCategory": {
+              "type": "string",
+              "enum": ["well_known", "mostly_zero_heuristic", "normal"],
+              "description": "Classification category for the appId"
+            }
+          }
+        },
         "replyUrlDomainSummary": {
           "type": "object",
           "additionalProperties": true,
