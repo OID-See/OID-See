@@ -385,6 +385,17 @@ export default function App() {
     return computeWarnings(data, p.clauses)
   }, [data, query])
 
+  // Memoized Maps for fast lookups in handleFocus
+  const nodeMap = useMemo(() => {
+    if (!data) return new Map()
+    return new Map(data.nodes.map(n => [n.id, n]))
+  }, [data])
+
+  const edgeMap = useMemo(() => {
+    if (!data) return new Map()
+    return new Map(data.edges.map(e => [e.id, e]))
+  }, [data])
+
   function saveCurrentQuery() {
     const name = prompt('Save query as…')
     if (!name) return
@@ -426,6 +437,24 @@ export default function App() {
   }
 
   function handleFocus(sel: Selection) {
+    // Find the full data object with oidsee properties using memoized Maps
+    let fullSelection: Selection = sel
+    if (sel.kind === 'node') {
+      const node = nodeMap.get(sel.id)
+      if (node) {
+        fullSelection = { kind: 'node', id: sel.id, oidsee: node.__oidsee ?? node }
+      }
+    } else if (sel.kind === 'edge') {
+      const edge = edgeMap.get(sel.id)
+      if (edge) {
+        fullSelection = { kind: 'edge', id: sel.id, oidsee: edge.__oidsee ?? edge }
+      }
+    }
+    
+    // Update selection to load details
+    setSelection(fullSelection)
+    
+    // Focus the item in the graph
     if (sel.kind === 'node') {
       graphRef.current?.focusNode(sel.id)
     } else if (sel.kind === 'edge') {
