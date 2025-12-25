@@ -85,7 +85,9 @@ export function toVisData(input: any): VisData {
         width: isDerived ? 3 : isTooManyScopes ? 2.5 : 1.5,
         color,
         __oidsee: e,
-        // Reduce selection width for INSTANCE_OF edges to minimize click interference
+        // Minimize INSTANCE_OF edge clickable area to prevent interference with node clicks
+        // selectionWidth: 0 makes the edge line non-clickable, but labels remain selectable
+        // hoverWidth: 0 disables hover highlighting to further reduce interaction area
         ...(isInstance && { 
           selectionWidth: 0,
           hoverWidth: 0,
