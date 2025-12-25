@@ -789,6 +789,246 @@ def analyze_public_client_indicators(app_obj: Optional[Dict[str, Any]]) -> Dict[
     }
 
 
+def _query_rdap_domain(domain: str, timeout: int = 10) -> Optional[Dict[str, Any]]:
+    """
+    Query RDAP (Registration Data Access Protocol) for domain registration information.
+    
+    RDAP is the modern replacement for WHOIS, providing structured JSON data about
+    domain registrations. This function queries the RDAP bootstrap service to find
+    the appropriate RDAP server and then queries for domain information.
+    
+    Args:
+        domain: Domain name to query (e.g., "example.com")
+        timeout: Request timeout in seconds
+    
+    Returns:
+        Dictionary with RDAP data or None if query fails
+    """
+    try:
+        # Extract TLD from domain
+        parts = domain.split('.')
+        if len(parts) < 2:
+            return None
+        
+        tld = parts[-1].lower()
+        
+        # Use IANA RDAP bootstrap service to find the right RDAP server
+        # Common RDAP servers by TLD
+        rdap_servers = {
+            'com': 'https://rdap.verisign.com/com/v1/domain/',
+            'net': 'https://rdap.verisign.com/net/v1/domain/',
+            'org': 'https://rdap.publicinterestregistry.org/rdap/domain/',
+            'io': 'https://rdap.nic.io/domain/',
+            'dev': 'https://rdap.nic.google/domain/',
+            'app': 'https://rdap.nic.google/domain/',
+        }
+        
+        rdap_url = rdap_servers.get(tld)
+        if not rdap_url:
+            # Try generic bootstrap service
+            rdap_url = f'https://rdap.org/domain/'
+        
+        # Query RDAP server
+        full_url = f'{rdap_url}{domain}'
+        response = requests.get(full_url, timeout=timeout, headers={'Accept': 'application/json'})
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Extract key information
+            result = {
+                "success": True,
+                "domain": domain,
+                "registrar": None,
+                "registration_date": None,
+                "expiration_date": None,
+                "status": [],
+                "nameservers": [],
+                "raw_data": data  # Include full response for reference
+            }
+            
+            # Extract registrar
+            entities = data.get('entities', [])
+            for entity in entities:
+                roles = entity.get('roles', [])
+                if 'registrar' in roles:
+                    result["registrar"] = entity.get('vcardArray', [[]])[1] if entity.get('vcardArray') else entity.get('handle')
+                    break
+            
+            # Extract dates
+            events = data.get('events', [])
+            for event in events:
+                action = event.get('eventAction')
+                date = event.get('eventDate')
+                if action == 'registration':
+                    result["registration_date"] = date
+                elif action == 'expiration':
+                    result["expiration_date"] = date
+            
+            # Extract status
+            result["status"] = data.get('status', [])
+            
+            # Extract nameservers
+            nameservers = data.get('nameservers', [])
+            result["nameservers"] = [ns.get('ldhName') for ns in nameservers if ns.get('ldhName')]
+            
+            return result
+        else:
+            return {
+                "success": False,
+                "domain": domain,
+                "error": f"HTTP {response.status_code}"
+            }
+    
+    except requests.Timeout:
+        return {
+            "success": False,
+            "domain": domain,
+            "error": "Request timeout"
+        }
+    except requests.RequestException as e:
+        return {
+            "success": False,
+            "domain": domain,
+            "error": f"Request failed: {str(e)}"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "domain": domain,
+            "error": f"Unexpected error: {str(e)}"
+        }
+
+
+def _query_ip_whois(ip: str, timeout: int = 10) -> Optional[Dict[str, Any]]:
+    """
+    Query IP WHOIS information from Regional Internet Registries (RIRs).
+    
+    This function queries the appropriate RIR RDAP service based on IP address range.
+    RDAP is the modern replacement for traditional WHOIS protocol.
+    
+    Args:
+        ip: IP address to query (IPv4 or IPv6)
+        timeout: Request timeout in seconds
+    
+    Returns:
+        Dictionary with WHOIS data or None if query fails
+    """
+    try:
+        import ipaddress
+        
+        # Parse IP address
+        ip_obj = ipaddress.ip_address(ip)
+        
+        # Determine which RIR to query based on IP range
+        # ARIN: North America
+        # RIPE NCC: Europe, Middle East, Central Asia
+        # APNIC: Asia Pacific
+        # LACNIC: Latin America and Caribbean
+        # AFRINIC: Africa
+        
+        # Use ARIN's RDAP service as default (it can redirect to other RIRs)
+        rdap_url = 'https://rdap.arin.net/registry/ip/'
+        
+        # For IPv4, we can make educated guesses about RIR
+        if isinstance(ip_obj, ipaddress.IPv4Address):
+            first_octet = int(str(ip_obj).split('.')[0])
+            
+            # Common ranges (simplified)
+            if first_octet in range(1, 2) or first_octet in range(27, 32) or first_octet in range(96, 127):
+                rdap_url = 'https://rdap.arin.net/registry/ip/'  # ARIN
+            elif first_octet in range(2, 6) or first_octet in range(80, 96):
+                rdap_url = 'https://rdap.db.ripe.net/ip/'  # RIPE
+            elif first_octet in range(58, 60) or first_octet in range(133, 134):
+                rdap_url = 'https://rdap.apnic.net/ip/'  # APNIC
+        
+        # Query RDAP server
+        full_url = f'{rdap_url}{ip}'
+        response = requests.get(full_url, timeout=timeout, headers={'Accept': 'application/json'})
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Extract key information
+            result = {
+                "success": True,
+                "ip": ip,
+                "network": None,
+                "cidr": None,
+                "country": None,
+                "organization": None,
+                "registration_date": None,
+                "raw_data": data  # Include full response for reference
+            }
+            
+            # Extract network information
+            result["network"] = data.get('name')
+            
+            # Extract CIDR
+            cidr = data.get('cidr0_cidrs', [])
+            if cidr:
+                result["cidr"] = cidr[0].get('v4prefix') or cidr[0].get('v6prefix')
+            
+            # Extract country
+            result["country"] = data.get('country')
+            
+            # Extract organization from entities
+            entities = data.get('entities', [])
+            for entity in entities:
+                roles = entity.get('roles', [])
+                if 'registrant' in roles or 'administrative' in roles:
+                    # Try to extract organization name from vCard
+                    vcard = entity.get('vcardArray')
+                    if vcard and len(vcard) > 1:
+                        for field in vcard[1]:
+                            if isinstance(field, list) and len(field) > 1 and field[0] == 'fn':
+                                result["organization"] = field[-1]
+                                break
+                    if not result["organization"]:
+                        result["organization"] = entity.get('handle')
+                    break
+            
+            # Extract registration date
+            events = data.get('events', [])
+            for event in events:
+                if event.get('eventAction') == 'registration':
+                    result["registration_date"] = event.get('eventDate')
+                    break
+            
+            return result
+        else:
+            return {
+                "success": False,
+                "ip": ip,
+                "error": f"HTTP {response.status_code}"
+            }
+    
+    except ValueError as e:
+        return {
+            "success": False,
+            "ip": ip,
+            "error": f"Invalid IP address: {str(e)}"
+        }
+    except requests.Timeout:
+        return {
+            "success": False,
+            "ip": ip,
+            "error": "Request timeout"
+        }
+    except requests.RequestException as e:
+        return {
+            "success": False,
+            "ip": ip,
+            "error": f"Request failed: {str(e)}"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "ip": ip,
+            "error": f"Unexpected error: {str(e)}"
+        }
+
+
 def enrich_reply_urls(
     reply_urls: List[str],
     enable_dns: bool = False,
@@ -897,38 +1137,51 @@ def enrich_reply_urls(
     if enable_rdap and domains:
         for domain in domains:
             try:
-                # RDAP is a protocol for querying domain registration data
-                # This is a placeholder - full implementation would use RDAP client library
-                # For now, we log that it's not implemented
-                enrichment["enrichment_errors"].append({
-                    "domain": domain,
-                    "type": "rdap",
-                    "error": "RDAP enrichment not implemented (placeholder)"
-                })
+                # Query RDAP for domain registration information
+                rdap_data = _query_rdap_domain(domain)
+                if rdap_data:
+                    enrichment["rdap_queries"][domain] = rdap_data
+                else:
+                    enrichment["enrichment_errors"].append({
+                        "domain": domain,
+                        "type": "rdap",
+                        "error": "No RDAP data returned"
+                    })
             except Exception as e:
                 enrichment["enrichment_errors"].append({
                     "domain": domain,
                     "type": "rdap",
                     "error": f"RDAP query failed: {str(e)}"
                 })
+                enrichment["rdap_queries"][domain] = {
+                    "success": False,
+                    "error": str(e)
+                }
     
     # IP WHOIS Enrichment
     if enable_ipwhois and ip_literals:
         for ip in ip_literals:
             try:
-                # IP WHOIS lookups would query RIR databases
-                # This is a placeholder - full implementation would use ipwhois library
-                enrichment["enrichment_errors"].append({
-                    "ip": ip,
-                    "type": "ipwhois",
-                    "error": "IP WHOIS enrichment not implemented (placeholder)"
-                })
+                # Query RIR WHOIS for IP ownership information
+                whois_data = _query_ip_whois(ip)
+                if whois_data:
+                    enrichment["ipwhois_queries"][ip] = whois_data
+                else:
+                    enrichment["enrichment_errors"].append({
+                        "ip": ip,
+                        "type": "ipwhois",
+                        "error": "No WHOIS data returned"
+                    })
             except Exception as e:
                 enrichment["enrichment_errors"].append({
                     "ip": ip,
                     "type": "ipwhois",
                     "error": f"WHOIS query failed: {str(e)}"
                 })
+                enrichment["ipwhois_queries"][ip] = {
+                    "success": False,
+                    "error": str(e)
+                }
     
     return enrichment
 
