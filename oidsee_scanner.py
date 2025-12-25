@@ -789,246 +789,6 @@ def analyze_public_client_indicators(app_obj: Optional[Dict[str, Any]]) -> Dict[
     }
 
 
-def _query_rdap_domain(domain: str, timeout: int = 10) -> Optional[Dict[str, Any]]:
-    """
-    Query RDAP (Registration Data Access Protocol) for domain registration information.
-    
-    RDAP is the modern replacement for WHOIS, providing structured JSON data about
-    domain registrations. This function queries the RDAP bootstrap service to find
-    the appropriate RDAP server and then queries for domain information.
-    
-    Args:
-        domain: Domain name to query (e.g., "example.com")
-        timeout: Request timeout in seconds
-    
-    Returns:
-        Dictionary with RDAP data or None if query fails
-    """
-    try:
-        # Extract TLD from domain
-        parts = domain.split('.')
-        if len(parts) < 2:
-            return None
-        
-        tld = parts[-1].lower()
-        
-        # Use IANA RDAP bootstrap service to find the right RDAP server
-        # Common RDAP servers by TLD
-        rdap_servers = {
-            'com': 'https://rdap.verisign.com/com/v1/domain/',
-            'net': 'https://rdap.verisign.com/net/v1/domain/',
-            'org': 'https://rdap.publicinterestregistry.org/rdap/domain/',
-            'io': 'https://rdap.nic.io/domain/',
-            'dev': 'https://rdap.nic.google/domain/',
-            'app': 'https://rdap.nic.google/domain/',
-        }
-        
-        rdap_url = rdap_servers.get(tld)
-        if not rdap_url:
-            # Try generic bootstrap service
-            rdap_url = f'https://rdap.org/domain/'
-        
-        # Query RDAP server
-        full_url = f'{rdap_url}{domain}'
-        response = requests.get(full_url, timeout=timeout, headers={'Accept': 'application/json'})
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            # Extract key information
-            result = {
-                "success": True,
-                "domain": domain,
-                "registrar": None,
-                "registration_date": None,
-                "expiration_date": None,
-                "status": [],
-                "nameservers": [],
-                "raw_data": data  # Include full response for reference
-            }
-            
-            # Extract registrar
-            entities = data.get('entities', [])
-            for entity in entities:
-                roles = entity.get('roles', [])
-                if 'registrar' in roles:
-                    result["registrar"] = entity.get('vcardArray', [[]])[1] if entity.get('vcardArray') else entity.get('handle')
-                    break
-            
-            # Extract dates
-            events = data.get('events', [])
-            for event in events:
-                action = event.get('eventAction')
-                date = event.get('eventDate')
-                if action == 'registration':
-                    result["registration_date"] = date
-                elif action == 'expiration':
-                    result["expiration_date"] = date
-            
-            # Extract status
-            result["status"] = data.get('status', [])
-            
-            # Extract nameservers
-            nameservers = data.get('nameservers', [])
-            result["nameservers"] = [ns.get('ldhName') for ns in nameservers if ns.get('ldhName')]
-            
-            return result
-        else:
-            return {
-                "success": False,
-                "domain": domain,
-                "error": f"HTTP {response.status_code}"
-            }
-    
-    except requests.Timeout:
-        return {
-            "success": False,
-            "domain": domain,
-            "error": "Request timeout"
-        }
-    except requests.RequestException as e:
-        return {
-            "success": False,
-            "domain": domain,
-            "error": f"Request failed: {str(e)}"
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "domain": domain,
-            "error": f"Unexpected error: {str(e)}"
-        }
-
-
-def _query_ip_whois(ip: str, timeout: int = 10) -> Optional[Dict[str, Any]]:
-    """
-    Query IP WHOIS information from Regional Internet Registries (RIRs).
-    
-    This function queries the appropriate RIR RDAP service based on IP address range.
-    RDAP is the modern replacement for traditional WHOIS protocol.
-    
-    Args:
-        ip: IP address to query (IPv4 or IPv6)
-        timeout: Request timeout in seconds
-    
-    Returns:
-        Dictionary with WHOIS data or None if query fails
-    """
-    try:
-        import ipaddress
-        
-        # Parse IP address
-        ip_obj = ipaddress.ip_address(ip)
-        
-        # Determine which RIR to query based on IP range
-        # ARIN: North America
-        # RIPE NCC: Europe, Middle East, Central Asia
-        # APNIC: Asia Pacific
-        # LACNIC: Latin America and Caribbean
-        # AFRINIC: Africa
-        
-        # Use ARIN's RDAP service as default (it can redirect to other RIRs)
-        rdap_url = 'https://rdap.arin.net/registry/ip/'
-        
-        # For IPv4, we can make educated guesses about RIR
-        if isinstance(ip_obj, ipaddress.IPv4Address):
-            first_octet = int(str(ip_obj).split('.')[0])
-            
-            # Common ranges (simplified)
-            if first_octet in range(1, 2) or first_octet in range(27, 32) or first_octet in range(96, 127):
-                rdap_url = 'https://rdap.arin.net/registry/ip/'  # ARIN
-            elif first_octet in range(2, 6) or first_octet in range(80, 96):
-                rdap_url = 'https://rdap.db.ripe.net/ip/'  # RIPE
-            elif first_octet in range(58, 60) or first_octet in range(133, 134):
-                rdap_url = 'https://rdap.apnic.net/ip/'  # APNIC
-        
-        # Query RDAP server
-        full_url = f'{rdap_url}{ip}'
-        response = requests.get(full_url, timeout=timeout, headers={'Accept': 'application/json'})
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            # Extract key information
-            result = {
-                "success": True,
-                "ip": ip,
-                "network": None,
-                "cidr": None,
-                "country": None,
-                "organization": None,
-                "registration_date": None,
-                "raw_data": data  # Include full response for reference
-            }
-            
-            # Extract network information
-            result["network"] = data.get('name')
-            
-            # Extract CIDR
-            cidr = data.get('cidr0_cidrs', [])
-            if cidr:
-                result["cidr"] = cidr[0].get('v4prefix') or cidr[0].get('v6prefix')
-            
-            # Extract country
-            result["country"] = data.get('country')
-            
-            # Extract organization from entities
-            entities = data.get('entities', [])
-            for entity in entities:
-                roles = entity.get('roles', [])
-                if 'registrant' in roles or 'administrative' in roles:
-                    # Try to extract organization name from vCard
-                    vcard = entity.get('vcardArray')
-                    if vcard and len(vcard) > 1:
-                        for field in vcard[1]:
-                            if isinstance(field, list) and len(field) > 1 and field[0] == 'fn':
-                                result["organization"] = field[-1]
-                                break
-                    if not result["organization"]:
-                        result["organization"] = entity.get('handle')
-                    break
-            
-            # Extract registration date
-            events = data.get('events', [])
-            for event in events:
-                if event.get('eventAction') == 'registration':
-                    result["registration_date"] = event.get('eventDate')
-                    break
-            
-            return result
-        else:
-            return {
-                "success": False,
-                "ip": ip,
-                "error": f"HTTP {response.status_code}"
-            }
-    
-    except ValueError as e:
-        return {
-            "success": False,
-            "ip": ip,
-            "error": f"Invalid IP address: {str(e)}"
-        }
-    except requests.Timeout:
-        return {
-            "success": False,
-            "ip": ip,
-            "error": "Request timeout"
-        }
-    except requests.RequestException as e:
-        return {
-            "success": False,
-            "ip": ip,
-            "error": f"Request failed: {str(e)}"
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "ip": ip,
-            "error": f"Unexpected error: {str(e)}"
-        }
-
-
 def enrich_reply_urls(
     reply_urls: List[str],
     enable_dns: bool = False,
@@ -1039,11 +799,12 @@ def enrich_reply_urls(
     Perform optional enrichment on reply URLs using DNS, RDAP, and IP WHOIS lookups.
     
     This function attempts to enrich reply URL data with additional context:
-    - DNS: Resolve domains to IP addresses and check for DNS records
-    - RDAP: Query domain registration information
-    - IP WHOIS: Lookup ownership information for IP literals
+    - DNS: Resolve domains to IP addresses using dnspython (platform-agnostic)
+    - RDAP: Query domain registration information using ipwhois library
+    - IP WHOIS: Lookup ownership information for IP literals using ipwhois library
     
     All enrichment operations are non-blocking - failures are logged but don't stop processing.
+    Uses PyPI libraries (dnspython, ipwhois) for platform-agnostic operations.
     
     Args:
         reply_urls: List of reply URLs to enrich
@@ -1054,7 +815,6 @@ def enrich_reply_urls(
     Returns:
         Dictionary with enrichment results and metadata
     """
-    import socket
     from urllib.parse import urlparse
     
     enrichment = {
@@ -1106,82 +866,237 @@ def enrich_reply_urls(
     
     # DNS Enrichment
     if enable_dns and domains:
-        for domain in domains:
-            try:
-                # Attempt DNS resolution
-                ip_addresses = socket.getaddrinfo(domain, None)
-                unique_ips = list(set([addr[4][0] for addr in ip_addresses]))
-                enrichment["dns_lookups"][domain] = {
-                    "resolved_ips": unique_ips,
-                    "record_count": len(unique_ips),
-                    "success": True
-                }
-            except socket.gaierror as e:
-                enrichment["enrichment_errors"].append({
-                    "domain": domain,
-                    "type": "dns",
-                    "error": f"DNS lookup failed: {str(e)}"
-                })
-                enrichment["dns_lookups"][domain] = {
-                    "success": False,
-                    "error": str(e)
-                }
-            except Exception as e:
-                enrichment["enrichment_errors"].append({
-                    "domain": domain,
-                    "type": "dns",
-                    "error": f"Unexpected error: {str(e)}"
-                })
+        try:
+            import dns.resolver
+        except ImportError:
+            enrichment["enrichment_errors"].append({
+                "type": "dns",
+                "error": "dnspython library not available (pip install dnspython)"
+            })
+            enable_dns = False
+        
+        if enable_dns:
+            for domain in domains:
+                try:
+                    # Use dnspython for DNS resolution (platform-agnostic)
+                    resolver = dns.resolver.Resolver()
+                    resolver.timeout = timeout if 'timeout' in locals() else 10
+                    resolver.lifetime = timeout if 'timeout' in locals() else 10
+                    
+                    # Query A records (IPv4)
+                    ip_addresses = []
+                    try:
+                        answers = resolver.resolve(domain, 'A')
+                        ip_addresses.extend([str(rdata) for rdata in answers])
+                    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
+                        pass  # No A records, try AAAA
+                    
+                    # Query AAAA records (IPv6)
+                    try:
+                        answers = resolver.resolve(domain, 'AAAA')
+                        ip_addresses.extend([str(rdata) for rdata in answers])
+                    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
+                        pass  # No AAAA records
+                    
+                    if ip_addresses:
+                        enrichment["dns_lookups"][domain] = {
+                            "resolved_ips": ip_addresses,
+                            "record_count": len(ip_addresses),
+                            "success": True
+                        }
+                    else:
+                        enrichment["dns_lookups"][domain] = {
+                            "success": False,
+                            "error": "No DNS records found"
+                        }
+                        enrichment["enrichment_errors"].append({
+                            "domain": domain,
+                            "type": "dns",
+                            "error": "No DNS records found"
+                        })
+                except dns.resolver.Timeout as e:
+                    enrichment["enrichment_errors"].append({
+                        "domain": domain,
+                        "type": "dns",
+                        "error": f"DNS lookup timeout: {str(e)}"
+                    })
+                    enrichment["dns_lookups"][domain] = {
+                        "success": False,
+                        "error": "DNS lookup timeout"
+                    }
+                except dns.resolver.NXDOMAIN as e:
+                    enrichment["enrichment_errors"].append({
+                        "domain": domain,
+                        "type": "dns",
+                        "error": f"Domain does not exist: {str(e)}"
+                    })
+                    enrichment["dns_lookups"][domain] = {
+                        "success": False,
+                        "error": "Domain does not exist"
+                    }
+                except Exception as e:
+                    enrichment["enrichment_errors"].append({
+                        "domain": domain,
+                        "type": "dns",
+                        "error": f"Unexpected error: {str(e)}"
+                    })
+                    enrichment["dns_lookups"][domain] = {
+                        "success": False,
+                        "error": str(e)
+                    }
     
-    # RDAP Enrichment
+    # RDAP Enrichment  
     if enable_rdap and domains:
-        for domain in domains:
-            try:
-                # Query RDAP for domain registration information
-                rdap_data = _query_rdap_domain(domain)
-                if rdap_data:
-                    enrichment["rdap_queries"][domain] = rdap_data
-                else:
+        try:
+            from ipwhois import IPWhois
+            from ipwhois.exceptions import IPDefinedError, ASNRegistryError
+        except ImportError:
+            enrichment["enrichment_errors"].append({
+                "type": "rdap",
+                "error": "ipwhois library not available (pip install ipwhois)"
+            })
+            enable_rdap = False
+        
+        if enable_rdap:
+            for domain in domains:
+                try:
+                    # First resolve domain to IP to query RDAP
+                    try:
+                        import dns.resolver
+                        resolver = dns.resolver.Resolver()
+                        answers = resolver.resolve(domain, 'A')
+                        ip = str(answers[0])
+                    except Exception as dns_err:
+                        enrichment["enrichment_errors"].append({
+                            "domain": domain,
+                            "type": "rdap",
+                            "error": f"Could not resolve domain to IP for RDAP query: {str(dns_err)}"
+                        })
+                        enrichment["rdap_queries"][domain] = {
+                            "success": False,
+                            "error": f"DNS resolution failed: {str(dns_err)}"
+                        }
+                        continue
+                    
+                    # Query RDAP via ipwhois
+                    obj = IPWhois(ip)
+                    results = obj.lookup_rdap(depth=1, retry_count=1)
+                    
+                    # Extract key information
+                    enrichment["rdap_queries"][domain] = {
+                        "success": True,
+                        "domain": domain,
+                        "ip_queried": ip,
+                        "asn": results.get('asn'),
+                        "asn_description": results.get('asn_description'),
+                        "asn_country_code": results.get('asn_country_code'),
+                        "network": {
+                            "cidr": results.get('network', {}).get('cidr'),
+                            "name": results.get('network', {}).get('name'),
+                            "handle": results.get('network', {}).get('handle'),
+                            "country": results.get('network', {}).get('country'),
+                        },
+                        "raw_data": results  # Include full response
+                    }
+                except IPDefinedError as e:
                     enrichment["enrichment_errors"].append({
                         "domain": domain,
                         "type": "rdap",
-                        "error": "No RDAP data returned"
+                        "error": f"IP address is defined (private/reserved): {str(e)}"
                     })
-            except Exception as e:
-                enrichment["enrichment_errors"].append({
-                    "domain": domain,
-                    "type": "rdap",
-                    "error": f"RDAP query failed: {str(e)}"
-                })
-                enrichment["rdap_queries"][domain] = {
-                    "success": False,
-                    "error": str(e)
-                }
+                    enrichment["rdap_queries"][domain] = {
+                        "success": False,
+                        "error": f"IP is private/reserved: {str(e)}"
+                    }
+                except ASNRegistryError as e:
+                    enrichment["enrichment_errors"].append({
+                        "domain": domain,
+                        "type": "rdap",
+                        "error": f"ASN registry error: {str(e)}"
+                    })
+                    enrichment["rdap_queries"][domain] = {
+                        "success": False,
+                        "error": f"ASN registry error: {str(e)}"
+                    }
+                except Exception as e:
+                    enrichment["enrichment_errors"].append({
+                        "domain": domain,
+                        "type": "rdap",
+                        "error": f"RDAP query failed: {str(e)}"
+                    })
+                    enrichment["rdap_queries"][domain] = {
+                        "success": False,
+                        "error": str(e)
+                    }
     
     # IP WHOIS Enrichment
     if enable_ipwhois and ip_literals:
-        for ip in ip_literals:
-            try:
-                # Query RIR WHOIS for IP ownership information
-                whois_data = _query_ip_whois(ip)
-                if whois_data:
-                    enrichment["ipwhois_queries"][ip] = whois_data
-                else:
+        try:
+            from ipwhois import IPWhois
+            from ipwhois.exceptions import IPDefinedError, ASNRegistryError
+        except ImportError:
+            enrichment["enrichment_errors"].append({
+                "type": "ipwhois",
+                "error": "ipwhois library not available (pip install ipwhois)"
+            })
+            enable_ipwhois = False
+        
+        if enable_ipwhois:
+            for ip in ip_literals:
+                try:
+                    # Query IP WHOIS via ipwhois library
+                    obj = IPWhois(ip)
+                    results = obj.lookup_rdap(depth=1, retry_count=1)
+                    
+                    # Extract key information
+                    enrichment["ipwhois_queries"][ip] = {
+                        "success": True,
+                        "ip": ip,
+                        "asn": results.get('asn'),
+                        "asn_description": results.get('asn_description'),
+                        "asn_country_code": results.get('asn_country_code'),
+                        "asn_date": results.get('asn_date'),
+                        "asn_registry": results.get('asn_registry'),
+                        "network": {
+                            "cidr": results.get('network', {}).get('cidr'),
+                            "name": results.get('network', {}).get('name'),
+                            "handle": results.get('network', {}).get('handle'),
+                            "country": results.get('network', {}).get('country'),
+                            "start_address": results.get('network', {}).get('start_address'),
+                            "end_address": results.get('network', {}).get('end_address'),
+                        },
+                        "raw_data": results  # Include full response
+                    }
+                except IPDefinedError as e:
                     enrichment["enrichment_errors"].append({
                         "ip": ip,
                         "type": "ipwhois",
-                        "error": "No WHOIS data returned"
+                        "error": f"IP address is defined (private/reserved): {str(e)}"
                     })
-            except Exception as e:
-                enrichment["enrichment_errors"].append({
-                    "ip": ip,
-                    "type": "ipwhois",
-                    "error": f"WHOIS query failed: {str(e)}"
-                })
-                enrichment["ipwhois_queries"][ip] = {
-                    "success": False,
-                    "error": str(e)
-                }
+                    enrichment["ipwhois_queries"][ip] = {
+                        "success": False,
+                        "error": f"IP is private/reserved: {str(e)}"
+                    }
+                except ASNRegistryError as e:
+                    enrichment["enrichment_errors"].append({
+                        "ip": ip,
+                        "type": "ipwhois",
+                        "error": f"ASN registry error: {str(e)}"
+                    })
+                    enrichment["ipwhois_queries"][ip] = {
+                        "success": False,
+                        "error": f"ASN registry error: {str(e)}"
+                    }
+                except Exception as e:
+                    enrichment["enrichment_errors"].append({
+                        "ip": ip,
+                        "type": "ipwhois",
+                        "error": f"WHOIS query failed: {str(e)}"
+                    })
+                    enrichment["ipwhois_queries"][ip] = {
+                        "success": False,
+                        "error": str(e)
+                    }
     
     return enrichment
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Test enrichment functionality including RDAP and IP WHOIS.
+Test enrichment functionality including RDAP and IP WHOIS using PyPI libraries.
 """
 
 import sys
-from oidsee_scanner import enrich_reply_urls, _query_rdap_domain, _query_ip_whois
+from oidsee_scanner import enrich_reply_urls
 
 
 def test_enrichment_disabled():
