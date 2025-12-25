@@ -1429,6 +1429,71 @@ def _level_from_score(score: int) -> str:
     return "info"
 
 
+def _normalize_organization_name(org_name: str) -> str:
+    """
+    Normalize organization names to handle common variations.
+    
+    This helps identify that "MICROSOFT", "MSFT", "Microsoft Corporation", 
+    "Microsoft Corp.", etc. are all the same organization.
+    
+    Returns a normalized string for comparison.
+    """
+    if not org_name:
+        return ""
+    
+    # Convert to lowercase for comparison
+    normalized = org_name.lower().strip()
+    
+    # Remove common suffixes and variations
+    suffixes_to_remove = [
+        " corporation",
+        " corp.",
+        " corp",
+        " incorporated",
+        " inc.",
+        " inc",
+        " limited",
+        " ltd.",
+        " ltd",
+        " llc",
+        " l.l.c.",
+        " gmbh",
+        " ag",
+        " s.a.",
+        " sa",
+        " bv",
+        " nv",
+        " services",
+        " service",
+    ]
+    
+    for suffix in suffixes_to_remove:
+        if normalized.endswith(suffix):
+            normalized = normalized[:-len(suffix)].strip()
+    
+    # Handle common abbreviations and variations
+    # Map known abbreviations to their canonical forms
+    abbreviation_map = {
+        "msft": "microsoft",
+        "ms": "microsoft",
+        "ibm corp": "ibm",
+        "google llc": "google",
+        "amazon technologies": "amazon",
+        "fb": "facebook",
+        "meta platforms": "meta",
+    }
+    
+    # Check if the normalized name matches any abbreviation
+    for abbrev, canonical in abbreviation_map.items():
+        if normalized == abbrev or normalized.startswith(abbrev + " "):
+            return canonical
+    
+    # Remove extra whitespace
+    normalized = " ".join(normalized.split())
+    
+    return normalized
+
+
 def _check_same_organization(enrichment_data: Optional[Dict[str, Any]], domains: List[str]) -> bool:
     """
     Check if all domains belong to the same organization based on RDAP/WHOIS enrichment data.
@@ -1470,30 +1535,34 @@ def _check_same_organization(enrichment_data: Optional[Dict[str, Any]], domains:
         network = raw_data.get("network", {})
         if network:
             # Some registries put org name in network name
-            network_name = network.get("name", "").lower()
+            network_name = network.get("name", "")
             if network_name:
                 org_name = network_name
         
         # Try to get from objects/entities with role "registrant"
-        objects = raw_data.get("objects", {})
-        for obj_key, obj_data in objects.items():
-            if isinstance(obj_data, dict):
-                roles = obj_data.get("roles", [])
-                if "registrant" in roles or "administrative" in roles:
-                    # Look for organization in vcard
-                    vcard = obj_data.get("vcardArray")
-                    if vcard and len(vcard) > 1:
-                        for field in vcard[1]:
-                            if isinstance(field, list) and len(field) > 3:
-                                # vCard format: ["org", {}, "text", "Organization Name"]
-                                if field[0] == "org" and len(field) > 3:
-                                    org_name = str(field[3]).lower()
-                                    break
-                if org_name:
-                    break
+        if not org_name:
+            objects = raw_data.get("objects", {})
+            for obj_key, obj_data in objects.items():
+                if isinstance(obj_data, dict):
+                    roles = obj_data.get("roles", [])
+                    if "registrant" in roles or "administrative" in roles:
+                        # Look for organization in vcard
+                        vcard = obj_data.get("vcardArray")
+                        if vcard and len(vcard) > 1:
+                            for field in vcard[1]:
+                                if isinstance(field, list) and len(field) > 3:
+                                    # vCard format: ["org", {}, "text", "Organization Name"]
+                                    if field[0] == "org" and len(field) > 3:
+                                        org_name = str(field[3])
+                                        break
+                    if org_name:
+                        break
         
         if org_name:
-            organizations.add(org_name)
+            # Normalize the organization name before adding to set
+            normalized_org = _normalize_organization_name(org_name)
+            if normalized_org:
+                organizations.add(normalized_org)
     
     # If we found organizations for multiple domains, check if they're all the same
     if len(organizations) > 1:
@@ -1572,7 +1641,10 @@ def _create_enrichment_summary(enrichment_data: Optional[Dict[str, Any]], domain
         }
         
         if org_name:
-            organizations.add(org_name.lower())
+            # Use normalized name for comparison
+            normalized_org = _normalize_organization_name(org_name)
+            if normalized_org:
+                organizations.add(normalized_org)
     
     # Determine if all domains appear to be owned by the same organization
     enriched_domains = [d for d, info in domain_organizations.items() if info["enriched"]]

@@ -319,6 +319,97 @@ def test_enrichment_summary_format():
     return True
 
 
+def test_organization_name_normalization():
+    """Test that organization name variations are properly normalized."""
+    print("\n=== Testing Organization Name Normalization ===")
+    
+    from oidsee_scanner import _normalize_organization_name
+    
+    # Test Microsoft variations
+    test_cases = [
+        ("MICROSOFT", "microsoft"),
+        ("MSFT", "microsoft"),
+        ("Microsoft Corporation", "microsoft"),
+        ("Microsoft Corp.", "microsoft"),
+        ("Microsoft Corp", "microsoft"),
+        ("microsoft", "microsoft"),
+        ("Microsoft Services", "microsoft"),
+        ("Microsoft Service", "microsoft"),
+    ]
+    
+    all_passed = True
+    for input_name, expected_normalized in test_cases:
+        result = _normalize_organization_name(input_name)
+        if result != expected_normalized:
+            print(f"   ✗ FAIL: '{input_name}' → '{result}', expected '{expected_normalized}'")
+            all_passed = False
+        else:
+            print(f"   ✓ PASS: '{input_name}' → '{result}'")
+    
+    if not all_passed:
+        return False
+    
+    # Test that variations map to same normalized form
+    print("\n   Testing that MICROSOFT and MSFT normalize to the same value:")
+    microsoft_norm = _normalize_organization_name("MICROSOFT")
+    msft_norm = _normalize_organization_name("MSFT")
+    
+    if microsoft_norm != msft_norm:
+        print(f"   ✗ FAIL: MICROSOFT → '{microsoft_norm}', MSFT → '{msft_norm}' (should be equal)")
+        return False
+    
+    print(f"   ✓ PASS: Both normalize to '{microsoft_norm}'")
+    
+    # Test enrichment with variations
+    print("\n   Testing enrichment with organization name variations:")
+    enrichment_data = {
+        "rdap_queries": {
+            "office.com": {
+                "success": True,
+                "raw_data": {
+                    "network": {"name": "MSFT"},
+                    "objects": {}
+                },
+                "asn": "8068",
+                "asn_description": "MICROSOFT-CORP-MSN-AS-BLOCK, US"
+            },
+            "office365.us": {
+                "success": True,
+                "raw_data": {
+                    "network": {"name": "MICROSOFT"},
+                    "objects": {}
+                },
+                "asn": "8070",
+                "asn_description": "MICROSOFT-CORP-MSN-AS-BLOCK, US"
+            }
+        }
+    }
+    
+    domains = ["office.com", "office365.us"]
+    summary = _create_enrichment_summary(enrichment_data, domains)
+    
+    if not summary:
+        print("   ✗ FAIL: Summary should not be None")
+        return False
+    
+    # Should recognize MSFT and MICROSOFT as the same organization
+    if summary["same_organization"] != True:
+        print(f"   ✗ FAIL: Expected same_organization=True, got {summary['same_organization']}")
+        print(f"   Organizations found: {summary['organizations_found']}")
+        return False
+    
+    print(f"   ✓ PASS: MSFT and MICROSOFT recognized as same organization")
+    print(f"   Organizations found: {summary['organizations_found']}")
+    
+    if len(summary["organizations_found"]) != 1:
+        print(f"   ✗ FAIL: Expected 1 normalized organization, found {len(summary['organizations_found'])}")
+        return False
+    
+    print(f"   ✓ PASS: Only 1 normalized organization in list")
+    
+    return True
+
+
 def main():
     """Run all tests."""
     print("=" * 70)
@@ -330,6 +421,7 @@ def main():
     # Run tests
     all_passed = all_passed and test_enrichment_prevents_false_positives()
     all_passed = all_passed and test_enrichment_summary_format()
+    all_passed = all_passed and test_organization_name_normalization()
     
     print("\n" + "=" * 70)
     if all_passed:
