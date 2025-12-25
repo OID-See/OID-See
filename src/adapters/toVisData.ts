@@ -79,12 +79,14 @@ export function toVisData(input: any): VisData {
         id: e.id,
         from: e.from,
         to: e.to,
-        label: isInstance ? undefined : label, // Hide label for INSTANCE_OF to reduce clickable area
+        label,
         arrows: 'to',
         dashes: isDerived || isInstance,
         width: isDerived ? 3 : isTooManyScopes ? 2.5 : 1.5,
         color,
         __oidsee: e,
+        // Make INSTANCE_OF edges non-selectable to prevent interference with node clicks
+        ...(isInstance && { chosen: false }),
       }
     })
 
