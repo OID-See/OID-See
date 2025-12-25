@@ -79,7 +79,7 @@ export function toVisData(input: any): VisData {
         id: e.id,
         from: e.from,
         to: e.to,
-        label,
+        label: isInstance ? undefined : label, // Hide label for INSTANCE_OF to reduce clickable area
         arrows: 'to',
         dashes: isDerived || isInstance,
         width: isDerived ? 3 : isTooManyScopes ? 2.5 : 1.5,
