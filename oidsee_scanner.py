@@ -2243,6 +2243,42 @@ class OidSeeCollector:
         self.fetch_applications_for_sps(target_sps)
         print(f"  application cache populated for {len(self.app_cache_by_appid)} appIds in {time.time() - stage_start:.2f}s", file=sys.stderr)
 
+        # Pre-enrich reply URLs if enrichment is enabled (once for all SPs)
+        enrichment_cache = {}
+        if any([self.opts.enable_dns_enrichment, self.opts.enable_rdap_enrichment, self.opts.enable_ipwhois_enrichment]):
+            print("→ Pre-enriching reply URLs (deduplicating across all SPs)...", file=sys.stderr)
+            stage_start_enrich = time.time()
+            
+            # Collect all unique reply URLs from all target SPs
+            all_reply_urls = []
+            for sp in target_sps:
+                reply_urls_value = sp.get("replyUrls")
+                if isinstance(reply_urls_value, list):
+                    all_reply_urls.extend(reply_urls_value)
+            
+            # Perform enrichment once on the full deduplicated set
+            if all_reply_urls:
+                try:
+                    global_enrichment = enrich_reply_urls(
+                        all_reply_urls,
+                        enable_dns=self.opts.enable_dns_enrichment,
+                        enable_rdap=self.opts.enable_rdap_enrichment,
+                        enable_ipwhois=self.opts.enable_ipwhois_enrichment
+                    )
+                    # Cache the results for reuse
+                    enrichment_cache = {
+                        "dns_lookups": global_enrichment.get("dns_lookups", {}),
+                        "rdap_queries": global_enrichment.get("rdap_queries", {}),
+                        "ipwhois_queries": global_enrichment.get("ipwhois_queries", {}),
+                        "enrichment_enabled": global_enrichment.get("enrichment_enabled", {})
+                    }
+                    print(f"  ✓ Enrichment completed: {len(enrichment_cache.get('dns_lookups', {}))} DNS, "
+                          f"{len(enrichment_cache.get('rdap_queries', {}))} RDAP, "
+                          f"{len(enrichment_cache.get('ipwhois_queries', {}))} WHOIS lookups in {time.time() - stage_start_enrich:.2f}s", 
+                          file=sys.stderr)
+                except Exception as e:
+                    print(f"⚠️  Global reply URL enrichment failed: {e}", file=sys.stderr)
+
         # First pass: gather grants, assignments, owners, role assignments and collect referenced IDs
         sp_delegated_scopes: Dict[str, Dict[str, Set[str]]] = {}  # spId -> resourceId -> scopes set
 
@@ -2365,30 +2401,35 @@ class OidSeeCollector:
             reply_urls = reply_urls_value if isinstance(reply_urls_value, list) else []
             reply_url_analysis = analyze_reply_urls(reply_urls)
             
-            # Perform optional enrichment on reply URLs
+            # Use cached enrichment results if available
             reply_url_enrichment = None
-            if any([self.opts.enable_dns_enrichment, self.opts.enable_rdap_enrichment, self.opts.enable_ipwhois_enrichment]):
-                try:
-                    reply_url_enrichment = enrich_reply_urls(
-                        reply_urls,
-                        enable_dns=self.opts.enable_dns_enrichment,
-                        enable_rdap=self.opts.enable_rdap_enrichment,
-                        enable_ipwhois=self.opts.enable_ipwhois_enrichment
-                    )
-                    # Log any enrichment errors
-                    if reply_url_enrichment.get("enrichment_errors"):
-                        for err in reply_url_enrichment["enrichment_errors"]:
-                            print(f"⚠️  Enrichment warning: {err}", file=sys.stderr)
-                except Exception as e:
-                    print(f"⚠️  Reply URL enrichment failed for {sp_display}: {e}", file=sys.stderr)
-                    reply_url_enrichment = {
-                        "enrichment_errors": [{"error": f"Enrichment failed: {str(e)}"}],
-                        "enrichment_enabled": {
-                            "dns": self.opts.enable_dns_enrichment,
-                            "rdap": self.opts.enable_rdap_enrichment,
-                            "ipwhois": self.opts.enable_ipwhois_enrichment
-                        }
-                    }
+            if enrichment_cache:
+                # Filter cached results for this SP's reply URLs
+                reply_url_enrichment = {
+                    "dns_lookups": {},
+                    "rdap_queries": {},
+                    "ipwhois_queries": {},
+                    "enrichment_enabled": enrichment_cache.get("enrichment_enabled", {}),
+                    "enrichment_errors": []
+                }
+                
+                # Extract eTLD+1 domains from this SP's reply URLs and fetch from cache
+                for url in reply_urls:
+                    etld = extract_etldplus1(url)
+                    if etld and etld in enrichment_cache.get("dns_lookups", {}):
+                        reply_url_enrichment["dns_lookups"][etld] = enrichment_cache["dns_lookups"][etld]
+                    if etld and etld in enrichment_cache.get("rdap_queries", {}):
+                        reply_url_enrichment["rdap_queries"][etld] = enrichment_cache["rdap_queries"][etld]
+                    
+                    # Check for IP literals in WHOIS cache
+                    try:
+                        from urllib.parse import urlparse
+                        parsed = urlparse(url)
+                        hostname = parsed.hostname
+                        if hostname and hostname in enrichment_cache.get("ipwhois_queries", {}):
+                            reply_url_enrichment["ipwhois_queries"][hostname] = enrichment_cache["ipwhois_queries"][hostname]
+                    except Exception:
+                        pass
             
             # Analyze public client indicators from Application object
             public_client_indicators = analyze_public_client_indicators(app_obj)
