@@ -298,20 +298,6 @@ export default function App() {
     }
   }, [selection, detailsCollapsed, detailsManuallyCollapsed, isPortrait])
 
-  // Auto-focus graph on selection
-  useEffect(() => {
-    if (selection && graphRef.current) {
-      const timer = setTimeout(() => {
-        if (selection.kind === 'node') {
-          graphRef.current?.focusNode(selection.id)
-        } else if (selection.kind === 'edge') {
-          graphRef.current?.focusEdge(selection.id)
-        }
-      }, DETAILS_AUTO_EXPAND_DELAY)
-      return () => clearTimeout(timer)
-    }
-  }, [selection])
-
   // Reset physics configuration when graph data changes
   useEffect(() => {
     if (data) {

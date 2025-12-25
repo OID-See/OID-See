@@ -68,6 +68,10 @@ export function DetailsPanel({
 
   const o = selection.oidsee ?? {}
   const isNode = selection.kind === 'node'
+  const isServicePrincipalNode = isNode && o.type === 'ServicePrincipal'
+  const isInstanceOfEdge = !isNode && o.type === 'INSTANCE_OF'
+  // Show properties for edges (especially INSTANCE_OF) and non-ServicePrincipal nodes
+  const shouldShowProperties = !isNode || !isServicePrincipalNode
 
   return (
     <div className="details">
@@ -110,9 +114,11 @@ export function DetailsPanel({
 
       <Risk risk={o.risk} />
 
-      {o.properties && typeof o.properties === 'object' && (
+      {shouldShowProperties && o.properties && typeof o.properties === 'object' && (
         <div className="block">
-          <div className="block__title">Properties</div>
+          <div className="block__title">
+            {isInstanceOfEdge ? 'Instance Properties' : 'Properties'}
+          </div>
           <table className="table">
             <tbody>
               {entries(o.properties).slice(0, 50).map(([k, v]) => (

@@ -3,6 +3,31 @@ import { isOidSeeExport, OidSeeExport } from './types'
 
 export type VisData = { nodes: any[]; edges: any[] }
 
+// Custom double-circle renderer for group nodes
+function doubleCircleRenderer({ ctx, x, y, state, style }: any) {
+  const { selected } = state
+  const radius = style.size || 10
+  const borderWidth = selected ? 3 : 2
+  const color = style.color || { border: 'rgba(234,242,255,0.75)', background: 'rgba(234,242,255,0.08)' }
+  
+  // Draw outer circle
+  ctx.beginPath()
+  ctx.arc(x, y, radius, 0, 2 * Math.PI)
+  ctx.fillStyle = color.background || 'rgba(234,242,255,0.08)'
+  ctx.fill()
+  ctx.strokeStyle = color.border || 'rgba(234,242,255,0.75)'
+  ctx.lineWidth = borderWidth
+  ctx.stroke()
+  
+  // Draw inner circle (smaller, creating double-circle effect)
+  const innerRadius = radius * 0.65
+  ctx.beginPath()
+  ctx.arc(x, y, innerRadius, 0, 2 * Math.PI)
+  ctx.strokeStyle = color.border || 'rgba(234,242,255,0.75)'
+  ctx.lineWidth = borderWidth
+  ctx.stroke()
+}
+
 export function toVisData(input: any): VisData {
   if (isOidSeeExport(input)) {
     const exp = input as OidSeeExport
@@ -12,6 +37,7 @@ export function toVisData(input: any): VisData {
       const value = 10 + riskBoost / 2
 
       const isHigh = (n.risk?.level === 'high' || n.risk?.level === 'critical') && (n.risk?.score ?? 0) >= 70
+      const isGroup = n.type === 'Group'
 
       return {
         id: n.id,
@@ -20,6 +46,13 @@ export function toVisData(input: any): VisData {
         value,
         __oidsee: n,
         borderWidth: isHigh ? 3 : 2,
+        shape: isGroup ? 'custom' : 'dot',
+        ctxRenderer: isGroup ? doubleCircleRenderer : undefined,
+        color: isHigh ? {
+          border: 'rgba(255,107,107,0.95)',
+          background: 'rgba(255,107,107,0.20)',
+          highlight: { background: 'rgba(255,107,107,0.30)', border: 'rgba(255,107,107,1.0)' },
+        } : undefined,
       }
     })
 
@@ -52,6 +85,13 @@ export function toVisData(input: any): VisData {
         width: isDerived ? 3 : isTooManyScopes ? 2.5 : 1.5,
         color,
         __oidsee: e,
+        // Minimize INSTANCE_OF edge clickable area to prevent interference with node clicks
+        // selectionWidth: 0 makes the edge line non-clickable, but labels remain selectable
+        // hoverWidth: 0 disables hover highlighting to further reduce interaction area
+        ...(isInstance && { 
+          selectionWidth: 0,
+          hoverWidth: 0,
+        }),
       }
     })
 
