@@ -1455,6 +1455,9 @@ def compute_risk_for_sp(
     
     score = 0
     reasons: List[Dict[str, Any]] = []
+    
+    # Extract total_urls once for use in multiple reply URL checks
+    total_urls = reply_url_analysis.get("total_urls", 0) if reply_url_analysis else 0
 
     # CAN_IMPERSONATE
     if has_impersonation:
@@ -1641,8 +1644,7 @@ def compute_risk_for_sp(
     # Skip for well-known Microsoft platform apps
     is_well_known_ms = platform_signals and platform_signals.get("isWellKnownMicrosoftAppId", False)
     
-    # Only check mixed domains if there are reply URLs to analyze
-    total_urls = reply_url_analysis.get("total_urls", 0) if reply_url_analysis else 0
+    # Only check mixed domains if there are reply URLs to analyze (total_urls calculated at function start)
     if total_urls > 0 and mixed_domains_result.get("has_mixed_domains") and mixed_domains_result.get("signal_type") and not is_well_known_ms:
         mixed_domains_config = contributors.get("MIXED_REPLYURL_DOMAINS", {})
         signal_type = mixed_domains_result["signal_type"]
