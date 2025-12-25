@@ -385,6 +385,17 @@ export default function App() {
     return computeWarnings(data, p.clauses)
   }, [data, query])
 
+  // Memoized Maps for fast lookups in handleFocus
+  const nodeMap = useMemo(() => {
+    if (!data) return new Map()
+    return new Map(data.nodes.map(n => [n.id, n]))
+  }, [data])
+
+  const edgeMap = useMemo(() => {
+    if (!data) return new Map()
+    return new Map(data.edges.map(e => [e.id, e]))
+  }, [data])
+
   function saveCurrentQuery() {
     const name = prompt('Save query as…')
     if (!name) return
@@ -426,19 +437,17 @@ export default function App() {
   }
 
   function handleFocus(sel: Selection) {
-    // Find the full data object with oidsee properties
+    // Find the full data object with oidsee properties using memoized Maps
     let fullSelection: Selection = sel
-    if (data) {
-      if (sel.kind === 'node') {
-        const node = data.nodes.find(n => n.id === sel.id)
-        if (node) {
-          fullSelection = { kind: 'node', id: sel.id, oidsee: node.__oidsee ?? node }
-        }
-      } else if (sel.kind === 'edge') {
-        const edge = data.edges.find(e => e.id === sel.id)
-        if (edge) {
-          fullSelection = { kind: 'edge', id: sel.id, oidsee: edge.__oidsee ?? edge }
-        }
+    if (sel.kind === 'node') {
+      const node = nodeMap.get(sel.id)
+      if (node) {
+        fullSelection = { kind: 'node', id: sel.id, oidsee: node.__oidsee ?? node }
+      }
+    } else if (sel.kind === 'edge') {
+      const edge = edgeMap.get(sel.id)
+      if (edge) {
+        fullSelection = { kind: 'edge', id: sel.id, oidsee: edge.__oidsee ?? edge }
       }
     }
     
