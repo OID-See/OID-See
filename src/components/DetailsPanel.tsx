@@ -26,6 +26,43 @@ function Badge({ children }: { children: any }) {
   return <span className="badge">{children}</span>
 }
 
+function ClickableLink({ 
+  id, 
+  kind, 
+  onFocus,
+  children 
+}: { 
+  id: string
+  kind: 'node' | 'edge'
+  onFocus?: (selection: Selection) => void
+  children?: React.ReactNode
+}) {
+  if (!onFocus) {
+    return <span className="mono">{children ?? id}</span>
+  }
+  
+  return (
+    <a
+      className="clickable-link mono"
+      onClick={(e) => {
+        e.preventDefault()
+        onFocus({ kind, id, oidsee: undefined })
+      }}
+      href="#"
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onFocus({ kind, id, oidsee: undefined })
+        }
+      }}
+    >
+      {children ?? id}
+    </a>
+  )
+}
+
 function Risk({ risk }: { risk?: any }) {
   if (!risk) return null
   const level = risk.level ?? 'unknown'
@@ -95,8 +132,10 @@ export function DetailsPanel({
       {!isNode && (
         <div className="block">
           <div className="block__title">Relationship</div>
-          <div className="row mono">
-            {o.from} → {o.to}
+          <div className="row">
+            <ClickableLink id={o.from} kind="node" onFocus={onFocus} /> 
+            <span className="mono"> → </span>
+            <ClickableLink id={o.to} kind="node" onFocus={onFocus} />
           </div>
         </div>
       )}
@@ -154,7 +193,12 @@ export function DetailsPanel({
           </div>
           {Array.isArray(o.derived.inputs) && o.derived.inputs.length > 0 && (
             <div className="muted" style={{ marginTop: '.4rem' }}>
-              inputs: <span className="mono">{o.derived.inputs.slice(0, 12).join(', ')}</span>
+              inputs: {o.derived.inputs.slice(0, 12).map((inputId: string, idx: number) => (
+                <span key={inputId}>
+                  {idx > 0 && <span className="mono">, </span>}
+                  <ClickableLink id={inputId} kind="edge" onFocus={onFocus} />
+                </span>
+              ))}
             </div>
           )}
         </div>
