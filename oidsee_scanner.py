@@ -865,7 +865,7 @@ def enrich_reply_urls(
         except Exception as e:
             enrichment["enrichment_errors"].append({
                 "url": url,
-                "error": f"URL parsing failed: {str(e)}"
+                "error": "URL parsing failed"
             })
     
     # DNS Enrichment (concurrent)
@@ -875,7 +875,7 @@ def enrich_reply_urls(
         except ImportError:
             enrichment["enrichment_errors"].append({
                 "type": "dns",
-                "error": "dnspython library not available (pip install dnspython)"
+                "error": "DNS enrichment unavailable"
             })
             enable_dns = False
         
@@ -911,22 +911,22 @@ def enrich_reply_urls(
                     else:
                         return domain, {
                             "success": False,
-                            "error": "No DNS records found"
+                            "error": "Domain not found"
                         }
                 except dns.resolver.Timeout:
                     return domain, {
                         "success": False,
-                        "error": "DNS lookup timeout"
+                        "error": "Request timed out"
                     }
                 except dns.resolver.NXDOMAIN:
                     return domain, {
                         "success": False,
-                        "error": "Domain does not exist"
+                        "error": "Domain not found"
                     }
                 except Exception as e:
                     return domain, {
                         "success": False,
-                        "error": str(e)
+                        "error": "Lookup failed"
                     }
             
             # Perform DNS lookups concurrently
@@ -947,11 +947,11 @@ def enrich_reply_urls(
                         enrichment["enrichment_errors"].append({
                             "domain": domain,
                             "type": "dns",
-                            "error": f"Unexpected error: {str(e)}"
+                            "error": "Lookup failed"
                         })
                         enrichment["dns_lookups"][domain] = {
                             "success": False,
-                            "error": str(e)
+                            "error": "Lookup failed"
                         }
     
     # RDAP Enrichment (concurrent)
@@ -962,7 +962,7 @@ def enrich_reply_urls(
         except ImportError:
             enrichment["enrichment_errors"].append({
                 "type": "rdap",
-                "error": "ipwhois library not available (pip install ipwhois)"
+                "error": "RDAP enrichment unavailable"
             })
             enable_rdap = False
         
@@ -981,7 +981,7 @@ def enrich_reply_urls(
                     except Exception as dns_err:
                         return domain, {
                             "success": False,
-                            "error": f"DNS resolution failed: {str(dns_err)}"
+                            "error": "Domain lookup failed"
                         }
                     
                     # Query RDAP via ipwhois
@@ -1007,17 +1007,17 @@ def enrich_reply_urls(
                 except IPDefinedError as e:
                     return domain, {
                         "success": False,
-                        "error": f"IP is private/reserved: {str(e)}"
+                        "error": "Private or reserved IP"
                     }
                 except ASNRegistryError as e:
                     return domain, {
                         "success": False,
-                        "error": f"ASN registry error: {str(e)}"
+                        "error": "Registry lookup failed"
                     }
                 except Exception as e:
                     return domain, {
                         "success": False,
-                        "error": str(e)
+                        "error": "RDAP query failed"
                     }
             
             # Perform RDAP lookups concurrently
@@ -1038,11 +1038,11 @@ def enrich_reply_urls(
                         enrichment["enrichment_errors"].append({
                             "domain": domain,
                             "type": "rdap",
-                            "error": f"RDAP query failed: {str(e)}"
+                            "error": "RDAP query failed"
                         })
                         enrichment["rdap_queries"][domain] = {
                             "success": False,
-                            "error": str(e)
+                            "error": "RDAP query failed"
                         }
     
     # IP WHOIS Enrichment (concurrent)
@@ -1053,7 +1053,7 @@ def enrich_reply_urls(
         except ImportError:
             enrichment["enrichment_errors"].append({
                 "type": "ipwhois",
-                "error": "ipwhois library not available (pip install ipwhois)"
+                "error": "IP WHOIS enrichment unavailable"
             })
             enable_ipwhois = False
         
@@ -1087,17 +1087,17 @@ def enrich_reply_urls(
                 except IPDefinedError as e:
                     return ip, {
                         "success": False,
-                        "error": f"IP is private/reserved: {str(e)}"
+                        "error": "Private or reserved IP"
                     }
                 except ASNRegistryError as e:
                     return ip, {
                         "success": False,
-                        "error": f"ASN registry error: {str(e)}"
+                        "error": "Registry lookup failed"
                     }
                 except Exception as e:
                     return ip, {
                         "success": False,
-                        "error": str(e)
+                        "error": "WHOIS query failed"
                     }
             
             # Perform IP WHOIS lookups concurrently
@@ -1118,11 +1118,11 @@ def enrich_reply_urls(
                         enrichment["enrichment_errors"].append({
                             "ip": ip,
                             "type": "ipwhois",
-                            "error": f"WHOIS query failed: {str(e)}"
+                            "error": "WHOIS query failed"
                         })
                         enrichment["ipwhois_queries"][ip] = {
                             "success": False,
-                            "error": str(e)
+                            "error": "WHOIS query failed"
                         }
     
     return enrichment
@@ -1924,9 +1924,9 @@ class CollectOptions:
     include_all_service_principals: bool = False
     include_first_party: bool = False
     include_single_tenant: bool = False
-    enable_dns_enrichment: bool = False
-    enable_rdap_enrichment: bool = False
-    enable_ipwhois_enrichment: bool = False
+    enable_dns_enrichment: bool = True  # Default to enabled
+    enable_rdap_enrichment: bool = True  # Default to enabled
+    enable_ipwhois_enrichment: bool = True  # Default to enabled
 
 
 class OidSeeCollector:
@@ -2808,10 +2808,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-retries", type=int, default=6, help="Max HTTP retries for Graph requests (throttling/transient)")
     p.add_argument("--retry-base-delay", type=float, default=0.8, help="Base delay (seconds) for exponential backoff")
     
-    # Optional enrichment flags (for future implementation)
-    p.add_argument("--enable-dns-enrichment", action="store_true", help="Enable DNS lookups for reply URL domains (optional)")
-    p.add_argument("--enable-rdap-enrichment", action="store_true", help="Enable RDAP lookups for reply URL domains (optional)")
-    p.add_argument("--enable-ipwhois-enrichment", action="store_true", help="Enable IP WHOIS lookups for IP literals in reply URLs (optional)")
+    # Enrichment options (enabled by default for performance)
+    p.add_argument("--disable-all-enrichment", action="store_true", help="Disable all enrichment lookups (DNS, RDAP, IP WHOIS)")
+    p.add_argument("--disable-dns-enrichment", action="store_true", help="Disable DNS lookups for reply URL domains")
+    p.add_argument("--disable-rdap-enrichment", action="store_true", help="Disable RDAP lookups for reply URL domains")
+    p.add_argument("--disable-ipwhois-enrichment", action="store_true", help="Disable IP WHOIS lookups for IP literals in reply URLs")
     
     return p.parse_args()
 
@@ -2834,9 +2835,9 @@ def main() -> int:
         include_all_service_principals=bool(args.include_all_sps),
         include_first_party=bool(args.include_first_party),
         include_single_tenant=bool(args.include_single_tenant),
-        enable_dns_enrichment=bool(args.enable_dns_enrichment),
-        enable_rdap_enrichment=bool(args.enable_rdap_enrichment),
-        enable_ipwhois_enrichment=bool(args.enable_ipwhois_enrichment),
+        enable_dns_enrichment=not (args.disable_all_enrichment or args.disable_dns_enrichment),
+        enable_rdap_enrichment=not (args.disable_all_enrichment or args.disable_rdap_enrichment),
+        enable_ipwhois_enrichment=not (args.disable_all_enrichment or args.disable_ipwhois_enrichment),
     )
 
     try:
