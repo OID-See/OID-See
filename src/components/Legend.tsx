@@ -95,13 +95,13 @@ export function Legend({ visible, onClose }: LegendProps) {
               <div className="legend-item">
                 <div className="legend-node" style={{ border: '2px solid rgba(234,242,255,0.9)', background: 'rgba(234,242,255,0.10)' }}></div>
                 <span className="legend-label">User</span>
-                <span className="legend-desc">User accounts</span>
+                <span className="legend-desc">User accounts (single circle)</span>
               </div>
               
               <div className="legend-item">
-                <div className="legend-node" style={{ border: '2px solid rgba(234,242,255,0.75)', background: 'rgba(234,242,255,0.08)' }}></div>
+                <div className="legend-node legend-node--double" style={{ border: '2px solid rgba(234,242,255,0.75)', background: 'rgba(234,242,255,0.08)' }}></div>
                 <span className="legend-label">Group</span>
-                <span className="legend-desc">Security and distribution groups</span>
+                <span className="legend-desc">Security and distribution groups (double circle)</span>
               </div>
               
               <div className="legend-item">
@@ -111,9 +111,9 @@ export function Legend({ visible, onClose }: LegendProps) {
               </div>
               
               <div className="legend-item">
-                <div className="legend-node" style={{ border: '3px solid rgba(66,232,224,0.95)', background: 'rgba(66,232,224,0.18)' }}></div>
+                <div className="legend-node" style={{ border: '3px solid rgba(255,107,107,0.95)', background: 'rgba(255,107,107,0.20)' }}></div>
                 <span className="legend-label">High Risk Node</span>
-                <span className="legend-desc">Node with risk score ≥70 (thicker border)</span>
+                <span className="legend-desc">Node with risk score ≥70 (red shading, thicker border)</span>
               </div>
             </div>
           </section>
