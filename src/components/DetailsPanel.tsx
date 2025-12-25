@@ -42,24 +42,15 @@ function ClickableLink({
   }
   
   return (
-    <a
+    <button
+      type="button"
       className="clickable-link mono"
-      onClick={(e) => {
-        e.preventDefault()
+      onClick={() => {
         onFocus({ kind, id, oidsee: undefined })
-      }}
-      href="#"
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onFocus({ kind, id, oidsee: undefined })
-        }
       }}
     >
       {children ?? id}
-    </a>
+    </button>
   )
 }
 
