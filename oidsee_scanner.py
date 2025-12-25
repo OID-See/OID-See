@@ -2789,27 +2789,29 @@ class OidSeeCollector:
             if risk and risk.get("score", 0) > 0:
                 self.nodes[sp_nid]["risk"] = risk
 
-            # Application node (best-effort)
+            # Application node (only if Application object exists in tenant)
             if appid:
                 app_obj = self.app_cache_by_appid.get(appid)
-                app_display = (app_obj or {}).get("displayName") or sp.get("appDisplayName")
-                app_nid = node_id("app", appid, app_display)
-                self.add_node(app_nid, "Application", app_display, {
-                    "appId": appid,
-                    "isMultiTenant": (app_obj or {}).get("signInAudience") not in (None, "AzureADMyOrg"),
-                    "createdDateTime": (app_obj or {}).get("createdDateTime"),
-                    "signInAudience": (app_obj or {}).get("signInAudience") or sp.get("signInAudience"),
-                    "replyUrls": sp.get("replyUrls") or [],
-                    "web": (app_obj or {}).get("web"),
-                    "spa": (app_obj or {}).get("spa"),
-                    "publicClient": (app_obj or {}).get("publicClient"),
-                    "requiredResourceAccess": (app_obj or {}).get("requiredResourceAccess"),
-                    "passwordCredentials": (app_obj or {}).get("passwordCredentials") or [],
-                    "keyCredentials": (app_obj or {}).get("keyCredentials") or [],
-                    "federatedIdentityCredentials": (app_obj or {}).get("federatedIdentityCredentials") or [],
-                })
-                # Pass servicePrincipalId to ensure unique edge IDs when multiple SPs instance the same app
-                self.add_edge(sp_nid, app_nid, "INSTANCE_OF", {"servicePrincipalId": sp_id})
+                # Only create Application node if we actually have the Application object
+                if app_obj:
+                    app_display = app_obj.get("displayName") or sp.get("appDisplayName")
+                    app_nid = node_id("app", appid, app_display)
+                    self.add_node(app_nid, "Application", app_display, {
+                        "appId": appid,
+                        "isMultiTenant": app_obj.get("signInAudience") not in (None, "AzureADMyOrg"),
+                        "createdDateTime": app_obj.get("createdDateTime"),
+                        "signInAudience": app_obj.get("signInAudience"),
+                        "replyUrls": sp.get("replyUrls") or [],
+                        "web": app_obj.get("web"),
+                        "spa": app_obj.get("spa"),
+                        "publicClient": app_obj.get("publicClient"),
+                        "requiredResourceAccess": app_obj.get("requiredResourceAccess"),
+                        "passwordCredentials": app_obj.get("passwordCredentials") or [],
+                        "keyCredentials": app_obj.get("keyCredentials") or [],
+                        "federatedIdentityCredentials": app_obj.get("federatedIdentityCredentials") or [],
+                    })
+                    # Pass servicePrincipalId to ensure unique edge IDs when multiple SPs instance the same app
+                    self.add_edge(sp_nid, app_nid, "INSTANCE_OF", {"servicePrincipalId": sp_id})
 
             # Owners
             for o in owners_by_sp.get(sp_id, []):
