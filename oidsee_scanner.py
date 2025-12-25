@@ -789,6 +789,149 @@ def analyze_public_client_indicators(app_obj: Optional[Dict[str, Any]]) -> Dict[
     }
 
 
+def enrich_reply_urls(
+    reply_urls: List[str],
+    enable_dns: bool = False,
+    enable_rdap: bool = False,
+    enable_ipwhois: bool = False
+) -> Dict[str, Any]:
+    """
+    Perform optional enrichment on reply URLs using DNS, RDAP, and IP WHOIS lookups.
+    
+    This function attempts to enrich reply URL data with additional context:
+    - DNS: Resolve domains to IP addresses and check for DNS records
+    - RDAP: Query domain registration information
+    - IP WHOIS: Lookup ownership information for IP literals
+    
+    All enrichment operations are non-blocking - failures are logged but don't stop processing.
+    
+    Args:
+        reply_urls: List of reply URLs to enrich
+        enable_dns: Enable DNS lookups
+        enable_rdap: Enable RDAP lookups
+        enable_ipwhois: Enable IP WHOIS lookups
+    
+    Returns:
+        Dictionary with enrichment results and metadata
+    """
+    import socket
+    from urllib.parse import urlparse
+    
+    enrichment = {
+        "dns_lookups": {},
+        "rdap_queries": {},
+        "ipwhois_queries": {},
+        "enrichment_errors": [],
+        "enrichment_timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "enrichment_enabled": {
+            "dns": enable_dns,
+            "rdap": enable_rdap,
+            "ipwhois": enable_ipwhois
+        }
+    }
+    
+    if not any([enable_dns, enable_rdap, enable_ipwhois]):
+        return enrichment
+    
+    # Extract unique domains and IPs from reply URLs
+    domains = set()
+    ip_literals = set()
+    
+    for url in reply_urls:
+        if not url or '*' in url:  # Skip empty or wildcard URLs
+            continue
+        
+        try:
+            parsed = urlparse(url)
+            hostname = parsed.hostname or parsed.netloc
+            
+            if not hostname:
+                continue
+            
+            # Check if it's an IP literal
+            import re
+            if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', hostname):
+                ip_literals.add(hostname)
+            elif hostname.startswith('[') and hostname.endswith(']'):
+                # IPv6
+                ip_literals.add(hostname.strip('[]'))
+            elif hostname.lower() not in ('localhost', '127.0.0.1', '::1'):
+                # Regular domain
+                domains.add(hostname)
+        except Exception as e:
+            enrichment["enrichment_errors"].append({
+                "url": url,
+                "error": f"URL parsing failed: {str(e)}"
+            })
+    
+    # DNS Enrichment
+    if enable_dns and domains:
+        for domain in domains:
+            try:
+                # Attempt DNS resolution
+                ip_addresses = socket.getaddrinfo(domain, None)
+                unique_ips = list(set([addr[4][0] for addr in ip_addresses]))
+                enrichment["dns_lookups"][domain] = {
+                    "resolved_ips": unique_ips,
+                    "record_count": len(unique_ips),
+                    "success": True
+                }
+            except socket.gaierror as e:
+                enrichment["enrichment_errors"].append({
+                    "domain": domain,
+                    "type": "dns",
+                    "error": f"DNS lookup failed: {str(e)}"
+                })
+                enrichment["dns_lookups"][domain] = {
+                    "success": False,
+                    "error": str(e)
+                }
+            except Exception as e:
+                enrichment["enrichment_errors"].append({
+                    "domain": domain,
+                    "type": "dns",
+                    "error": f"Unexpected error: {str(e)}"
+                })
+    
+    # RDAP Enrichment
+    if enable_rdap and domains:
+        for domain in domains:
+            try:
+                # RDAP is a protocol for querying domain registration data
+                # This is a placeholder - full implementation would use RDAP client library
+                # For now, we log that it's not implemented
+                enrichment["enrichment_errors"].append({
+                    "domain": domain,
+                    "type": "rdap",
+                    "error": "RDAP enrichment not implemented (placeholder)"
+                })
+            except Exception as e:
+                enrichment["enrichment_errors"].append({
+                    "domain": domain,
+                    "type": "rdap",
+                    "error": f"RDAP query failed: {str(e)}"
+                })
+    
+    # IP WHOIS Enrichment
+    if enable_ipwhois and ip_literals:
+        for ip in ip_literals:
+            try:
+                # IP WHOIS lookups would query RIR databases
+                # This is a placeholder - full implementation would use ipwhois library
+                enrichment["enrichment_errors"].append({
+                    "ip": ip,
+                    "type": "ipwhois",
+                    "error": "IP WHOIS enrichment not implemented (placeholder)"
+                })
+            except Exception as e:
+                enrichment["enrichment_errors"].append({
+                    "ip": ip,
+                    "type": "ipwhois",
+                    "error": f"WHOIS query failed: {str(e)}"
+                })
+    
+    return enrichment
+
 
 def resolve_permission_details(
     resource_sp: Dict[str, Any],
@@ -1503,6 +1646,9 @@ class CollectOptions:
     include_all_service_principals: bool = False
     include_first_party: bool = False
     include_single_tenant: bool = False
+    enable_dns_enrichment: bool = False
+    enable_rdap_enrichment: bool = False
+    enable_ipwhois_enrichment: bool = False
 
 
 class OidSeeCollector:
@@ -1941,6 +2087,31 @@ class OidSeeCollector:
             reply_urls = reply_urls_value if isinstance(reply_urls_value, list) else []
             reply_url_analysis = analyze_reply_urls(reply_urls)
             
+            # Perform optional enrichment on reply URLs
+            reply_url_enrichment = None
+            if any([self.opts.enable_dns_enrichment, self.opts.enable_rdap_enrichment, self.opts.enable_ipwhois_enrichment]):
+                try:
+                    reply_url_enrichment = enrich_reply_urls(
+                        reply_urls,
+                        enable_dns=self.opts.enable_dns_enrichment,
+                        enable_rdap=self.opts.enable_rdap_enrichment,
+                        enable_ipwhois=self.opts.enable_ipwhois_enrichment
+                    )
+                    # Log any enrichment errors
+                    if reply_url_enrichment.get("enrichment_errors"):
+                        for err in reply_url_enrichment["enrichment_errors"]:
+                            print(f"⚠️  Enrichment warning: {err}", file=sys.stderr)
+                except Exception as e:
+                    print(f"⚠️  Reply URL enrichment failed for {sp_display}: {e}", file=sys.stderr)
+                    reply_url_enrichment = {
+                        "enrichment_errors": [{"error": f"Enrichment failed: {str(e)}"}],
+                        "enrichment_enabled": {
+                            "dns": self.opts.enable_dns_enrichment,
+                            "rdap": self.opts.enable_rdap_enrichment,
+                            "ipwhois": self.opts.enable_ipwhois_enrichment
+                        }
+                    }
+            
             # Analyze public client indicators from Application object
             public_client_indicators = analyze_public_client_indicators(app_obj)
 
@@ -2007,6 +2178,13 @@ class OidSeeCollector:
                 # Enhanced fields
                 "credentialInsights": credential_insights,
                 "replyUrlAnalysis": reply_url_analysis,
+                "replyUrlEnrichment": reply_url_enrichment,
+                "replyUrlProvenance": {
+                    "source": "microsoft_graph",
+                    "collection_timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
+                    "enrichment_enabled": any([self.opts.enable_dns_enrichment, self.opts.enable_rdap_enrichment, self.opts.enable_ipwhois_enrichment]),
+                    "enrichment_success": reply_url_enrichment is not None and not reply_url_enrichment.get("enrichment_errors")
+                } if any([self.opts.enable_dns_enrichment, self.opts.enable_rdap_enrichment, self.opts.enable_ipwhois_enrichment]) else None,
                 "publicClientIndicators": public_client_indicators,
                 "trustSignals": trust_signals,
                 # Non-Graph data placeholders (WHOIS/DNS - not populated by Graph-only scanner)
@@ -2332,6 +2510,9 @@ def main() -> int:
         include_all_service_principals=bool(args.include_all_sps),
         include_first_party=bool(args.include_first_party),
         include_single_tenant=bool(args.include_single_tenant),
+        enable_dns_enrichment=bool(args.enable_dns_enrichment),
+        enable_rdap_enrichment=bool(args.enable_rdap_enrichment),
+        enable_ipwhois_enrichment=bool(args.enable_ipwhois_enrichment),
     )
 
     try:
