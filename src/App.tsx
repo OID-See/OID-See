@@ -426,6 +426,26 @@ export default function App() {
   }
 
   function handleFocus(sel: Selection) {
+    // Find the full data object with oidsee properties
+    let fullSelection: Selection = sel
+    if (data) {
+      if (sel.kind === 'node') {
+        const node = data.nodes.find(n => n.id === sel.id)
+        if (node) {
+          fullSelection = { kind: 'node', id: sel.id, oidsee: node.__oidsee ?? node }
+        }
+      } else if (sel.kind === 'edge') {
+        const edge = data.edges.find(e => e.id === sel.id)
+        if (edge) {
+          fullSelection = { kind: 'edge', id: sel.id, oidsee: edge.__oidsee ?? edge }
+        }
+      }
+    }
+    
+    // Update selection to load details
+    setSelection(fullSelection)
+    
+    // Focus the item in the graph
     if (sel.kind === 'node') {
       graphRef.current?.focusNode(sel.id)
     } else if (sel.kind === 'edge') {
