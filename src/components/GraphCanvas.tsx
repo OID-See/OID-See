@@ -252,6 +252,7 @@ export const GraphCanvas = forwardRef<
           multiselect: true,
           navigationButtons: true,
           keyboard: true,
+          selectOnClick: false, // Disable automatic selection to prevent label clicks from selecting elements
         },
         nodes: {
           shape: 'dot',
@@ -344,18 +345,36 @@ export const GraphCanvas = forwardRef<
       }
     }, STABILIZATION_FALLBACK_TIMEOUT)
 
-    network.on('selectNode', (p: any) => {
-      const id = p.nodes?.[0]
-      if (!id) return
-      const n = nodeDs.get(id) as any
-      onSelection?.({ kind: 'node', id, oidsee: n?.__oidsee ?? n })
+    // Handle clicks manually to prevent label clicks from selecting elements
+    // Only select elements when clicking on their body (not labels)
+    network.on('click', (params: any) => {
+      const pointer = params.pointer.DOM
+      
+      // Check if a node body was clicked (not just the label area)
+      const nodeId = network.getNodeAt(pointer)
+      if (nodeId !== undefined) {
+        // Clicked on a node body - select it
+        network.selectNodes([nodeId])
+        const n = nodeDs.get(nodeId) as any
+        onSelection?.({ kind: 'node', id: String(nodeId), oidsee: n?.__oidsee ?? n })
+        return
+      }
+      
+      // Check if an edge body was clicked (not just the label area)
+      const edgeId = network.getEdgeAt(pointer)
+      if (edgeId !== undefined) {
+        // Clicked on an edge body - select it
+        network.selectEdges([edgeId])
+        const e = edgeDs.get(edgeId) as any
+        onSelection?.({ kind: 'edge', id: String(edgeId), oidsee: e?.__oidsee ?? e })
+        return
+      }
+      
+      // Clicked on empty space or label - deselect
+      network.unselectAll()
+      onSelection?.(null)
     })
-    network.on('selectEdge', (p: any) => {
-      const id = p.edges?.[0]
-      if (!id) return
-      const e = edgeDs.get(id) as any
-      onSelection?.({ kind: 'edge', id, oidsee: e?.__oidsee ?? e })
-    })
+
     network.on('deselectNode', () => onSelection?.(null))
     network.on('deselectEdge', () => onSelection?.(null))
 
