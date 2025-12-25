@@ -348,11 +348,14 @@ export const GraphCanvas = forwardRef<
     // Handle clicks manually to prevent label clicks from selecting elements
     // Only select elements when clicking on their body (not labels)
     network.on('click', (params: any) => {
-      const pointer = params.pointer.DOM
+      // params.nodes and params.edges are only populated when clicking on the actual
+      // node body or edge line, NOT when clicking on labels
+      const clickedNodes = params.nodes || []
+      const clickedEdges = params.edges || []
       
       // Check if a node body was clicked (not just the label area)
-      const nodeId = network.getNodeAt(pointer)
-      if (nodeId !== undefined) {
+      if (clickedNodes.length > 0) {
+        const nodeId = clickedNodes[0]
         // Clicked on a node body - select it
         network.selectNodes([nodeId])
         const n = nodeDs.get(nodeId) as any
@@ -360,10 +363,10 @@ export const GraphCanvas = forwardRef<
         return
       }
       
-      // Check if an edge body was clicked (not just the label area)
-      const edgeId = network.getEdgeAt(pointer)
-      if (edgeId !== undefined) {
-        // Clicked on an edge body - select it
+      // Check if an edge line was clicked (not just the label area)
+      if (clickedEdges.length > 0) {
+        const edgeId = clickedEdges[0]
+        // Clicked on an edge line - select it
         network.selectEdges([edgeId])
         const e = edgeDs.get(edgeId) as any
         onSelection?.({ kind: 'edge', id: String(edgeId), oidsee: e?.__oidsee ?? e })
