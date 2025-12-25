@@ -653,7 +653,7 @@ def analyze_reply_urls(reply_urls: List[str]) -> Dict[str, Any]:
     
     Returns:
     - Normalized URLs with scheme + host + eTLD+1
-    - Flags for non-HTTPS schemes, IP literals, localhost, punycode
+    - Flags for non-HTTPS schemes, IP literals, localhost, punycode, wildcards
     - Domain cluster summary
     """
     analysis = {
@@ -663,12 +663,17 @@ def analyze_reply_urls(reply_urls: List[str]) -> Dict[str, Any]:
         "ip_literal_urls": [],
         "localhost_urls": [],
         "punycode_urls": [],
+        "wildcard_urls": [],
         "schemes": set(),
     }
     
     for url in reply_urls:
         if not url:
             continue
+            
+        # Check for wildcard URLs (e.g., https://*.contoso.com/callback)
+        if '*' in url:
+            analysis["wildcard_urls"].append(url)
             
         # Parse URL components
         try:
@@ -703,10 +708,11 @@ def analyze_reply_urls(reply_urls: List[str]) -> Dict[str, Any]:
                 elif 'xn--' in hostname.lower():
                     analysis["punycode_urls"].append(url)
             
-            # Extract eTLD+1 for domain clustering
-            domain = extract_etldplus1(url)
-            if domain:
-                analysis["normalized_domains"].add(domain)
+            # Extract eTLD+1 for domain clustering (skip wildcards for domain extraction)
+            if '*' not in url:
+                domain = extract_etldplus1(url)
+                if domain:
+                    analysis["normalized_domains"].add(domain)
         except Exception:
             # Skip malformed URLs
             continue
@@ -716,6 +722,410 @@ def analyze_reply_urls(reply_urls: List[str]) -> Dict[str, Any]:
     analysis["schemes"] = sorted(analysis["schemes"])
     
     return analysis
+
+
+def analyze_public_client_indicators(app_obj: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Analyze application for public client flow indicators.
+    
+    Public clients (native/mobile apps) and implicit flow grants pose additional risk
+    because they cannot securely store secrets and rely on redirect URIs for security.
+    
+    Returns:
+    - is_public_client: bool - Whether the app allows public client flows
+    - is_implicit_flow: bool - Whether implicit flow is enabled
+    - is_spa: bool - Whether the app is configured as a SPA
+    - fallback_to_default_client: bool - Whether the app falls back to default client settings
+    - risk_indicators: list - List of risk indicator strings
+    """
+    if not app_obj:
+        return {
+            "is_public_client": None,
+            "is_implicit_flow": None,
+            "is_spa": None,
+            "fallback_to_default_client": None,
+            "risk_indicators": [],
+        }
+    
+    # Extract relevant properties from the Application object
+    public_client = app_obj.get("publicClient") or {}
+    web = app_obj.get("web") or {}
+    spa = app_obj.get("spa") or {}
+    
+    # Check if public client flows are allowed
+    is_public_client = public_client.get("redirectUris") is not None and len(public_client.get("redirectUris", [])) > 0
+    
+    # Check if implicit flow is enabled (web.implicitGrantSettings)
+    implicit_grant_settings = web.get("implicitGrantSettings") or {}
+    enable_access_token_issuance = implicit_grant_settings.get("enableAccessTokenIssuance", False)
+    enable_id_token_issuance = implicit_grant_settings.get("enableIdTokenIssuance", False)
+    is_implicit_flow = enable_access_token_issuance or enable_id_token_issuance
+    
+    # Check if SPA redirect URIs are configured
+    is_spa = spa.get("redirectUris") is not None and len(spa.get("redirectUris", [])) > 0
+    
+    # Check if fallback to default client is allowed
+    fallback_to_default_client = public_client.get("redirectUris") is None and web.get("redirectUris") is None
+    
+    # Build risk indicators list
+    risk_indicators = []
+    if is_public_client:
+        risk_indicators.append("PUBLIC_CLIENT_FLOWS_ENABLED")
+    if is_implicit_flow:
+        risk_indicators.append("IMPLICIT_FLOW_ENABLED")
+    if enable_access_token_issuance:
+        risk_indicators.append("IMPLICIT_ACCESS_TOKEN_ISSUANCE")
+    if enable_id_token_issuance:
+        risk_indicators.append("IMPLICIT_ID_TOKEN_ISSUANCE")
+    if is_spa:
+        risk_indicators.append("SPA_REDIRECT_URIS_CONFIGURED")
+    
+    return {
+        "is_public_client": is_public_client,
+        "is_implicit_flow": is_implicit_flow,
+        "is_spa": is_spa,
+        "fallback_to_default_client": fallback_to_default_client,
+        "risk_indicators": risk_indicators,
+    }
+
+
+def enrich_reply_urls(
+    reply_urls: List[str],
+    enable_dns: bool = False,
+    enable_rdap: bool = False,
+    enable_ipwhois: bool = False
+) -> Dict[str, Any]:
+    """
+    Perform optional enrichment on reply URLs using DNS, RDAP, and IP WHOIS lookups.
+    
+    This function attempts to enrich reply URL data with additional context:
+    - DNS: Resolve eTLD+1 domains to IP addresses using dnspython (platform-agnostic)
+    - RDAP: Query eTLD+1 domain registration information using ipwhois library
+    - IP WHOIS: Lookup ownership information for IP literals using ipwhois library
+    
+    All enrichment operations are non-blocking - failures are logged but don't stop processing.
+    Uses PyPI libraries (dnspython, ipwhois) for platform-agnostic operations.
+    Lookups are performed concurrently for better performance.
+    
+    Args:
+        reply_urls: List of reply URLs to enrich
+        enable_dns: Enable DNS lookups
+        enable_rdap: Enable RDAP lookups
+        enable_ipwhois: Enable IP WHOIS lookups
+    
+    Returns:
+        Dictionary with enrichment results and metadata
+    """
+    from urllib.parse import urlparse
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    enrichment = {
+        "dns_lookups": {},
+        "rdap_queries": {},
+        "ipwhois_queries": {},
+        "enrichment_errors": [],
+        "enrichment_timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "enrichment_enabled": {
+            "dns": enable_dns,
+            "rdap": enable_rdap,
+            "ipwhois": enable_ipwhois
+        }
+    }
+    
+    if not any([enable_dns, enable_rdap, enable_ipwhois]):
+        return enrichment
+    
+    # Extract unique eTLD+1 domains and IPs from reply URLs
+    domains = set()
+    ip_literals = set()
+    
+    for url in reply_urls:
+        if not url or '*' in url:  # Skip empty or wildcard URLs
+            continue
+        
+        try:
+            parsed = urlparse(url)
+            hostname = parsed.hostname or parsed.netloc
+            
+            if not hostname:
+                continue
+            
+            # Check if it's an IP literal
+            import re
+            if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', hostname):
+                ip_literals.add(hostname)
+            elif hostname.startswith('[') and hostname.endswith(']'):
+                # IPv6
+                ip_literals.add(hostname.strip('[]'))
+            elif hostname.lower() not in ('localhost', '127.0.0.1', '::1'):
+                # Extract eTLD+1 (e.g., "sub.example.com" -> "example.com")
+                etld_plus_one = extract_etldplus1(url)
+                if etld_plus_one:
+                    domains.add(etld_plus_one)
+        except Exception as e:
+            enrichment["enrichment_errors"].append({
+                "url": url,
+                "error": "URL parsing failed"
+            })
+    
+    # DNS Enrichment (concurrent)
+    if enable_dns and domains:
+        try:
+            import dns.resolver
+        except ImportError:
+            enrichment["enrichment_errors"].append({
+                "type": "dns",
+                "error": "DNS enrichment unavailable"
+            })
+            enable_dns = False
+        
+        if enable_dns:
+            def dns_lookup(domain):
+                """Perform DNS lookup for a single domain."""
+                try:
+                    resolver = dns.resolver.Resolver()
+                    resolver.timeout = 5  # Shorter timeout for better performance
+                    resolver.lifetime = 5
+                    
+                    # Query A records (IPv4)
+                    ip_addresses = []
+                    try:
+                        answers = resolver.resolve(domain, 'A')
+                        ip_addresses.extend([str(rdata) for rdata in answers])
+                    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
+                        pass  # No A records, try AAAA
+                    
+                    # Query AAAA records (IPv6)
+                    try:
+                        answers = resolver.resolve(domain, 'AAAA')
+                        ip_addresses.extend([str(rdata) for rdata in answers])
+                    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
+                        pass  # No AAAA records
+                    
+                    if ip_addresses:
+                        return domain, {
+                            "resolved_ips": ip_addresses,
+                            "record_count": len(ip_addresses),
+                            "success": True
+                        }
+                    else:
+                        return domain, {
+                            "success": False,
+                            "error": "Domain not found"
+                        }
+                except dns.resolver.Timeout:
+                    return domain, {
+                        "success": False,
+                        "error": "Request timed out"
+                    }
+                except dns.resolver.NXDOMAIN:
+                    return domain, {
+                        "success": False,
+                        "error": "Domain not found"
+                    }
+                except Exception as e:
+                    return domain, {
+                        "success": False,
+                        "error": "Lookup failed"
+                    }
+            
+            # Perform DNS lookups concurrently
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                future_to_domain = {executor.submit(dns_lookup, domain): domain for domain in domains}
+                for future in as_completed(future_to_domain):
+                    domain = future_to_domain[future]
+                    try:
+                        result_domain, result = future.result()
+                        enrichment["dns_lookups"][result_domain] = result
+                        if not result.get("success"):
+                            enrichment["enrichment_errors"].append({
+                                "domain": result_domain,
+                                "type": "dns",
+                                "error": result.get("error", "Unknown error")
+                            })
+                    except Exception as e:
+                        enrichment["enrichment_errors"].append({
+                            "domain": domain,
+                            "type": "dns",
+                            "error": "Lookup failed"
+                        })
+                        enrichment["dns_lookups"][domain] = {
+                            "success": False,
+                            "error": "Lookup failed"
+                        }
+    
+    # RDAP Enrichment (concurrent)
+    if enable_rdap and domains:
+        try:
+            from ipwhois import IPWhois
+            from ipwhois.exceptions import IPDefinedError, ASNRegistryError
+        except ImportError:
+            enrichment["enrichment_errors"].append({
+                "type": "rdap",
+                "error": "RDAP enrichment unavailable"
+            })
+            enable_rdap = False
+        
+        if enable_rdap:
+            def rdap_lookup(domain):
+                """Perform RDAP lookup for a single domain."""
+                try:
+                    # First resolve domain to IP to query RDAP
+                    try:
+                        import dns.resolver
+                        resolver = dns.resolver.Resolver()
+                        resolver.timeout = 3
+                        resolver.lifetime = 3
+                        answers = resolver.resolve(domain, 'A')
+                        ip = str(answers[0])
+                    except Exception as dns_err:
+                        return domain, {
+                            "success": False,
+                            "error": "Domain lookup failed"
+                        }
+                    
+                    # Query RDAP via ipwhois
+                    obj = IPWhois(ip)
+                    results = obj.lookup_rdap(depth=1, retry_count=0)  # No retries for speed
+                    
+                    # Extract key information
+                    return domain, {
+                        "success": True,
+                        "domain": domain,
+                        "ip_queried": ip,
+                        "asn": results.get('asn'),
+                        "asn_description": results.get('asn_description'),
+                        "asn_country_code": results.get('asn_country_code'),
+                        "network": {
+                            "cidr": results.get('network', {}).get('cidr'),
+                            "name": results.get('network', {}).get('name'),
+                            "handle": results.get('network', {}).get('handle'),
+                            "country": results.get('network', {}).get('country'),
+                        },
+                        "raw_data": results  # Include full response
+                    }
+                except IPDefinedError as e:
+                    return domain, {
+                        "success": False,
+                        "error": "Private or reserved IP"
+                    }
+                except ASNRegistryError as e:
+                    return domain, {
+                        "success": False,
+                        "error": "Registry lookup failed"
+                    }
+                except Exception as e:
+                    return domain, {
+                        "success": False,
+                        "error": "RDAP query failed"
+                    }
+            
+            # Perform RDAP lookups concurrently
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                future_to_domain = {executor.submit(rdap_lookup, domain): domain for domain in domains}
+                for future in as_completed(future_to_domain):
+                    domain = future_to_domain[future]
+                    try:
+                        result_domain, result = future.result()
+                        enrichment["rdap_queries"][result_domain] = result
+                        if not result.get("success"):
+                            enrichment["enrichment_errors"].append({
+                                "domain": result_domain,
+                                "type": "rdap",
+                                "error": result.get("error", "Unknown error")
+                            })
+                    except Exception as e:
+                        enrichment["enrichment_errors"].append({
+                            "domain": domain,
+                            "type": "rdap",
+                            "error": "RDAP query failed"
+                        })
+                        enrichment["rdap_queries"][domain] = {
+                            "success": False,
+                            "error": "RDAP query failed"
+                        }
+    
+    # IP WHOIS Enrichment (concurrent)
+    if enable_ipwhois and ip_literals:
+        try:
+            from ipwhois import IPWhois
+            from ipwhois.exceptions import IPDefinedError, ASNRegistryError
+        except ImportError:
+            enrichment["enrichment_errors"].append({
+                "type": "ipwhois",
+                "error": "IP WHOIS enrichment unavailable"
+            })
+            enable_ipwhois = False
+        
+        if enable_ipwhois:
+            def ipwhois_lookup(ip):
+                """Perform IP WHOIS lookup for a single IP."""
+                try:
+                    # Query IP WHOIS via ipwhois library
+                    obj = IPWhois(ip)
+                    results = obj.lookup_rdap(depth=1, retry_count=0)  # No retries for speed
+                    
+                    # Extract key information
+                    return ip, {
+                        "success": True,
+                        "ip": ip,
+                        "asn": results.get('asn'),
+                        "asn_description": results.get('asn_description'),
+                        "asn_country_code": results.get('asn_country_code'),
+                        "asn_date": results.get('asn_date'),
+                        "asn_registry": results.get('asn_registry'),
+                        "network": {
+                            "cidr": results.get('network', {}).get('cidr'),
+                            "name": results.get('network', {}).get('name'),
+                            "handle": results.get('network', {}).get('handle'),
+                            "country": results.get('network', {}).get('country'),
+                            "start_address": results.get('network', {}).get('start_address'),
+                            "end_address": results.get('network', {}).get('end_address'),
+                        },
+                        "raw_data": results  # Include full response
+                    }
+                except IPDefinedError as e:
+                    return ip, {
+                        "success": False,
+                        "error": "Private or reserved IP"
+                    }
+                except ASNRegistryError as e:
+                    return ip, {
+                        "success": False,
+                        "error": "Registry lookup failed"
+                    }
+                except Exception as e:
+                    return ip, {
+                        "success": False,
+                        "error": "WHOIS query failed"
+                    }
+            
+            # Perform IP WHOIS lookups concurrently
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                future_to_ip = {executor.submit(ipwhois_lookup, ip): ip for ip in ip_literals}
+                for future in as_completed(future_to_ip):
+                    ip = future_to_ip[future]
+                    try:
+                        result_ip, result = future.result()
+                        enrichment["ipwhois_queries"][result_ip] = result
+                        if not result.get("success"):
+                            enrichment["enrichment_errors"].append({
+                                "ip": result_ip,
+                                "type": "ipwhois",
+                                "error": result.get("error", "Unknown error")
+                            })
+                    except Exception as e:
+                        enrichment["enrichment_errors"].append({
+                            "ip": ip,
+                            "type": "ipwhois",
+                            "error": "WHOIS query failed"
+                        })
+                        enrichment["ipwhois_queries"][ip] = {
+                            "success": False,
+                            "error": "WHOIS query failed"
+                        }
+    
+    return enrichment
 
 
 def resolve_permission_details(
@@ -815,6 +1225,78 @@ def extract_etldplus1(url: Optional[str]) -> Optional[str]:
         return None
     except Exception:
         return None
+
+
+# Well-known Microsoft platform appIds
+# These are Microsoft's own platform/infrastructure service principals
+WELL_KNOWN_MICROSOFT_APPIDS = {
+    "00000001-0000-0000-c000-000000000000": "Azure ESTS Service",
+    "00000003-0000-0000-c000-000000000000": "Microsoft Graph",
+    "00000006-0000-0ff1-ce00-000000000000": "Office 365 Portal / SharePoint",
+}
+
+
+def analyze_platform_signals(app_id: Optional[str]) -> Dict[str, Any]:
+    """
+    Analyze appId to determine if it's a well-known Microsoft platform service.
+    
+    Returns platform signals including:
+    - isWellKnownMicrosoftAppId: boolean
+    - wellKnownMicrosoftAppName: string | null
+    - isMostlyZeroMicrosoftStyleAppId: boolean (heuristic for unrecognized MS appIds)
+    - platformAppIdCategory: "well_known" | "mostly_zero_heuristic" | "normal"
+    
+    Args:
+        app_id: The application ID (GUID) to analyze
+    
+    Returns:
+        Dictionary with platform signal metadata
+    """
+    if not app_id:
+        return {
+            "isWellKnownMicrosoftAppId": False,
+            "wellKnownMicrosoftAppName": None,
+            "isMostlyZeroMicrosoftStyleAppId": False,
+            "platformAppIdCategory": "normal"
+        }
+    
+    app_id_lower = app_id.lower()
+    
+    # Check if it's in our well-known list
+    if app_id_lower in WELL_KNOWN_MICROSOFT_APPIDS:
+        return {
+            "isWellKnownMicrosoftAppId": True,
+            "wellKnownMicrosoftAppName": WELL_KNOWN_MICROSOFT_APPIDS[app_id_lower],
+            "isMostlyZeroMicrosoftStyleAppId": True,
+            "platformAppIdCategory": "well_known"
+        }
+    
+    # Heuristic: Check for "mostly-zero" Microsoft-style appIds
+    # Pattern: starts with many zeros and contains c000-000000000000 or 0ff1-ce00 style segments
+    is_mostly_zero = False
+    if app_id_lower.startswith("00000"):
+        # Check for Microsoft-style patterns
+        if "-c000-" in app_id_lower or "-0ff1-ce00-" in app_id_lower:
+            is_mostly_zero = True
+        # Also check if it ends with many zeros (another common pattern)
+        elif app_id_lower.endswith("-000000000000"):
+            is_mostly_zero = True
+    
+    if is_mostly_zero:
+        return {
+            "isWellKnownMicrosoftAppId": False,
+            "wellKnownMicrosoftAppName": None,
+            "isMostlyZeroMicrosoftStyleAppId": True,
+            "platformAppIdCategory": "mostly_zero_heuristic"
+        }
+    
+    # Normal appId
+    return {
+        "isWellKnownMicrosoftAppId": False,
+        "wellKnownMicrosoftAppName": None,
+        "isMostlyZeroMicrosoftStyleAppId": False,
+        "platformAppIdCategory": "normal"
+    }
 
 
 def check_mixed_replyurl_domains(
@@ -963,6 +1445,8 @@ def compute_risk_for_sp(
     dir_cache: DirectoryCache,
     credential_insights: Optional[Dict[str, Any]] = None,
     reply_url_analysis: Optional[Dict[str, Any]] = None,
+    public_client_indicators: Optional[Dict[str, Any]] = None,
+    platform_signals: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Compute risk score for service principal based on loaded configuration."""
     config = SCORING_CONFIG.get("compute_risk_for_sp", {})
@@ -984,20 +1468,23 @@ def compute_risk_for_sp(
             "weight": weight,
         })
 
-    # HAS_APP_ROLE
+    # HAS_APP_ROLE (gate for well-known Microsoft platform apps)
     if app_role_max_weight > 0:
-        app_role_config = contributors.get("HAS_APP_ROLE", {})
-        min_weight_raw = app_role_config.get("weight", 35)
-        # Handle string weight values gracefully (scoring_logic.json may contain descriptive strings)
-        min_weight = min_weight_raw if isinstance(min_weight_raw, (int, float)) else 35
-        weight = max(min_weight, app_role_max_weight)
-        description = app_role_config.get("description", "Application permissions (app roles) granted")
-        score += weight
-        reasons.append({
-            "code": "HAS_APP_ROLE",
-            "message": description,
-            "weight": weight,
-        })
+        # Skip or reduce weight for well-known Microsoft platform apps
+        is_well_known_ms = platform_signals and platform_signals.get("isWellKnownMicrosoftAppId", False)
+        if not is_well_known_ms:
+            app_role_config = contributors.get("HAS_APP_ROLE", {})
+            min_weight_raw = app_role_config.get("weight", 35)
+            # Handle string weight values gracefully (scoring_logic.json may contain descriptive strings)
+            min_weight = min_weight_raw if isinstance(min_weight_raw, (int, float)) else 35
+            weight = max(min_weight, app_role_max_weight)
+            description = app_role_config.get("description", "Application permissions (app roles) granted")
+            score += weight
+            reasons.append({
+                "code": "HAS_APP_ROLE",
+                "message": description,
+                "weight": weight,
+            })
 
     # HAS_PRIVILEGED_SCOPES
     if has_privileged_scopes:
@@ -1110,11 +1597,15 @@ def compute_risk_for_sp(
             "weight": weight,
         })
 
-    # DECEPTION (name mismatch in addition to unverified)
+    # DECEPTION (name mismatch in addition to unverified) - gate for well-known Microsoft platform apps
     publisher = sp.get("publisherName") or ""
     display_name = sp_display or sp.get("appDisplayName") or ""
     deception = (not verified) and publisher and display_name and publisher.lower() != display_name.lower()
-    if deception:
+    
+    # Skip for well-known Microsoft platform apps
+    is_well_known_ms = platform_signals and platform_signals.get("isWellKnownMicrosoftAppId", False)
+    
+    if deception and not is_well_known_ms:
         deception_config = contributors.get("DECEPTION", {})
         weight = deception_config.get("weight", 20)
         description = deception_config.get("description", "Unverified publisher with name mismatch")
@@ -1138,7 +1629,7 @@ def compute_risk_for_sp(
             "weight": weight,
         })
 
-    # MIXED_REPLYURL_DOMAINS (heuristic, non-blocking)
+    # MIXED_REPLYURL_DOMAINS (heuristic, non-blocking) - gate for well-known Microsoft platform apps
     reply_urls_value = sp.get("replyUrls")
     reply_urls = reply_urls_value if isinstance(reply_urls_value, list) else []
     homepage = sp.get("homepage")
@@ -1147,7 +1638,10 @@ def compute_risk_for_sp(
     info = info_value if isinstance(info_value, dict) else {}
     mixed_domains_result = check_mixed_replyurl_domains(reply_urls, homepage, info)
     
-    if mixed_domains_result.get("has_mixed_domains") and mixed_domains_result.get("signal_type"):
+    # Skip for well-known Microsoft platform apps
+    is_well_known_ms = platform_signals and platform_signals.get("isWellKnownMicrosoftAppId", False)
+    
+    if mixed_domains_result.get("has_mixed_domains") and mixed_domains_result.get("signal_type") and not is_well_known_ms:
         mixed_domains_config = contributors.get("MIXED_REPLYURL_DOMAINS", {})
         signal_type = mixed_domains_result["signal_type"]
         
@@ -1368,6 +1862,47 @@ def compute_risk_for_sp(
                 "weight": weight,
                 "subtype": "punycode",
             })
+        
+        # Wildcard URLs
+        if reply_url_analysis.get("wildcard_urls"):
+            weight = anomaly_config.get("wildcard_weight", 15)
+            description = anomaly_config.get("wildcard_description", "Wildcard domains in reply URLs")
+            count = len(reply_url_analysis["wildcard_urls"])
+            score += weight
+            reasons.append({
+                "code": "REPLY_URL_ANOMALIES",
+                "message": f"{description} ({count} URLs)",
+                "weight": weight,
+                "subtype": "wildcard",
+            })
+
+    # PUBLIC_CLIENT_FLOW_RISK (public client or implicit flow indicators)
+    if public_client_indicators and public_client_indicators.get("risk_indicators"):
+        public_client_config = contributors.get("PUBLIC_CLIENT_FLOW_RISK", {})
+        risk_indicators = public_client_indicators.get("risk_indicators", [])
+        
+        # Assign risk based on specific indicators
+        if "PUBLIC_CLIENT_FLOWS_ENABLED" in risk_indicators:
+            weight = public_client_config.get("public_client_weight", 12)
+            description = public_client_config.get("public_client_description", "Public client flows enabled")
+            score += weight
+            reasons.append({
+                "code": "PUBLIC_CLIENT_FLOW_RISK",
+                "message": description,
+                "weight": weight,
+                "subtype": "public_client",
+            })
+        
+        if "IMPLICIT_FLOW_ENABLED" in risk_indicators:
+            weight = public_client_config.get("implicit_flow_weight", 15)
+            description = public_client_config.get("implicit_flow_description", "Implicit flow enabled")
+            score += weight
+            reasons.append({
+                "code": "PUBLIC_CLIENT_FLOW_RISK",
+                "message": description,
+                "weight": weight,
+                "subtype": "implicit_flow",
+            })
 
     # Apply min/max clamping
     clamping = final_score_config.get("min_max_clamping", {})
@@ -1389,6 +1924,9 @@ class CollectOptions:
     include_all_service_principals: bool = False
     include_first_party: bool = False
     include_single_tenant: bool = False
+    enable_dns_enrichment: bool = True  # Default to enabled
+    enable_rdap_enrichment: bool = True  # Default to enabled
+    enable_ipwhois_enrichment: bool = True  # Default to enabled
 
 
 class OidSeeCollector:
@@ -1705,6 +2243,42 @@ class OidSeeCollector:
         self.fetch_applications_for_sps(target_sps)
         print(f"  application cache populated for {len(self.app_cache_by_appid)} appIds in {time.time() - stage_start:.2f}s", file=sys.stderr)
 
+        # Pre-enrich reply URLs if enrichment is enabled (once for all SPs)
+        enrichment_cache = {}
+        if any([self.opts.enable_dns_enrichment, self.opts.enable_rdap_enrichment, self.opts.enable_ipwhois_enrichment]):
+            print("→ Pre-enriching reply URLs (deduplicating across all SPs)...", file=sys.stderr)
+            stage_start_enrich = time.time()
+            
+            # Collect all unique reply URLs from all target SPs
+            all_reply_urls = []
+            for sp in target_sps:
+                reply_urls_value = sp.get("replyUrls")
+                if isinstance(reply_urls_value, list):
+                    all_reply_urls.extend(reply_urls_value)
+            
+            # Perform enrichment once on the full deduplicated set
+            if all_reply_urls:
+                try:
+                    global_enrichment = enrich_reply_urls(
+                        all_reply_urls,
+                        enable_dns=self.opts.enable_dns_enrichment,
+                        enable_rdap=self.opts.enable_rdap_enrichment,
+                        enable_ipwhois=self.opts.enable_ipwhois_enrichment
+                    )
+                    # Cache the results for reuse
+                    enrichment_cache = {
+                        "dns_lookups": global_enrichment.get("dns_lookups", {}),
+                        "rdap_queries": global_enrichment.get("rdap_queries", {}),
+                        "ipwhois_queries": global_enrichment.get("ipwhois_queries", {}),
+                        "enrichment_enabled": global_enrichment.get("enrichment_enabled", {})
+                    }
+                    print(f"  ✓ Enrichment completed: {len(enrichment_cache.get('dns_lookups', {}))} DNS, "
+                          f"{len(enrichment_cache.get('rdap_queries', {}))} RDAP, "
+                          f"{len(enrichment_cache.get('ipwhois_queries', {}))} WHOIS lookups in {time.time() - stage_start_enrich:.2f}s", 
+                          file=sys.stderr)
+                except Exception as e:
+                    print(f"⚠️  Global reply URL enrichment failed: {e}", file=sys.stderr)
+
         # First pass: gather grants, assignments, owners, role assignments and collect referenced IDs
         sp_delegated_scopes: Dict[str, Dict[str, Set[str]]] = {}  # spId -> resourceId -> scopes set
 
@@ -1826,6 +2400,42 @@ class OidSeeCollector:
             reply_urls_value = sp.get("replyUrls")
             reply_urls = reply_urls_value if isinstance(reply_urls_value, list) else []
             reply_url_analysis = analyze_reply_urls(reply_urls)
+            
+            # Use cached enrichment results if available
+            reply_url_enrichment = None
+            if enrichment_cache:
+                # Filter cached results for this SP's reply URLs
+                reply_url_enrichment = {
+                    "dns_lookups": {},
+                    "rdap_queries": {},
+                    "ipwhois_queries": {},
+                    "enrichment_enabled": enrichment_cache.get("enrichment_enabled", {}),
+                    "enrichment_errors": []
+                }
+                
+                # Extract eTLD+1 domains from this SP's reply URLs and fetch from cache
+                for url in reply_urls:
+                    etld = extract_etldplus1(url)
+                    if etld and etld in enrichment_cache.get("dns_lookups", {}):
+                        reply_url_enrichment["dns_lookups"][etld] = enrichment_cache["dns_lookups"][etld]
+                    if etld and etld in enrichment_cache.get("rdap_queries", {}):
+                        reply_url_enrichment["rdap_queries"][etld] = enrichment_cache["rdap_queries"][etld]
+                    
+                    # Check for IP literals in WHOIS cache
+                    try:
+                        from urllib.parse import urlparse
+                        parsed = urlparse(url)
+                        hostname = parsed.hostname
+                        if hostname and hostname in enrichment_cache.get("ipwhois_queries", {}):
+                            reply_url_enrichment["ipwhois_queries"][hostname] = enrichment_cache["ipwhois_queries"][hostname]
+                    except Exception:
+                        pass
+            
+            # Analyze public client indicators from Application object
+            public_client_indicators = analyze_public_client_indicators(app_obj)
+            
+            # Analyze platform signals for well-known Microsoft appIds
+            platform_signals = analyze_platform_signals(sp.get("appId"))
 
             # service principal node - compute risk with enhanced insights
             risk = compute_risk_for_sp(
@@ -1844,6 +2454,8 @@ class OidSeeCollector:
                 self.dir_cache,
                 credential_insights,
                 reply_url_analysis,
+                public_client_indicators,
+                platform_signals,
             )
             
             # Check for identity laundering signals
@@ -1889,6 +2501,15 @@ class OidSeeCollector:
                 # Enhanced fields
                 "credentialInsights": credential_insights,
                 "replyUrlAnalysis": reply_url_analysis,
+                "replyUrlEnrichment": reply_url_enrichment,
+                "replyUrlProvenance": {
+                    "source": "microsoft_graph",
+                    "collection_timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
+                    "enrichment_enabled": any([self.opts.enable_dns_enrichment, self.opts.enable_rdap_enrichment, self.opts.enable_ipwhois_enrichment]),
+                    "enrichment_success": reply_url_enrichment is not None and not reply_url_enrichment.get("enrichment_errors")
+                } if any([self.opts.enable_dns_enrichment, self.opts.enable_rdap_enrichment, self.opts.enable_ipwhois_enrichment]) else None,
+                "publicClientIndicators": public_client_indicators,
+                "platformSignals": platform_signals,
                 "trustSignals": trust_signals,
                 # Non-Graph data placeholders (WHOIS/DNS - not populated by Graph-only scanner)
                 "domainWhois": None,
@@ -1984,7 +2605,6 @@ class OidSeeCollector:
                     "classification": classification["classification"],
                     "resourceAppId": permission_details.get("resource_app_id"),
                     "resourceDisplayName": permission_details.get("resource_display_name"),
-                    "resolvedScopes": permission_details.get("resolved_scopes", []),
                 }
                 if classification["too_broad"]:
                     edge_props["tooBroadScopes"] = sorted(classification["too_broad"])
@@ -2187,6 +2807,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--include-all-sps", action="store_true", help="Include all service principals (overrides filters)")
     p.add_argument("--max-retries", type=int, default=6, help="Max HTTP retries for Graph requests (throttling/transient)")
     p.add_argument("--retry-base-delay", type=float, default=0.8, help="Base delay (seconds) for exponential backoff")
+    
+    # Enrichment options (enabled by default for performance)
+    p.add_argument("--disable-all-enrichment", action="store_true", help="Disable all enrichment lookups (DNS, RDAP, IP WHOIS)")
+    p.add_argument("--disable-dns-enrichment", action="store_true", help="Disable DNS lookups for reply URL domains")
+    p.add_argument("--disable-rdap-enrichment", action="store_true", help="Disable RDAP lookups for reply URL domains")
+    p.add_argument("--disable-ipwhois-enrichment", action="store_true", help="Disable IP WHOIS lookups for IP literals in reply URLs")
+    
     return p.parse_args()
 
 
@@ -2208,6 +2835,9 @@ def main() -> int:
         include_all_service_principals=bool(args.include_all_sps),
         include_first_party=bool(args.include_first_party),
         include_single_tenant=bool(args.include_single_tenant),
+        enable_dns_enrichment=not (args.disable_all_enrichment or args.disable_dns_enrichment),
+        enable_rdap_enrichment=not (args.disable_all_enrichment or args.disable_rdap_enrichment),
+        enable_ipwhois_enrichment=not (args.disable_all_enrichment or args.disable_ipwhois_enrichment),
     )
 
     try:
