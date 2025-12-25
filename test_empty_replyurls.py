@@ -14,7 +14,8 @@ from oidsee_scanner import (
     compute_risk_for_sp,
     analyze_reply_urls,
     check_mixed_replyurl_domains,
-    SCORING_CONFIG
+    SCORING_CONFIG,
+    MICROSOFT_TENANT_IDS
 )
 
 
@@ -273,8 +274,6 @@ def test_single_valid_replyurl():
 def test_deception_and_identity_laundering_gating():
     """Test that DECEPTION and IDENTITY_LAUNDERING are gated by total_urls > 0."""
     print("\n=== Testing DECEPTION and IDENTITY_LAUNDERING Gating ===")
-    
-    from oidsee_scanner import MICROSOFT_TENANT_IDS
     
     # Test with conditions that would trigger both checks, but NO replyUrls
     print("\n1. Testing without replyUrls:")
