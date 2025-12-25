@@ -1504,6 +1504,91 @@ def _check_same_organization(enrichment_data: Optional[Dict[str, Any]], domains:
     return True
 
 
+def _create_enrichment_summary(enrichment_data: Optional[Dict[str, Any]], domains: List[str]) -> Optional[Dict[str, Any]]:
+    """
+    Create a friendly summary of enrichment data without raw RDAP/WHOIS responses.
+    
+    Returns a summary indicating:
+    - Whether domains appear to be owned by the same organization
+    - List of organizations found
+    - Which domains were successfully enriched
+    """
+    if not enrichment_data or not domains:
+        return None
+    
+    rdap_queries = enrichment_data.get("rdap_queries", {})
+    if not rdap_queries:
+        return None
+    
+    # Extract organization information for each domain
+    domain_organizations = {}
+    organizations = set()
+    
+    for domain in domains:
+        rdap_data = rdap_queries.get(domain, {})
+        
+        if not rdap_data.get("success"):
+            domain_organizations[domain] = {
+                "enriched": False,
+                "organization": None,
+                "error": rdap_data.get("error", "Unknown error")
+            }
+            continue
+        
+        # Try to extract organization from raw RDAP data
+        raw_data = rdap_data.get("raw_data", {})
+        org_name = None
+        
+        if raw_data:
+            # Try to get from network object
+            network = raw_data.get("network", {})
+            if network:
+                network_name = network.get("name", "")
+                if network_name:
+                    org_name = network_name
+            
+            # Try to get from objects/entities with role "registrant"
+            if not org_name:
+                objects = raw_data.get("objects", {})
+                for obj_key, obj_data in objects.items():
+                    if isinstance(obj_data, dict):
+                        roles = obj_data.get("roles", [])
+                        if "registrant" in roles or "administrative" in roles:
+                            vcard = obj_data.get("vcardArray")
+                            if vcard and len(vcard) > 1:
+                                for field in vcard[1]:
+                                    if isinstance(field, list) and len(field) > 3:
+                                        if field[0] == "org" and len(field) > 3:
+                                            org_name = str(field[3])
+                                            break
+                        if org_name:
+                            break
+        
+        domain_organizations[domain] = {
+            "enriched": True,
+            "organization": org_name,
+            "asn": rdap_data.get("asn"),
+            "asn_description": rdap_data.get("asn_description")
+        }
+        
+        if org_name:
+            organizations.add(org_name.lower())
+    
+    # Determine if all domains appear to be owned by the same organization
+    enriched_domains = [d for d, info in domain_organizations.items() if info["enriched"]]
+    same_organization = len(organizations) <= 1 if organizations else None
+    
+    summary = {
+        "domains_analyzed": len(domains),
+        "domains_enriched": len(enriched_domains),
+        "same_organization": same_organization,
+        "organizations_found": sorted(organizations) if organizations else [],
+        "domain_details": domain_organizations
+    }
+    
+    return summary
+
+
 def compute_risk_for_sp(
     sp: Dict[str, Any],
     has_impersonation: bool,
@@ -2536,6 +2621,17 @@ class OidSeeCollector:
             
             # Analyze platform signals for well-known Microsoft appIds
             platform_signals = analyze_platform_signals(sp.get("appId"))
+            
+            # Create a friendly enrichment summary (without raw RDAP/WHOIS data)
+            enrichment_summary = None
+            if reply_url_enrichment:
+                # Extract domains from reply URLs for summary
+                domains_for_summary = []
+                for url in reply_urls:
+                    etld = extract_etldplus1(url)
+                    if etld:
+                        domains_for_summary.append(etld)
+                enrichment_summary = _create_enrichment_summary(reply_url_enrichment, domains_for_summary)
 
             # service principal node - compute risk with enhanced insights
             risk = compute_risk_for_sp(
@@ -2602,12 +2698,12 @@ class OidSeeCollector:
                 # Enhanced fields
                 "credentialInsights": credential_insights,
                 "replyUrlAnalysis": reply_url_analysis,
-                "replyUrlEnrichment": reply_url_enrichment,
+                "replyUrlEnrichment": enrichment_summary,  # Friendly summary without raw data
                 "replyUrlProvenance": {
                     "source": "microsoft_graph",
                     "collection_timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
                     "enrichment_enabled": any([self.opts.enable_dns_enrichment, self.opts.enable_rdap_enrichment, self.opts.enable_ipwhois_enrichment]),
-                    "enrichment_success": reply_url_enrichment is not None and not reply_url_enrichment.get("enrichment_errors")
+                    "enrichment_success": enrichment_summary is not None
                 } if any([self.opts.enable_dns_enrichment, self.opts.enable_rdap_enrichment, self.opts.enable_ipwhois_enrichment]) else None,
                 "publicClientIndicators": public_client_indicators,
                 "platformSignals": platform_signals,

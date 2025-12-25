@@ -6,6 +6,8 @@ for REPLYURL_OUTLIER_DOMAIN and MIXED_REPLYURL_DOMAINS checks.
 This addresses the issue where Microsoft-owned domains (microsoft.com, microsoftonline.com,
 office.com, etc.) were being flagged as outliers even though RDAP/WHOIS shows they all
 belong to Microsoft Corporation.
+
+Also verifies that enrichment summary is properly formatted without raw RDAP/WHOIS data.
 """
 
 import sys
@@ -15,7 +17,8 @@ from typing import Dict, Any
 from oidsee_scanner import (
     compute_risk_for_sp,
     analyze_reply_urls,
-    MICROSOFT_TENANT_IDS
+    MICROSOFT_TENANT_IDS,
+    _create_enrichment_summary
 )
 
 
@@ -218,6 +221,104 @@ def test_enrichment_prevents_false_positives():
     return True
 
 
+def test_enrichment_summary_format():
+    """Test that enrichment summary is properly formatted without raw data."""
+    print("\n=== Testing Enrichment Summary Format ===")
+    
+    # Create enrichment data with raw RDAP data
+    enrichment_data = {
+        "rdap_queries": {
+            "microsoft.com": {
+                "success": True,
+                "raw_data": {
+                    "network": {"name": "Microsoft Corporation"},
+                    "objects": {}
+                },
+                "asn": "8075",
+                "asn_description": "MICROSOFT-CORP-MSN-AS-BLOCK"
+            },
+            "office.com": {
+                "success": True,
+                "raw_data": {
+                    "network": {"name": "Microsoft Corporation"},
+                    "objects": {}
+                },
+                "asn": "8075",
+                "asn_description": "MICROSOFT-CORP-MSN-AS-BLOCK"
+            },
+            "evil.com": {
+                "success": False,
+                "error": "Lookup failed"
+            }
+        }
+    }
+    
+    domains = ["microsoft.com", "office.com", "evil.com"]
+    
+    # Generate summary
+    summary = _create_enrichment_summary(enrichment_data, domains)
+    
+    if not summary:
+        print("   ✗ FAIL: Summary should not be None")
+        return False
+    
+    # Verify summary structure
+    expected_keys = ["domains_analyzed", "domains_enriched", "same_organization", "organizations_found", "domain_details"]
+    for key in expected_keys:
+        if key not in summary:
+            print(f"   ✗ FAIL: Missing key '{key}' in summary")
+            return False
+    
+    print(f"   ✓ PASS: Summary has all expected keys")
+    
+    # Verify no raw_data in summary
+    summary_str = str(summary)
+    if "raw_data" in summary_str:
+        print(f"   ✗ FAIL: Summary contains raw_data (should be omitted)")
+        return False
+    
+    print(f"   ✓ PASS: Summary does not contain raw_data")
+    
+    # Verify same_organization flag
+    if summary["same_organization"] != True:
+        print(f"   ✗ FAIL: Expected same_organization=True, got {summary['same_organization']}")
+        return False
+    
+    print(f"   ✓ PASS: same_organization correctly set to True")
+    
+    # Verify organizations found
+    if len(summary["organizations_found"]) != 1:
+        print(f"   ✗ FAIL: Expected 1 organization, found {len(summary['organizations_found'])}")
+        return False
+    
+    print(f"   ✓ PASS: Found 1 organization: {summary['organizations_found']}")
+    
+    # Verify domain details
+    domain_details = summary["domain_details"]
+    if "microsoft.com" not in domain_details:
+        print(f"   ✗ FAIL: Missing microsoft.com in domain_details")
+        return False
+    
+    if domain_details["microsoft.com"]["enriched"] != True:
+        print(f"   ✗ FAIL: microsoft.com should be marked as enriched")
+        return False
+    
+    if domain_details["microsoft.com"]["organization"] != "Microsoft Corporation":
+        print(f"   ✗ FAIL: Wrong organization for microsoft.com")
+        return False
+    
+    print(f"   ✓ PASS: Domain details properly structured")
+    
+    # Verify failed domain
+    if domain_details["evil.com"]["enriched"] != False:
+        print(f"   ✗ FAIL: evil.com should be marked as not enriched")
+        return False
+    
+    print(f"   ✓ PASS: Failed domains properly handled")
+    
+    return True
+
+
 def main():
     """Run all tests."""
     print("=" * 70)
@@ -226,8 +327,9 @@ def main():
     
     all_passed = True
     
-    # Run test
+    # Run tests
     all_passed = all_passed and test_enrichment_prevents_false_positives()
+    all_passed = all_passed and test_enrichment_summary_format()
     
     print("\n" + "=" * 70)
     if all_passed:
