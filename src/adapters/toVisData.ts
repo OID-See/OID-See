@@ -4,7 +4,7 @@ import { isOidSeeExport, OidSeeExport } from './types'
 export type VisData = { nodes: any[]; edges: any[] }
 
 // Custom double-circle renderer for group nodes
-function doubleCircleRenderer(ctx: CanvasRenderingContext2D, x: number, y: number, selected: boolean, hover: boolean, node: any) {
+function doubleCircleRenderer(ctx: CanvasRenderingContext2D, x: number, y: number, selected: boolean, _hover: boolean, node: any) {
   const radius = node.size || 10
   const borderWidth = selected ? 3 : 2
   const color = node.color || { border: 'rgba(234,242,255,0.75)', background: 'rgba(234,242,255,0.08)' }
@@ -36,7 +36,6 @@ export function toVisData(input: any): VisData {
       const value = 10 + riskBoost / 2
 
       const isHigh = (n.risk?.level === 'high' || n.risk?.level === 'critical') && (n.risk?.score ?? 0) >= 70
-      const isUser = n.type === 'User'
       const isGroup = n.type === 'Group'
 
       return {
