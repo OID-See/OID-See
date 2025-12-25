@@ -252,6 +252,7 @@ export const GraphCanvas = forwardRef<
           multiselect: true,
           navigationButtons: true,
           keyboard: true,
+          selectOnClick: false, // Disable automatic selection to prevent label clicks from selecting elements
         },
         nodes: {
           shape: 'dot',
@@ -344,18 +345,39 @@ export const GraphCanvas = forwardRef<
       }
     }, STABILIZATION_FALLBACK_TIMEOUT)
 
-    network.on('selectNode', (p: any) => {
-      const id = p.nodes?.[0]
-      if (!id) return
-      const n = nodeDs.get(id) as any
-      onSelection?.({ kind: 'node', id, oidsee: n?.__oidsee ?? n })
+    // Handle clicks manually to prevent label clicks from selecting elements
+    // Only select elements when clicking on their body (not labels)
+    network.on('click', (params: any) => {
+      // params.nodes and params.edges are only populated when clicking on the actual
+      // node body or edge line, NOT when clicking on labels
+      const clickedNodes = params.nodes || []
+      const clickedEdges = params.edges || []
+      
+      // Check if a node body was clicked (not just the label area)
+      if (clickedNodes.length > 0) {
+        const nodeId = clickedNodes[0]
+        // Clicked on a node body - select it
+        network.selectNodes([nodeId])
+        const n = nodeDs.get(nodeId) as any
+        onSelection?.({ kind: 'node', id: String(nodeId), oidsee: n?.__oidsee ?? n })
+        return
+      }
+      
+      // Check if an edge line was clicked (not just the label area)
+      if (clickedEdges.length > 0) {
+        const edgeId = clickedEdges[0]
+        // Clicked on an edge line - select it
+        network.selectEdges([edgeId])
+        const e = edgeDs.get(edgeId) as any
+        onSelection?.({ kind: 'edge', id: String(edgeId), oidsee: e?.__oidsee ?? e })
+        return
+      }
+      
+      // Clicked on empty space or label - deselect
+      network.unselectAll()
+      onSelection?.(null)
     })
-    network.on('selectEdge', (p: any) => {
-      const id = p.edges?.[0]
-      if (!id) return
-      const e = edgeDs.get(id) as any
-      onSelection?.({ kind: 'edge', id, oidsee: e?.__oidsee ?? e })
-    })
+
     network.on('deselectNode', () => onSelection?.(null))
     network.on('deselectEdge', () => onSelection?.(null))
 
