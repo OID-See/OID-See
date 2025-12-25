@@ -12,7 +12,8 @@ from oidsee_scanner import (
     DirectoryCache, 
     GraphClient, 
     SCORING_CONFIG,
-    MICROSOFT_TENANT_IDS
+    MICROSOFT_TENANT_IDS,
+    analyze_reply_urls
 )
 
 
@@ -110,18 +111,22 @@ def test_identity_laundering():
     sp_laundering = {
         "verifiedPublisher": None,  # Unverified
         "appOwnerOrganizationId": microsoft_tenant_id,
-        "replyUrls": [],
+        "replyUrls": ["https://example.com/callback"],  # Need reply URLs for OAuth flows
         "info": {},
     }
     
     sp_normal = {
         "verifiedPublisher": None,
         "appOwnerOrganizationId": "some-other-tenant-id",
-        "replyUrls": [],
+        "replyUrls": ["https://example.com/callback"],  # Need reply URLs for OAuth flows
         "info": {},
     }
     
     mock_cache = mock_directory_cache()
+    
+    # Analyze reply URLs for both SPs
+    reply_url_analysis_laundering = analyze_reply_urls(sp_laundering.get("replyUrls", []))
+    reply_url_analysis_normal = analyze_reply_urls(sp_normal.get("replyUrls", []))
     
     # Identity laundering should be detected
     risk_laundering = compute_risk_for_sp(
@@ -138,6 +143,7 @@ def test_identity_laundering():
         dir_role_assignments=[],
         sp_display="Fake Microsoft App",
         dir_cache=mock_cache,
+        reply_url_analysis=reply_url_analysis_laundering,
     )
     
     laundering_found = any(r["code"] == "IDENTITY_LAUNDERING" for r in risk_laundering["reasons"])
@@ -168,6 +174,7 @@ def test_identity_laundering():
         dir_role_assignments=[],
         sp_display="Normal App",
         dir_cache=mock_cache,
+        reply_url_analysis=reply_url_analysis_normal,
     )
     
     normal_found = any(r["code"] == "IDENTITY_LAUNDERING" for r in risk_normal["reasons"])

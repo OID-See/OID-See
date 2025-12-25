@@ -82,10 +82,13 @@ def test_empty_replyurls_no_false_positives():
     )
     
     # Check that NO reply URL related risk reasons are present
+    # This includes URL-based checks AND attribution/deception checks that only matter with OAuth flows
     reply_url_related_codes = [
         "REPLY_URL_ANOMALIES",
         "MIXED_REPLYURL_DOMAINS",
         "REPLYURL_OUTLIER_DOMAIN",
+        "DECEPTION",  # Name mismatch only matters in user-facing OAuth flows
+        "IDENTITY_LAUNDERING",  # Attribution confusion only matters in user-facing OAuth flows
     ]
     
     found_reply_url_reasons = [
@@ -267,6 +270,110 @@ def test_single_valid_replyurl():
     return True
 
 
+def test_deception_and_identity_laundering_gating():
+    """Test that DECEPTION and IDENTITY_LAUNDERING are gated by total_urls > 0."""
+    print("\n=== Testing DECEPTION and IDENTITY_LAUNDERING Gating ===")
+    
+    from oidsee_scanner import MICROSOFT_TENANT_IDS
+    
+    # Test with conditions that would trigger both checks, but NO replyUrls
+    print("\n1. Testing without replyUrls:")
+    sp_no_urls = {
+        "id": "sp:deceptive-app",
+        "displayName": "Microsoft Awesome App",
+        "publisherName": "Totally Different Publisher",  # Name mismatch
+        "appOwnerOrganizationId": MICROSOFT_TENANT_IDS[0],  # Microsoft tenant
+        "replyUrls": [],
+        "homepage": None,
+        "info": {},
+        "verifiedPublisher": None,  # Unverified
+        "appRoleAssignmentRequired": True,
+    }
+    
+    reply_url_analysis_no_urls = analyze_reply_urls(sp_no_urls.get("replyUrls", []))
+    mock_cache = MockCache()
+    risk_no_urls = compute_risk_for_sp(
+        sp=sp_no_urls,
+        has_impersonation=False,
+        has_offline_access=False,
+        app_role_max_weight=0,
+        has_privileged_scopes=False,
+        has_too_many_scopes=False,
+        delegated_scopes_by_resource={},
+        assignments=[],
+        owners=[{"id": "owner1"}],
+        requires_assignment=True,
+        dir_role_assignments=[],
+        sp_display="Microsoft Awesome App",
+        dir_cache=mock_cache,
+        reply_url_analysis=reply_url_analysis_no_urls,
+    )
+    
+    deception_no_urls = any(r["code"] == "DECEPTION" for r in risk_no_urls["reasons"])
+    identity_laundering_no_urls = any(r["code"] == "IDENTITY_LAUNDERING" for r in risk_no_urls["reasons"])
+    
+    if deception_no_urls:
+        print(f"   ✗ FAIL: DECEPTION found without replyUrls")
+        return False
+    else:
+        print(f"   ✓ PASS: DECEPTION not triggered without replyUrls")
+    
+    if identity_laundering_no_urls:
+        print(f"   ✗ FAIL: IDENTITY_LAUNDERING found without replyUrls")
+        return False
+    else:
+        print(f"   ✓ PASS: IDENTITY_LAUNDERING not triggered without replyUrls")
+    
+    # Test with same conditions but WITH replyUrls
+    print("\n2. Testing with replyUrls:")
+    sp_with_urls = {
+        "id": "sp:deceptive-app-with-urls",
+        "displayName": "Microsoft Awesome App",
+        "publisherName": "Totally Different Publisher",  # Name mismatch
+        "appOwnerOrganizationId": MICROSOFT_TENANT_IDS[0],  # Microsoft tenant
+        "replyUrls": ["https://example.com/callback"],
+        "homepage": None,
+        "info": {},
+        "verifiedPublisher": None,  # Unverified
+        "appRoleAssignmentRequired": True,
+    }
+    
+    reply_url_analysis_with_urls = analyze_reply_urls(sp_with_urls.get("replyUrls", []))
+    risk_with_urls = compute_risk_for_sp(
+        sp=sp_with_urls,
+        has_impersonation=False,
+        has_offline_access=False,
+        app_role_max_weight=0,
+        has_privileged_scopes=False,
+        has_too_many_scopes=False,
+        delegated_scopes_by_resource={},
+        assignments=[],
+        owners=[{"id": "owner1"}],
+        requires_assignment=True,
+        dir_role_assignments=[],
+        sp_display="Microsoft Awesome App",
+        dir_cache=mock_cache,
+        reply_url_analysis=reply_url_analysis_with_urls,
+    )
+    
+    deception_with_urls = any(r["code"] == "DECEPTION" for r in risk_with_urls["reasons"])
+    identity_laundering_with_urls = any(r["code"] == "IDENTITY_LAUNDERING" for r in risk_with_urls["reasons"])
+    
+    if not deception_with_urls:
+        print(f"   ✗ FAIL: DECEPTION not found with replyUrls (should be present)")
+        return False
+    else:
+        print(f"   ✓ PASS: DECEPTION triggered with replyUrls")
+    
+    if not identity_laundering_with_urls:
+        print(f"   ✗ FAIL: IDENTITY_LAUNDERING not found with replyUrls (should be present)")
+        return False
+    else:
+        print(f"   ✓ PASS: IDENTITY_LAUNDERING triggered with replyUrls")
+    
+    return True
+
+
 def main():
     """Run all tests."""
     print("=" * 70)
@@ -279,6 +386,7 @@ def main():
     all_passed = all_passed and test_empty_replyurls_no_false_positives()
     all_passed = all_passed and test_nonempty_replyurls_checks_applied()
     all_passed = all_passed and test_single_valid_replyurl()
+    all_passed = all_passed and test_deception_and_identity_laundering_gating()
     
     print("\n" + "=" * 70)
     if all_passed:
