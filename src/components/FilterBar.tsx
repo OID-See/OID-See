@@ -304,16 +304,19 @@ export function FilterBar({
               </option>
             ))}
           </select>
-          <button className="btn btn--ghost" onClick={onSave} title="Save current query">
-            Save
-          </button>
-          <button className="btn btn--ghost" onClick={onDelete} title="Delete a saved query">
-            Delete
-          </button>
-          <button className="btn btn--ghost" onClick={onReset} title="Reset preset queries to defaults (keeps user-added queries)">
-            Reset Presets
-          </button>
         </div>
+      </div>
+
+      <div className="filterbar__row3">
+        <button className="btn btn--ghost" onClick={onSave} title="Save current query">
+          Save
+        </button>
+        <button className="btn btn--ghost" onClick={onDelete} title="Delete a saved query">
+          Delete
+        </button>
+        <button className="btn btn--ghost" onClick={onReset} title="Reset preset queries to defaults (keeps user-added queries)">
+          Reset Presets
+        </button>
       </div>
 
       <div className="filterbar__row">

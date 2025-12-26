@@ -576,6 +576,14 @@ body{
   margin-bottom: .85rem;
 }
 
+.filterbar__row3{
+  display:flex;
+  gap:.6rem;
+  align-items:center;
+  flex-wrap: wrap;
+  margin-bottom: .85rem;
+}
+
 .seg{
   display:inline-flex;
   border: 1px solid rgba(255,255,255,0.10);
@@ -618,12 +626,12 @@ body{
   padding: .45rem .55rem;
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(0,0,0,0.35);
+  background: rgba(11,14,18,0.95);
   color: rgba(234,242,255,0.90);
   outline: none;
 }
 .saved__sel option{
-  background: rgba(11,14,18,0.95);
+  background: rgba(11,14,18,1);
   color: rgba(234,242,255,0.90);
 }
 
