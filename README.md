@@ -1,31 +1,79 @@
 
 # OID-See
 
-A public, static web app that renders an interactive graph (via `vis-network`) from a JSON export — processed **entirely in your browser**.
+**Visualize and assess security risks in your Microsoft Entra ID tenant's third-party and multi-tenant applications.**
+
+OID-See is a comprehensive security analysis tool for Microsoft Entra ID (Azure AD) that helps you discover, analyze, and visualize risky third-party applications. The scanner collects data using Microsoft Graph, performs optional enrichment, and generates an interactive graph visualization that runs entirely in your browser—no telemetry, no servers, completely private.
+
+## 🎯 What is OID-See?
+
+OID-See provides:
+- **Scanner**: Python tool that queries Microsoft Graph to collect application and permission data from your tenant
+- **Enrichment**: Optional DNS, RDAP, and WHOIS lookups to identify outliers and reduce false positives  
+- **Visualization**: Browser-based interactive graph viewer for exploring relationships and risks
+- **Risk Scoring**: Automated security assessment based on permissions, exposure, governance, and credential hygiene
+
+**Perfect for**: Security teams, IT administrators, and compliance officers who need to understand third-party application risks in their Entra ID tenant.
+
+## 🚀 Quick Start
+
+### 1. Scan Your Tenant
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run scanner (interactive device code authentication)
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --out scan-results.json
+
+# With enrichment enabled (requires dnspython and ipwhois packages)
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --out scan-results.json
+```
+
+### 2. Visualize Results
+
+Open the OID-See web app at your deployment URL (or run locally with `npm run dev`), then:
+1. Click **Upload JSON** and select your `scan-results.json` file
+2. Use the **Risk** lens to focus on high-risk applications
+3. Filter by risk score: `n.risk.score>=70`
+4. Click nodes to see detailed risk analysis
+
+### 3. Take Action
+
+Review high-risk applications and:
+- Verify publisher identity and permissions
+- Check for unverified publishers or identity laundering
+- Review credential hygiene and long-lived secrets
+- Ensure proper ownership and governance
 
 ## 📚 Documentation
 
 Comprehensive documentation is available in the [`docs/`](./docs/) directory:
 
 - **[Documentation Index](./docs/README.md)** - Start here for navigation
-- **[Scanner Guide](./docs/scanner.md)** - How to collect tenant data
-- **[Scoring Logic](./docs/scoring-logic.md)** - Understanding risk assessment
-- **[Schema Reference](./docs/schema.md)** - Export format specification
-- **[Web App Guide](./docs/web-app.md)** - Using the visualization tool
+- **[Scanner Guide](./docs/scanner.md)** - How to collect tenant data using Microsoft Graph
+- **[Scoring Logic](./docs/scoring-logic.md)** - Understanding risk assessment methodology
+- **[Schema Reference](./docs/schema.md)** - Export format specification and field descriptions
+- **[Web App Guide](./docs/web-app.md)** - Using the browser-based visualization tool
 
-## Primary schema: OID-See Graph Export v1.x
-This repo includes the full JSON Schema at:
+## Primary Schema: OID-See Graph Export v1.x
 
-- `schemas/oidsee-graph-export.schema.json`
+This repo includes the full JSON Schema at `schemas/oidsee-graph-export.schema.json`.
+
+**Data Sources**:
+- **Core Data**: Microsoft Graph provides identity and permissions data (service principals, applications, users, groups, OAuth grants, role assignments)
+- **Optional Enrichment**: DNS, RDAP, and IP WHOIS lookups identify domain ownership patterns and reduce false positives (can be disabled with CLI flags)
 
 ### Features
 - **Interactive Graph Visualization**: Explore relationships between service principals, applications, users, and permissions
 - **Risk Scoring**: Automatic risk assessment based on permissions, exposure, governance, and security hygiene
+- **Browser-Only Processing**: All visualization happens in your browser—no data is uploaded to any server, no telemetry
 - **Security Heuristics**: 
-  - **Identity Laundering Detection**: Detects applications with reply URLs from domains not aligned with declared identity
+  - **Identity Laundering Detection**: Detects applications with reply URLs from domains not aligned with declared identity (reduced false positives via optional enrichment)
   - **Credential Hygiene Analysis**: Identifies long-lived secrets, expired credentials, and certificate rollover issues
-  - **Reply URL Security**: Flags non-HTTPS, IP literals, and punycode domains in redirect URIs
+  - **Reply URL Security**: Flags non-HTTPS, IP literals, punycode domains, and wildcard domains in redirect URIs
   - **Permission Resolution**: Human-readable OAuth2 scope and app role descriptions
+  - **Brokered Authentication**: Recognizes mobile broker schemes (msauth://, ms-app://, brk-*://) and other custom schemes
 - **Advanced Filtering**: Filter nodes and edges using a powerful query syntax
 - **Multiple Lenses**: View full graph, risk-focused, or structural relationships
 

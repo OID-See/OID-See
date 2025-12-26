@@ -2,20 +2,28 @@
 
 ## Overview
 
-The OID-See Viewer is a client-side web application that visualizes Microsoft Entra ID (Azure AD) tenant data as an interactive graph. It runs entirely in your browser with no server-side processing, ensuring your tenant data remains private and secure.
+The OID-See Viewer is a client-side web application that visualizes Microsoft Entra ID (Azure AD) tenant data as an interactive graph. **It runs entirely in your browser with no server-side processing**, ensuring your tenant data remains completely private and secure.
 
 **Live Application**: Available at your deployment URL or run locally with `npm run dev`
+
+**Privacy Guarantee**:
+- ✅ **Browser-Only**: All data processing happens locally in your browser
+- ✅ **No Telemetry**: Zero analytics, tracking, or usage monitoring
+- ✅ **No Data Upload**: Your JSON export never leaves your device
+- ✅ **No External Calls**: No network requests except initial app load
+- ✅ **Local Storage Only**: Saved presets stored in your browser's local storage
 
 ![OID-See Viewer Interface](https://github.com/user-attachments/assets/e6c3cb86-4ba4-4b3a-9280-1b562f065e71)
 
 ## Key Features
 
-- **🔒 Privacy First**: All data processing happens in your browser
+- **🔒 Complete Privacy**: All data processing in your browser—no uploads, no telemetry, no tracking
 - **📊 Interactive Visualization**: Explore relationships through a dynamic graph
 - **🔍 Advanced Filtering**: Query nodes and edges using powerful syntax
-- **🎨 Multiple Lenses**: View data through different perspectives
-- **💾 Local Storage**: Save your filter presets for reuse
+- **🎨 Multiple Lenses**: View data through different perspectives (Full, Risk, Structure)
+- **💾 Local Storage**: Save your filter presets for reuse (stored locally only)
 - **📱 Responsive Design**: Works on desktop, tablet, and mobile devices
+- **🌐 No Backend Required**: Static web app deployable to any hosting service
 
 ## Getting Started
 
@@ -391,23 +399,185 @@ You can export the current graph data:
 
 ### Credential Hygiene Review
 
-**Scenario**: Find apps with expired credentials
+**Scenario**: Find apps with long-lived secrets
 
 1. Load your OID-See export
-2. Apply filter: `n.properties.credentialInsights.expired_but_present.length>0`
-3. Identify apps with expired credentials still configured
+2. Apply filter: `n.properties.credentialInsights.long_lived_secrets.length>0`
+3. Identify apps with secrets exceeding 180 days
 4. Review credential details in the details panel
-5. Plan remediation actions
+5. Plan credential rotation
 
-### Credential Hygiene Review
+## Recommended Queries
 
-**Scenario**: Find apps with expired credentials
+### High-Priority Security Queries
 
-1. Load your OID-See export
-2. Apply filter: `n.properties.credentialInsights.expired_but_present.length>0`
-3. Identify apps with expired credentials still configured
-4. Review credential details in the details panel
-5. Plan remediation actions
+**Critical Risk Applications**:
+```
+n.risk.score>=90
+```
+Find applications with critical risk scores requiring immediate attention.
+
+**Unverified Publishers with High Permissions**:
+```
+n.properties.verifiedPublisher.displayName=null n.risk.score>=70
+```
+Identify high-risk apps without verified publishers.
+
+**Apps with No Owners**:
+```
+n.risk.reasons~NO_OWNERS
+```
+Find orphaned applications lacking accountability.
+
+**Identity Laundering Suspects**:
+```
+n.properties.trustSignals.identityLaunderingSuspected=true
+```
+Detect apps with reply URLs not aligned with declared identity.
+
+### Permission Analysis Queries
+
+**Apps with Offline Access (Persistence)**:
+```
+e.type=HAS_OFFLINE_ACCESS
+```
+Find apps that can maintain access via refresh tokens.
+
+**Apps with Write Permissions**:
+```
+e.type=HAS_PRIVILEGED_SCOPES
+```
+Identify apps with write/modify capabilities.
+
+**Apps with Application Permissions**:
+```
+e.type=HAS_APP_ROLE
+```
+Find apps with application permissions (no user context required).
+
+**Impersonation Capabilities**:
+```
+e.type=CAN_IMPERSONATE
+```
+Detect apps with explicit user impersonation scopes.
+
+**Overly Broad Permissions**:
+```
+e.type=HAS_TOO_MANY_SCOPES
+```
+Find apps with `.All` scopes (broad consent).
+
+### Credential Security Queries
+
+**Long-Lived Secrets**:
+```
+n.properties.credentialInsights.long_lived_secrets.length>0
+```
+Apps with secrets exceeding 180-day lifetime.
+
+**Expired Credentials Still Present**:
+```
+n.properties.credentialInsights.expired_but_present.length>0
+```
+Apps with expired credentials not yet removed.
+
+**Multiple Active Secrets**:
+```
+n.properties.credentialInsights.multiple_active_secrets=true
+```
+Apps with more than 3 active secrets.
+
+**Certificates Expiring Soon**:
+```
+n.properties.credentialInsights.certificate_rollover_issues.length>0
+```
+Apps with certificates expiring within 30 days.
+
+### Reply URL Security Queries
+
+**Non-HTTPS Reply URLs**:
+```
+n.properties.replyUrlAnalysis.non_https_urls.length>0
+```
+Apps using insecure HTTP redirect URIs.
+
+**IP Literal Reply URLs**:
+```
+n.properties.replyUrlAnalysis.ip_literal_urls.length>0
+```
+Apps with IP addresses instead of proper domains.
+
+**Wildcard Reply URLs**:
+```
+n.properties.replyUrlAnalysis.wildcard_urls.length>0
+```
+Apps with wildcard domains (broad attack surface).
+
+**Punycode Domains**:
+```
+n.properties.replyUrlAnalysis.punycode_urls.length>0
+```
+Apps with internationalized domains (potential homograph attacks).
+
+### Exposure Analysis Queries
+
+**Broadly Reachable Apps**:
+```
+n.risk.reasons~BROAD_REACHABILITY
+```
+Apps not requiring assignment (any user can consent).
+
+**Large-Scale Assignments**:
+```
+n.risk.reasons~ASSIGNED_TO n.risk.reasons~weight>=15
+```
+Apps assigned to 20+ users/groups.
+
+**Legacy Applications**:
+```
+n.risk.reasons~LEGACY
+```
+Apps created before July 2024 security baseline.
+
+### Combined Advanced Queries
+
+**High-Risk Unverified Apps with Persistence**:
+```
+n.risk.score>=70 n.properties.verifiedPublisher.displayName=null e.type=HAS_OFFLINE_ACCESS
+```
+
+**Apps with Write Permissions and No Owners**:
+```
+e.type=HAS_PRIVILEGED_SCOPES n.risk.reasons~NO_OWNERS
+```
+
+**Multi-Domain Reply URLs without Enrichment**:
+```
+n.properties.replyUrlAnalysis.normalized_domains.length>1 n.properties.replyUrlEnrichment=null
+```
+
+**Microsoft Apps for Comparison**:
+```
+n.properties.publisherName~Microsoft
+```
+View Microsoft first-party apps to understand expected patterns.
+
+### Lens-Specific Recommendations
+
+**Risk Lens** (privilege and abuse edges):
+- Focus on `HAS_APP_ROLE`, `CAN_IMPERSONATE`, `HAS_PRIVILEGED_SCOPES` edges
+- Filter by risk score to prioritize investigation
+- Check for privilege escalation paths
+
+**Structure Lens** (organizational relationships):
+- Use `OWNS` edges to verify app ownership
+- Check `ASSIGNED_TO` edges to understand app reach
+- Review `INSTANCE_OF` to map SPs to app registrations
+
+**Full Lens** (complete picture):
+- Start with high-risk nodes and explore connections
+- Use path-aware filtering to trace privilege paths
+- Combine node and edge filters for precision
 
 ## Troubleshooting
 
@@ -489,15 +659,26 @@ You can export the current graph data:
 
 ### Data Privacy
 
-**No Server Communication**:
-- All processing happens in your browser
-- No data is uploaded to any server
-- No telemetry or analytics
+**Complete Browser-Only Operation**:
+- ✅ All processing happens in your browser (zero server-side code)
+- ✅ No data is uploaded to any server
+- ✅ No telemetry, analytics, or usage tracking
+- ✅ No external API calls (except initial app load from CDN)
+- ✅ No network requests after the app loads
+- ✅ Your tenant data never leaves your device
 
 **Local Storage Only**:
-- Saved presets stored in browser local storage
-- No cookies or tracking
+- Saved presets stored in browser local storage only
+- No cookies or cross-site tracking
+- No persistent identifiers
 - Data cleared when browser storage is cleared
+- You control all data retention
+
+**Open Source Transparency**:
+- Full source code available on GitHub
+- Deployable to your own infrastructure
+- Auditable by your security team
+- No black-box processing
 
 ## Best Practices
 
