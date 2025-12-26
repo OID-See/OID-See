@@ -46,6 +46,11 @@ const PRESET_QUERIES: SavedQuery[] = [
   { name: 'Roles', query: 'n.type=Role' },
   { name: 'Resource APIs', query: 'n.type=ResourceApi' },
   
+  // Risk level queries
+  { name: 'High Risk', query: 'n.risk.score>=70' },
+  { name: 'Medium Risk', query: 'n.risk.score>=40 n.risk.score<70' },
+  { name: 'Low Risk', query: 'n.risk.score<40' },
+  
   // Risk-focused edge queries
   { name: 'Can Impersonate', query: 'e.type=CAN_IMPERSONATE' },
   { name: 'Has App Roles', query: 'e.type=HAS_APP_ROLE' },
@@ -55,15 +60,15 @@ const PRESET_QUERIES: SavedQuery[] = [
   { name: 'Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
   
   // Specific risk queries
-  { name: 'Apps with Password Credentials', query: 'n.type=ServicePrincipal n.properties.credentialInsights.active_password_credentials>0' },
-  { name: 'Apps with Key Credentials', query: 'n.type=ServicePrincipal n.properties.credentialInsights.active_key_credentials>0' },
+  { name: 'Service Principals with Password Credentials', query: 'n.type=ServicePrincipal n.properties.credentialInsights.active_password_credentials>0' },
+  { name: 'Service Principals with Key Credentials', query: 'n.type=ServicePrincipal n.properties.credentialInsights.active_key_credentials>0' },
   { name: 'Unverified Publishers', query: 'n.type=ServicePrincipal n.properties.verifiedPublisher.displayName=null' },
-  { name: 'Apps Without Owners', query: 'n.risk.reasons~NO_OWNERS' },
-  { name: 'Broad Reachability Apps', query: 'n.risk.reasons~BROAD_REACHABILITY' },
+  { name: 'Service Principals Without Owners', query: 'n.risk.reasons~NO_OWNERS' },
+  { name: 'Broad Reachability Service Principals', query: 'n.risk.reasons~BROAD_REACHABILITY' },
   { name: 'Identity Laundering Suspected', query: 'n.properties.trustSignals.identityLaunderingSuspected=true' },
-  { name: 'Apps Not Requiring Assignment', query: 'n.type=ServicePrincipal n.properties.requiresAssignment=false' },
-  { name: 'Apps with Reply URLs', query: 'n.properties.replyUrlAnalysis.total_urls>0' },
-  { name: 'Apps with Non-HTTPS URLs', query: 'n.properties.replyUrlAnalysis.non_https_urls.length>0' },
+  { name: 'Service Principals Not Requiring Assignment', query: 'n.type=ServicePrincipal n.properties.requiresAssignment=false' },
+  { name: 'Service Principals with Reply URLs', query: 'n.properties.replyUrlAnalysis.total_urls>0' },
+  { name: 'Service Principals with Non-HTTPS URLs', query: 'n.properties.replyUrlAnalysis.non_https_urls.length>0' },
   { name: 'Expired Credentials Present', query: 'n.properties.credentialInsights.expired_but_present.length>0' },
   { name: 'Long Lived Secrets', query: 'n.properties.credentialInsights.long_lived_secrets.length>0' },
   
@@ -75,7 +80,7 @@ const PRESET_QUERIES: SavedQuery[] = [
   // Complex multi-condition queries
   { name: 'High Risk with Credentials', query: 'n.risk.score>=60 n.properties.credentialInsights.active_password_credentials>0' },
   { name: 'Unverified with Offline Access', query: 'n.properties.verifiedPublisher.displayName=null e.type=HAS_OFFLINE_ACCESS' },
-  { name: 'Impersonation Capable Apps', query: 'e.type=CAN_IMPERSONATE e.properties.markers~user_impersonation' },
+  { name: 'Impersonation Capable Service Principals', query: 'e.type=CAN_IMPERSONATE e.properties.markers~user_impersonation' },
 ]
 
 function loadPhysicsConfig(): PhysicsConfig {
