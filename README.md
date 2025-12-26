@@ -76,7 +76,7 @@ Comprehensive documentation is available in the [`docs/`](./docs/) directory:
 
 OID-See can generate comprehensive HTML reports that provide an executive summary of your security posture:
 
-![OID-See Report Screenshot](https://github.com/user-attachments/assets/1be69ab6-b3b2-4fbe-89c3-8e6bffab237b)
+![OID-See Report Screenshot](https://github.com/user-attachments/assets/ca1ad5b8-f582-4800-bf5a-45fe5d0b4904)
 
 **Report Features**:
 - **Risk Distribution**: Visual breakdown of applications by risk level (Critical, High, Medium, Low, Info)
@@ -149,6 +149,12 @@ python3 tests/test_approle_uniqueness.py
 cd tests
 python3 test_integration_e2e.py
 ```
+
+## 📝 Changelog & Release Notes
+
+For detailed information about changes and releases:
+- **[CHANGELOG.md](CHANGELOG.md)** - Complete version history and changes
+- **[RELEASE_NOTES.md](RELEASE_NOTES.md)** - Detailed release documentation
 
 ## Deploy to Netlify
 1. Push to GitHub

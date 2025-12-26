@@ -3,7 +3,7 @@
     "name": "oidsee-graph",
     "version": "1.1"
   },
-  "generatedAt": "2025-12-26T21:10:41Z",
+  "generatedAt": "2025-12-26T22:22:43Z",
   "tenant": {
     "tenantId": "123a4b56-7c89-01d2-ee34-56f7890a12bc",
     "displayName": "OIDSEE",
@@ -69,7 +69,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.340459+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.649842+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -178,7 +178,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.340701+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.650093+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -282,7 +282,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.340854+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.650233+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -394,7 +394,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.340993+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.650387+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -506,7 +506,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.341122+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.650518+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -618,7 +618,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.341253+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.650649+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -753,7 +753,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.342143+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.651439+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -779,8 +779,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 86,
-        "level": "critical",
+        "score": 51,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -791,16 +791,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -880,7 +870,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.342321+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.651615+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -984,7 +974,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.342476+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.651754+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -1093,7 +1083,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.342598+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.651888+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -1225,21 +1215,21 @@
           ],
           "domain_details": {
             "azure.net": {
-              "enriched": false,
-              "organization": null,
-              "error": "RDAP query failed"
-            },
-            "botframework.com": {
               "enriched": true,
               "organization": "MSFT",
               "asn": "8075",
               "asn_description": "MICROSOFT-CORP-MSN-AS-BLOCK, US"
+            },
+            "botframework.com": {
+              "enriched": false,
+              "organization": null,
+              "error": "RDAP query failed"
             }
           }
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.343362+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.652609+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -1268,8 +1258,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 86,
-        "level": "critical",
+        "score": 51,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -1280,16 +1270,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -1370,7 +1350,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.343499+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.652736+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -1498,7 +1478,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.344017+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.653255+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -1524,8 +1504,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -1536,16 +1516,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -1677,7 +1647,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.348748+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.657992+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -1707,8 +1677,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -1719,16 +1689,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -1832,7 +1792,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.349548+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.658689+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -1861,8 +1821,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -1873,16 +1833,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -1992,7 +1942,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.350499+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.659567+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -2022,8 +1972,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -2034,16 +1984,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -2180,7 +2120,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.357380+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.666396+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -2209,8 +2149,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -2221,16 +2161,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -2302,7 +2232,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.357553+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.666556+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -2406,7 +2336,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.357674+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.666678+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -2540,7 +2470,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.358072+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.667067+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -2566,8 +2496,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -2578,16 +2508,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -2680,7 +2600,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.358895+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.667900+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -2706,8 +2626,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -2718,16 +2638,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -2799,7 +2709,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.359017+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.668033+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -2908,7 +2818,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.359151+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.668153+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -3012,7 +2922,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.359267+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.668281+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -3121,7 +3031,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.359386+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.668402+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -3230,7 +3140,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.359508+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.668529+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -3343,7 +3253,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.359627+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.668644+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -3452,7 +3362,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.359746+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.668765+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -3565,7 +3475,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.360760+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.668911+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -3769,7 +3679,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.362738+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.671702+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -3798,8 +3708,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -3810,16 +3720,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -3891,7 +3791,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.362886+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.671860+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -4004,7 +3904,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.363003+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.671989+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -4116,7 +4016,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.363125+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.672100+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -4220,7 +4120,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.363246+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.672225+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -4329,7 +4229,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.363361+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.672345+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -4433,7 +4333,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.363480+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.672455+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -4577,7 +4477,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.364224+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.673168+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -4607,8 +4507,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -4619,16 +4519,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -4703,7 +4593,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.364348+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.673332+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -4811,7 +4701,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.364467+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.673464+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -4939,7 +4829,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.365415+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.674366+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -4965,8 +4855,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -4977,16 +4867,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -5087,7 +4967,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.366149+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.675080+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -5219,7 +5099,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.366467+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.675384+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -5328,7 +5208,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.366585+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.675502+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -5440,7 +5320,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.366702+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.675621+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -5549,7 +5429,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.366822+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.675741+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -5658,7 +5538,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.366936+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.675861+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -5767,7 +5647,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.367059+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.675972+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -5917,7 +5797,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.368324+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.677193+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -5947,8 +5827,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -5959,16 +5839,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -6040,7 +5910,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.368446+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.677348+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -6152,7 +6022,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.368560+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.677479+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -6265,7 +6135,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.368679+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.677591+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -6374,7 +6244,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.368800+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.677713+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -6504,7 +6374,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.369620+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.678409+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -6530,8 +6400,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -6542,16 +6412,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -6627,7 +6487,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.369751+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.678551+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -6763,7 +6623,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.371154+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.679970+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -6867,7 +6727,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.371276+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.680095+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -6980,7 +6840,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.371391+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.680220+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -7139,7 +6999,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.375520+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.684317+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -7258,7 +7118,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.375783+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.684562+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -7367,7 +7227,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.375902+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.684689+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -7476,7 +7336,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.376017+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.684806+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -7604,7 +7464,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.376543+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.685348+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -7630,8 +7490,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -7642,16 +7502,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -7728,7 +7578,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.376663+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.685475+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -7837,7 +7687,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.376786+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.685599+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -7946,7 +7796,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.376908+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.685723+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -8057,7 +7907,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.377020+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.685844+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -8220,7 +8070,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.379056+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.687791+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -8251,8 +8101,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 100,
-        "level": "critical",
+        "score": 66,
+        "level": "high",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -8263,16 +8113,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -8360,7 +8200,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.379197+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.687926+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -8469,7 +8309,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.379322+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.688044+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -8580,7 +8420,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.379445+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.688165+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -8778,7 +8618,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.385908+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.694499+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -8811,8 +8651,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -8823,16 +8663,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -8904,7 +8734,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.386043+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.694630+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -9008,7 +8838,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.386169+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.694761+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -9121,7 +8951,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.386295+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.694884+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -9234,7 +9064,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.386410+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.695001+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -9346,7 +9176,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.386535+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.695122+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -9458,7 +9288,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.386648+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.695241+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -9612,7 +9442,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.390379+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.698506+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -9641,8 +9471,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -9653,16 +9483,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -9788,7 +9608,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.392739+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.700973+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -9900,7 +9720,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.392875+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.701129+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -10012,7 +9832,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.393003+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.701248+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -10121,7 +9941,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.393131+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.701416+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -10338,7 +10158,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.406278+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.714366+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -10472,7 +10292,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.407204+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.715266+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -10498,8 +10318,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -10510,16 +10330,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -10591,7 +10401,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.407330+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.715388+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -10742,7 +10552,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.408437+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.716400+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -10772,8 +10582,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 100,
-        "level": "critical",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -10784,42 +10594,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
-          },
-          {
-            "code": "MIXED_REPLYURL_DOMAINS",
-            "message": "Identity laundering signal: reply URLs use domains not aligned with homepage/branding",
-            "weight": 15,
-            "signal_type": "identity_laundering",
-            "domains": [
-              "microsoft.com",
-              "microsoft.us",
-              "microsoftonline.cn"
-            ],
-            "non_aligned_domains": [
-              "microsoft.com",
-              "microsoft.us",
-              "microsoftonline.cn"
-            ]
-          },
-          {
-            "code": "REPLYURL_OUTLIER_DOMAIN",
-            "message": "One or more replyUrls are on a domain that is not in the main vendor domain set (eTLD+1 cluster) for the app. This is stronger than simply 'multiple domains'. GATED: Only applied when total_urls > 0. Uses RDAP/WHOIS enrichment to verify if domains belong to the same organization (with name normalization) to prevent false positives.",
-            "weight": 10,
-            "outlier_domains": [
-              "microsoft.com",
-              "microsoft.us",
-              "microsoftonline.cn"
-            ]
           },
           {
             "code": "NO_OWNERS",
@@ -10891,7 +10665,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.408572+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.716532+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -11021,7 +10795,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.408933+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.716876+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -11047,8 +10821,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -11059,16 +10833,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -11145,7 +10909,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.409058+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.717006+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -11258,7 +11022,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.409185+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.717133+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -11424,7 +11188,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.412181+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.720110+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -11554,7 +11318,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.412412+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.720347+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -11667,7 +11431,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.412541+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.720476+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -11814,7 +11578,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.416194+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.724056+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -11840,8 +11604,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -11852,16 +11616,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -11933,7 +11687,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.416356+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.724214+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -12061,7 +11815,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.416526+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.724367+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -12165,7 +11919,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.416651+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.724492+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -12269,7 +12023,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.416768+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.724617+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -12378,7 +12132,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.416892+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.724735+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -12485,7 +12239,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.417003+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.724861+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -12598,7 +12352,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.417116+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.724983+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -12801,7 +12555,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.426976+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.734601+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -12831,8 +12585,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -12843,16 +12597,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -12928,7 +12672,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.427416+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.734740+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -13035,7 +12779,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.427544+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.734873+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -13182,7 +12926,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.430504+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.738059+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -13208,8 +12952,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -13220,16 +12964,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -13306,7 +13040,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.430658+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.738200+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -13413,7 +13147,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.430778+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.738330+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -13545,7 +13279,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.431987+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.739505+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -13571,8 +13305,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -13583,16 +13317,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -13666,7 +13390,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.432109+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.739641+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -13770,7 +13494,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.432227+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.739768+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -13901,7 +13625,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.432755+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.740278+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -13927,8 +13651,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -13939,16 +13663,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -14023,7 +13737,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.432874+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.740398+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -14135,7 +13849,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.433004+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.740521+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -14244,7 +13958,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.433120+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.740642+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -14374,7 +14088,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.433535+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.740968+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -14400,8 +14114,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -14412,16 +14126,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -14493,7 +14197,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.433664+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.741100+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -14632,7 +14336,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.435047+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.742478+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -14763,7 +14467,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.435925+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.743369+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -14789,8 +14493,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 86,
-        "level": "critical",
+        "score": 51,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -14801,16 +14505,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -15126,7 +14820,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.474545+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.781520+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -15155,8 +14849,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -15167,16 +14861,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -15251,7 +14935,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.474772+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.781697+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -15362,7 +15046,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.474921+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.781828+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -15500,7 +15184,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.475573+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.782380+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -15529,8 +15213,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -15541,16 +15225,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -15657,23 +15331,20 @@
         },
         "replyUrlEnrichment": {
           "domains_analyzed": 31,
-          "domains_enriched": 1,
-          "same_organization": true,
-          "organizations_found": [
-            "google-cloud"
-          ],
+          "domains_enriched": 0,
+          "same_organization": null,
+          "organizations_found": [],
           "domain_details": {
             "cloudknox.io": {
-              "enriched": true,
-              "organization": "GOOGLE-CLOUD",
-              "asn": "396982",
-              "asn_description": "GOOGLE-CLOUD-PLATFORM, US"
+              "enriched": false,
+              "organization": null,
+              "error": "RDAP query failed"
             }
           }
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.481739+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.787461+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -15699,8 +15370,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -15711,16 +15382,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -15744,7 +15405,7 @@
         "appId": "00000006-0000-0ff1-ce00-000000000000"
       },
       "risk": {
-        "score": 56,
+        "score": 41,
         "level": "medium",
         "reasons": [
           {
@@ -15756,11 +15417,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -15936,7 +15592,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.494863+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.800243+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -15965,8 +15621,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -15977,16 +15633,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -16062,7 +15708,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.495049+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.800404+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -16171,7 +15817,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.495181+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.800523+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -16283,7 +15929,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.495567+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.800643+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -16416,7 +16062,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.496007+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.801008+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -16442,8 +16088,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -16454,16 +16100,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -16556,7 +16192,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.496357+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.801617+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -16582,8 +16218,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -16594,16 +16230,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -16675,7 +16301,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.496491+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.801774+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -16914,7 +16540,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.510563+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.815633+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -16945,8 +16571,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 86,
-        "level": "critical",
+        "score": 51,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -16957,16 +16583,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -17044,7 +16660,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.510737+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.815822+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -17156,7 +16772,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.510854+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.815949+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -17268,7 +16884,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.510969+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.816069+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -17401,7 +17017,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.511341+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.816436+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -17530,7 +17146,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.518066+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.823137+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -17652,7 +17268,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.518412+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.823534+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -17678,8 +17294,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -17690,16 +17306,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -17773,7 +17379,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.518532+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.823684+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -17882,7 +17488,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.518659+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.823808+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -17988,7 +17594,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.518781+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.823925+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -18097,7 +17703,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.518891+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.824042+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -18201,7 +17807,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.519012+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.824163+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -18315,7 +17921,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.519136+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.824277+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -18424,7 +18030,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.519257+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.824403+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -18536,7 +18142,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.519369+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.824522+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -18645,7 +18251,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.519499+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.824640+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -18748,7 +18354,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.519612+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.824751+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -18860,7 +18466,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.519726+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.824880+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -18973,7 +18579,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.519843+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.824991+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -19103,7 +18709,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.520218+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.825403+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -19129,8 +18735,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -19141,16 +18747,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -19246,7 +18842,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.520565+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.825758+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -19272,8 +18868,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -19284,16 +18880,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -19367,7 +18953,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.520951+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.825879+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -19476,7 +19062,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.521087+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.826002+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -19585,7 +19171,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.521205+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.826129+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -19719,7 +19305,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.521840+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.826975+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -19745,8 +19331,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -19757,16 +19343,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -19838,7 +19414,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.521974+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.827111+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -19947,7 +19523,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.522094+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.827252+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -20056,7 +19632,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.522213+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.827367+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -20215,7 +19791,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.524406+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.829819+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -20273,16 +19849,6 @@
             "weight": 6
           },
           {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
-          },
-          {
             "code": "GOVERNANCE",
             "message": "Assignments not required for app governance",
             "weight": 5
@@ -20326,8 +19892,8 @@
         ]
       },
       "risk": {
-        "score": 91,
-        "level": "critical",
+        "score": 56,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -20338,16 +19904,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -20409,8 +19965,8 @@
         ]
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -20421,16 +19977,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -20541,7 +20087,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.525707+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.831134+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -20571,8 +20117,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -20583,16 +20129,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -20664,7 +20200,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.525866+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.831283+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -20776,7 +20312,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.525988+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.831431+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -20880,7 +20416,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.526112+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.831552+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -20994,7 +20530,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.526236+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.831668+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -21185,7 +20721,7 @@
         },
         "replyUrlEnrichment": {
           "domains_analyzed": 76,
-          "domains_enriched": 2,
+          "domains_enriched": 1,
           "same_organization": true,
           "organizations_found": [
             "microsoft"
@@ -21198,10 +20734,9 @@
               "asn_description": "MICROSOFT-CORP-MSN-AS-BLOCK, US"
             },
             "officeppe.com": {
-              "enriched": true,
-              "organization": "MSFT",
-              "asn": "8068",
-              "asn_description": "MICROSOFT-CORP-MSN-AS-BLOCK, US"
+              "enriched": false,
+              "organization": null,
+              "error": "RDAP query failed"
             },
             "trafficmanager.net": {
               "enriched": false,
@@ -21212,7 +20747,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.539109+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.844639+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -21242,8 +20777,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -21254,16 +20789,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -21338,7 +20863,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.539251+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.844801+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -21450,7 +20975,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.539366+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.844918+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -21554,7 +21079,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.539491+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.845048+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -21667,7 +21192,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.539605+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.845162+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -21779,7 +21304,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.539728+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.845302+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -21910,7 +21435,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.540279+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.845850+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -21936,8 +21461,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -21948,16 +21473,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -22029,7 +21544,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.540412+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.845978+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -22136,7 +21651,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.540529+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.846101+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -22247,7 +21762,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.540659+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.846223+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -22356,7 +21871,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.543335+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.846345+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -22465,7 +21980,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.543551+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.846458+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -22641,7 +22156,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.546433+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.849048+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -22673,8 +22188,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 86,
-        "level": "critical",
+        "score": 51,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -22685,16 +22200,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -22772,7 +22277,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.546581+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.849181+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -22881,7 +22386,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.546705+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.849602+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -23015,7 +22520,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.548094+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.851021+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -23041,8 +22546,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -23053,16 +22558,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -23138,7 +22633,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.548222+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.851155+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -23247,7 +22742,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.548355+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.851272+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -23359,7 +22854,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.548475+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.851420+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -23468,7 +22963,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.548583+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.851540+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -23594,7 +23089,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.549120+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.852063+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -23620,8 +23115,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -23632,16 +23127,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -23741,7 +23226,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.549690+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.852588+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -23770,8 +23255,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -23782,16 +23267,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -23867,7 +23342,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.549824+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.852711+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -23999,7 +23474,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.550163+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.853052+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -24105,7 +23580,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.550283+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.853167+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -24259,7 +23734,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.555215+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.858106+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -24396,7 +23871,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.556028+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.858894+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -24422,8 +23897,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -24434,16 +23909,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -24536,7 +24001,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.556382+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.859234+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -24562,8 +24027,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -24574,16 +24039,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -24655,7 +24110,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.556505+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.859378+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -24764,7 +24219,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.556630+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.859496+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -24897,7 +24352,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.556977+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.859841+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -24923,8 +24378,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 61,
-        "level": "high",
+        "score": 26,
+        "level": "low",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -24935,16 +24390,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "GOVERNANCE",
@@ -25011,7 +24456,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.557135+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.859993+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -25125,7 +24570,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.557250+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.860107+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -25254,7 +24699,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.557815+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.860626+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -25280,8 +24725,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 86,
-        "level": "critical",
+        "score": 51,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -25292,16 +24737,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -25379,7 +24814,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.557938+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.860751+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -25488,7 +24923,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.558285+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.860873+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -25632,7 +25067,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.560195+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.862735+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -25658,8 +25093,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 86,
-        "level": "critical",
+        "score": 51,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -25670,16 +25105,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -25757,7 +25182,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.560323+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.862869+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -25893,7 +25318,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.561182+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.863685+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -26021,7 +25446,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.561584+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.864278+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -26047,8 +25472,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -26059,16 +25484,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -26140,7 +25555,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.561708+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.864407+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -26247,7 +25662,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.561832+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.864522+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -26360,7 +25775,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.561954+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.864644+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -26420,7 +25835,7 @@
         "servicePrincipalId": "e9d2ae84-b714-4eb0-a8cc-93b0fdfe5736",
         "appId": "4f464bfd-db62-4ccf-b0de-69e59cdba2cf",
         "appDisplayName": "Testy",
-        "publisherName": "Cirriustech",
+        "publisherName": "OIDSEE",
         "signInAudience": "AzureADMyOrg",
         "appOwnerOrganizationId": "123a4b56-7c89-01d2-ee34-56f7890a12bc",
         "appOwnership": "Internal",
@@ -26472,7 +25887,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.562078+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.864774+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -26623,7 +26038,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.562243+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.864928+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -26732,7 +26147,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.562362+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.865040+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -26841,7 +26256,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.562475+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.865162+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -26974,7 +26389,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.562827+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.865528+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -27000,8 +26415,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -27012,16 +26427,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -27097,7 +26502,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.562951+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.865656+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -27203,7 +26608,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.563081+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.865774+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -27333,7 +26738,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.563438+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.866117+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -27359,8 +26764,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -27371,16 +26776,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -27454,7 +26849,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.563668+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.866358+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -27563,7 +26958,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.563789+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.866473+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -27691,7 +27086,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.564283+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.866962+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -27717,8 +27112,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -27729,16 +27124,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -27829,7 +27214,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.564781+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.867455+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -27855,8 +27240,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -27867,16 +27252,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -27951,7 +27326,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.564907+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.867579+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -28093,7 +27468,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.565823+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.868402+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -28122,8 +27497,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -28134,16 +27509,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -28236,7 +27601,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.566179+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.868754+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -28262,8 +27627,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -28274,16 +27639,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -28376,7 +27731,7 @@
         },
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.566515+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.869074+00:00",
           "enrichment_enabled": true,
           "enrichment_success": true
         },
@@ -28402,8 +27757,8 @@
         "dnsRecords": null
       },
       "risk": {
-        "score": 76,
-        "level": "high",
+        "score": 41,
+        "level": "medium",
         "reasons": [
           {
             "code": "BROAD_REACHABILITY",
@@ -28414,16 +27769,6 @@
             "code": "UNVERIFIED_PUBLISHER",
             "message": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification.",
             "weight": 6
-          },
-          {
-            "code": "DECEPTION",
-            "message": "Unverified publisher with name mismatch between publisher and display name",
-            "weight": 20
-          },
-          {
-            "code": "IDENTITY_LAUNDERING",
-            "message": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users).",
-            "weight": 15
           },
           {
             "code": "NO_OWNERS",
@@ -28495,7 +27840,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.566800+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.869202+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -28604,7 +27949,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.570929+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.873232+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
@@ -28713,7 +28058,7 @@
         "replyUrlEnrichment": null,
         "replyUrlProvenance": {
           "source": "microsoft_graph",
-          "collection_timestamp": "2025-12-26T21:10:41.571802+00:00",
+          "collection_timestamp": "2025-12-26T22:22:43.874074+00:00",
           "enrichment_enabled": true,
           "enrichment_success": false
         },
