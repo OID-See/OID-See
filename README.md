@@ -26,11 +26,22 @@ pip install -r requirements.txt
 # Run scanner (interactive device code authentication)
 python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --out scan-results.json
 
+# Generate both JSON export and HTML report
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --generate-report --out scan-results.json
+
 # With enrichment enabled (requires dnspython and ipwhois packages)
 python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --out scan-results.json
 ```
 
-### 2. Visualize Results
+### 2. Review the Report (Optional)
+
+If you used `--generate-report`, open `scan-results-report.html` in your browser to see:
+- Risk distribution across your tenant
+- Top risk contributors and security metrics
+- List of high-risk applications requiring attention
+- Actionable security recommendations
+
+### 3. Visualize Results
 
 Open the OID-See web app at your deployment URL (or run locally with `npm run dev`), then:
 1. Click **Upload JSON** and select your `scan-results.json` file
@@ -38,7 +49,7 @@ Open the OID-See web app at your deployment URL (or run locally with `npm run de
 3. Filter by risk score: `n.risk.score>=70`
 4. Click nodes to see detailed risk analysis
 
-### 3. Take Action
+### 4. Take Action
 
 Review high-risk applications and:
 - Verify publisher identity and permissions
