@@ -215,6 +215,18 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
   
   const edgesFinal = edgesOut
 
+  // Diagnostic logging for filtering behavior (enable for debugging)
+  if (false && process.env.NODE_ENV === 'development') {
+    console.log('[applyQuery] Filter results:', {
+      totalNodes: data.nodes.length,
+      filteredNodes: nodesOut.length,
+      totalEdges: data.edges.length,
+      filteredEdges: edgesFinal.length,
+      lens,
+      hasNodeFilters: parsed.clauses.some(c => c.object === 'n')
+    })
+  }
+
   return { nodes: nodesOut, edges: edgesFinal, parsed }
 }
 
