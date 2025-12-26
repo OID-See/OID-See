@@ -98,6 +98,7 @@ function lensEdgeAllowed(lens: Lens, edgeType: string): boolean {
 
   if (lens === 'risk') {
     // Risk lens: show edges that represent security risks
+    // Note: ASSIGNED_TO appears in both lenses - in risk lens it shows who has access to risky resources
     const allow = new Set([
       'HAS_SCOPE',
       'HAS_SCOPES',
@@ -115,6 +116,7 @@ function lensEdgeAllowed(lens: Lens, edgeType: string): boolean {
   }
 
   // Structure lens: show edges that represent organizational structure
+  // Note: ASSIGNED_TO appears in both lenses - in structure lens it shows organizational assignments
   const allow = new Set(['INSTANCE_OF', 'MEMBER_OF', 'OWNS', 'GOVERNS', 'ASSIGNED_TO'])
   return allow.has(edgeType)
 }
