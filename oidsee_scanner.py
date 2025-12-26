@@ -1762,6 +1762,7 @@ def compute_risk_for_sp(
     public_client_indicators: Optional[Dict[str, Any]] = None,
     platform_signals: Optional[Dict[str, Any]] = None,
     reply_url_enrichment: Optional[Dict[str, Any]] = None,
+    app_ownership: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Compute risk score for service principal based on loaded configuration."""
     config = SCORING_CONFIG.get("compute_risk_for_sp", {})
@@ -1903,8 +1904,10 @@ def compute_risk_for_sp(
         })
 
     # UNVERIFIED_PUBLISHER
+    # Skip for Internal apps (appOwnerOrganizationId == tenantId) as they don't need verification
     verified = is_verified_publisher(sp.get("verifiedPublisher"))
-    if not verified:
+    is_internal = app_ownership == "Internal"
+    if not verified and not is_internal:
         unverified_config = contributors.get("UNVERIFIED_PUBLISHER", {})
         weight = unverified_config.get("weight", 6)
         details = unverified_config.get("details", "Service principal has no verifiedPublisherId")
@@ -2786,6 +2789,15 @@ class OidSeeCollector:
                     if etld:
                         domains_for_summary.append(etld)
                 enrichment_summary = _create_enrichment_summary(reply_url_enrichment, domains_for_summary)
+            
+            # Classify app ownership (1st Party, 3rd Party, or Internal)
+            # Attribution: Uses Microsoft Apps list from https://github.com/merill/microsoft-info by Merill Fernando
+            has_app_obj = appid and (appid in self.app_cache_by_appid)
+            app_ownership = classify_app_ownership(
+                sp.get("appId") or "",
+                sp.get("appOwnerOrganizationId"),
+                has_app_obj
+            )
 
             # service principal node - compute risk with enhanced insights
             risk = compute_risk_for_sp(
@@ -2807,6 +2819,7 @@ class OidSeeCollector:
                 public_client_indicators,
                 platform_signals,
                 reply_url_enrichment,
+                app_ownership,
             )
             
             # Check for identity laundering signals
@@ -2831,15 +2844,6 @@ class OidSeeCollector:
             key_creds_safe = key_creds_value if isinstance(key_creds_value, list) else []
             password_creds_value = sp.get("passwordCredentials")
             password_creds_safe = password_creds_value if isinstance(password_creds_value, list) else []
-            
-            # Classify app ownership (1st Party, 3rd Party, or Internal)
-            # Attribution: Uses Microsoft Apps list from https://github.com/merill/microsoft-info by Merill Fernando
-            has_app_obj = appid and (appid in self.app_cache_by_appid)
-            app_ownership = classify_app_ownership(
-                sp.get("appId") or "",
-                sp.get("appOwnerOrganizationId"),
-                has_app_obj
-            )
             
             props = {
                 "servicePrincipalId": sp_id,
