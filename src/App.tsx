@@ -164,6 +164,27 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
     }
   }
 
+  // Apply lens-based node filtering by risk score
+  // Risk lens: only show nodes WITH risk.score
+  // Structure lens: only show nodes WITHOUT risk.score
+  if (lens !== 'full' && nodeClauses.length === 0) {
+    const lensFiltered = new Set<string>()
+    for (const n of data.nodes) {
+      if (!nodePass.has(n.id)) continue
+      const raw = n.__oidsee ?? n
+      const hasRiskScore = raw.risk?.score !== undefined && raw.risk?.score !== null
+      
+      if (lens === 'risk' && hasRiskScore) {
+        lensFiltered.add(n.id)
+      } else if (lens === 'structure' && !hasRiskScore) {
+        lensFiltered.add(n.id)
+      }
+    }
+    // Replace nodePass with lens-filtered set
+    nodePass.clear()
+    lensFiltered.forEach(id => nodePass.add(id))
+  }
+
   const edgeById = new Map<string, any>()
   for (const e of data.edges) edgeById.set(e.id, e)
 
