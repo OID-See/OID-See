@@ -33,11 +33,6 @@ const SCROLL_DELAY_OFFSET = 50 // ms additional delay to ensure panel has expand
 const GRAPH_RESTABILIZE_DELAY = 100 // ms delay before triggering graph restabilization
 
 const PRESET_QUERIES: SavedQuery[] = [
-  // Risk level queries
-  { name: 'Critical Risk', query: 'n.risk.score>=85' },
-  { name: 'High Risk', query: 'n.risk.score>=60 n.risk.score<85' },
-  { name: 'Medium Risk', query: 'n.risk.score>=35 n.risk.score<60' },
-  
   // Node type queries
   { name: 'Service Principals', query: 'n.type=ServicePrincipal' },
   { name: 'Applications', query: 'n.type=Application' },
