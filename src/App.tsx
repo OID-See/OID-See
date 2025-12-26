@@ -246,13 +246,7 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
   // - If there are explicit node filters, show all nodes that match (even if isolated)
   // - If lens is risk/structure (with node filtering), show all filtered nodes (even if isolated)
   // - If lens is full (no node filters), show ALL nodes (don't hide nodes just because edges are filtered)
-  const nodesOut = data.nodes.filter((n) => {
-    if (!nodePass.has(n.id)) return false
-    // Show all nodes if there are explicit filters or lens-based filtering
-    if (nodeClauses.length > 0 || lens !== 'full') return true
-    // In full lens with no filters, show all nodes
-    return true
-  })
+  const nodesOut = data.nodes.filter((n) => nodePass.has(n.id))
   
   const edgesFinal = edgesOut
 
