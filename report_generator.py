@@ -647,7 +647,7 @@ def _generate_html(metrics: Dict[str, Any], export_data: Dict[str, Any]) -> str:
     <div class="container">
         <div class="header">
             {logo_html}
-            <h1>🔒 OID-See Security Report</h1>
+            <h1>Security Report</h1>
             <div class="subtitle">Microsoft Entra ID Third-Party Application Risk Assessment</div>
         </div>
         
