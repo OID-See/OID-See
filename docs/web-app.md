@@ -4,7 +4,7 @@
 
 The OID-See Viewer is a client-side web application that visualizes Microsoft Entra ID (Azure AD) tenant data as an interactive graph. **It runs entirely in your browser with no server-side processing**, ensuring your tenant data remains completely private and secure.
 
-**Live Application**: Available at your deployment URL or run locally with `npm run dev`
+**Live Application**: Available at **https://oid-see.netlify.app/** or run locally with `npm run dev`
 
 **Privacy Guarantee**:
 - ✅ **Browser-Only**: All data processing happens locally in your browser

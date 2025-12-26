@@ -39,7 +39,7 @@ Start here to analyze your tenant:
 
 1. **Generate Data**: Follow the [Scanner Documentation](./scanner.md) to collect tenant data
 2. **Understanding Risk**: Read [Scoring Logic](./scoring-logic.md) to interpret risk scores
-3. **Visualize**: Use the [Web App Guide](./web-app.md) to explore your data
+3. **Visualize**: Use the [Web App Guide](./web-app.md) to explore your data at **https://oid-see.netlify.app/**
 4. **Query**: Learn filter syntax to find specific security issues
 
 ### For Developers
