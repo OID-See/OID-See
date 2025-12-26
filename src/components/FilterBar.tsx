@@ -248,6 +248,7 @@ export function FilterBar({
   onSave,
   onDelete,
   onLoad,
+  onReset,
 }: {
   query: string
   onChange: (q: string) => void
@@ -261,6 +262,7 @@ export function FilterBar({
   onSave: () => void
   onDelete: () => void
   onLoad: (name: string) => void
+  onReset: () => void
 }) {
   const [open, setOpen] = useState(false)
   const parsed = useMemo(() => parseQuery(query), [query])
@@ -307,6 +309,9 @@ export function FilterBar({
           </button>
           <button className="btn btn--ghost" onClick={onDelete} title="Delete a saved query">
             Delete
+          </button>
+          <button className="btn btn--ghost" onClick={onReset} title="Reset preset queries to defaults (keeps user-added queries)">
+            Reset Presets
           </button>
         </div>
       </div>

@@ -480,6 +480,20 @@ export default function App() {
     if (found) setQuery(found.query)
   }
 
+  function resetPresetQueries() {
+    // Get all preset query names
+    const presetNames = new Set(PRESET_QUERIES.map(q => q.name))
+    
+    // Keep only user-added queries (those not in PRESET_QUERIES)
+    const userQueries = saved.filter(q => !presetNames.has(q.name))
+    
+    // Combine preset queries with user queries
+    const next = [...PRESET_QUERIES, ...userQueries]
+    
+    setSaved(next)
+    saveSaved(next)
+  }
+
   function formatJSON() {
     try {
       const parsed = JSON.parse(raw)
@@ -649,6 +663,7 @@ export default function App() {
             onSave={saveCurrentQuery}
             onDelete={deleteSavedQuery}
             onLoad={loadSavedQuery}
+            onReset={resetPresetQueries}
           />
         )}
       </section>
