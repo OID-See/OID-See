@@ -97,9 +97,16 @@ function lensEdgeAllowed(lens: Lens, edgeType: string): boolean {
   if (lens === 'full') return true
 
   if (lens === 'risk') {
+    // Risk lens: show edges that represent security risks
+    // Note: ASSIGNED_TO appears in both lenses - in risk lens it shows who has access to risky resources
     const allow = new Set([
       'HAS_SCOPE',
+      'HAS_SCOPES',
+      'HAS_TOO_MANY_SCOPES',
+      'HAS_PRIVILEGED_SCOPES',
+      'HAS_OFFLINE_ACCESS',
       'HAS_ROLE',
+      'HAS_APP_ROLE',
       'CAN_IMPERSONATE',
       'EFFECTIVE_IMPERSONATION_PATH',
       'PERSISTENCE_PATH',
@@ -108,6 +115,8 @@ function lensEdgeAllowed(lens: Lens, edgeType: string): boolean {
     return allow.has(edgeType)
   }
 
+  // Structure lens: show edges that represent organizational structure
+  // Note: ASSIGNED_TO appears in both lenses - in structure lens it shows organizational assignments
   const allow = new Set(['INSTANCE_OF', 'MEMBER_OF', 'OWNS', 'GOVERNS', 'ASSIGNED_TO'])
   return allow.has(edgeType)
 }
@@ -167,7 +176,7 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
   const edgeById = new Map<string, any>()
   for (const e of data.edges) edgeById.set(e.id, e)
 
-  // Step 2: Filter edges based on edge clauses, lens, and whether endpoints are in nodePass
+  // Step 2: Filter edges based on edge clauses and lens
   const edgesOut: any[] = []
   const edgesKept = new Set<string>()
 
@@ -182,7 +191,7 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
     const ok = edgeClauses.every((c) => evalClause(raw, c))
     if (!ok) continue
 
-    // Check if both endpoints are in the filtered node set
+    // Check if both endpoints pass explicit node filter clauses
     if (!nodePass.has(e.from) || !nodePass.has(e.to)) continue
 
     if (!edgesKept.has(e.id)) {
@@ -205,19 +214,29 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
     }
   }
 
-  // Step 3: Determine final nodes and edges
+  // Step 3: Determine final nodes based on visible edges and lens settings
   const nodesWithEdges = new Set<string>()
   for (const e of edgesOut) {
     nodesWithEdges.add(e.from)
     nodesWithEdges.add(e.to)
   }
 
-  // If there are explicit node filters, show all nodes that match (even if isolated)
-  // Otherwise, only show nodes that have edges
+  // Filter nodes based on lens and filter settings:
+  // - If there are explicit node filters, show all nodes that match (even if isolated)
+  // - If lens is risk/structure, show only nodes connected by visible edges
+  // - If lens is full, show all nodes (no filtering)
   const nodesOut = data.nodes.filter((n) => {
+    // Must pass explicit node filters
     if (!nodePass.has(n.id)) return false
-    if (nodeClauses.length > 0) return true  // Show all filtered nodes
-    return nodesWithEdges.has(n.id)  // Only show nodes with edges if no node filter
+    
+    // If there are explicit node filters, show all matching nodes
+    if (nodeClauses.length > 0) return true
+    
+    // In Full lens, show all nodes
+    if (lens === 'full') return true
+    
+    // In Risk/Structure lens, only show nodes connected by visible edges
+    return nodesWithEdges.has(n.id)
   })
   
   const edgesFinal = edgesOut
