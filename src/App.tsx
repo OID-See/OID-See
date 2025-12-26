@@ -173,6 +173,27 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
     }
   }
 
+  // Apply lens-based node filtering by risk score (only when no explicit node filters)
+  // Risk lens: only show nodes WITH risk.score
+  // Structure lens: only show nodes WITHOUT risk.score
+  if (lens !== 'full' && nodeClauses.length === 0) {
+    const lensFiltered = new Set<string>()
+    for (const n of data.nodes) {
+      if (!nodePass.has(n.id)) continue
+      const raw = n.__oidsee ?? n
+      const hasRiskScore = raw.risk?.score != null
+      
+      if (lens === 'risk' && hasRiskScore) {
+        lensFiltered.add(n.id)
+      } else if (lens === 'structure' && !hasRiskScore) {
+        lensFiltered.add(n.id)
+      }
+    }
+    // Replace nodePass with lens-filtered set
+    nodePass.clear()
+    lensFiltered.forEach(id => nodePass.add(id))
+  }
+
   const edgeById = new Map<string, any>()
   for (const e of data.edges) edgeById.set(e.id, e)
 
@@ -221,11 +242,16 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
     nodesWithEdges.add(e.to)
   }
 
-  // Show all nodes that pass the filter
+  // Show nodes based on lens and filter settings:
   // - If there are explicit node filters, show all nodes that match (even if isolated)
-  // - If there are NO node filters, show ALL nodes (don't hide nodes just because edges are filtered)
+  // - If lens is risk/structure (with node filtering), show all filtered nodes (even if isolated)
+  // - If lens is full (no node filters), show ALL nodes (don't hide nodes just because edges are filtered)
   const nodesOut = data.nodes.filter((n) => {
-    return nodePass.has(n.id)
+    if (!nodePass.has(n.id)) return false
+    // Show all nodes if there are explicit filters or lens-based filtering
+    if (nodeClauses.length > 0 || lens !== 'full') return true
+    // In full lens with no filters, show all nodes
+    return true
   })
   
   const edgesFinal = edgesOut
