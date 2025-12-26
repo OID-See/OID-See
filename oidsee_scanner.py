@@ -3233,6 +3233,9 @@ def main() -> int:
                 report_path = args.out + '-report.html'
             generate_html_report(export, report_path)
             print(f"✓ Wrote HTML report: {report_path}", file=sys.stderr)
+        except ImportError as e:
+            print(f"✗ Cannot generate report: report_generator module not found. Error: {e}", file=sys.stderr)
+            print("  Make sure report_generator.py is in the same directory as the scanner.", file=sys.stderr)
         except Exception as e:
             print(f"✗ Error generating report: {type(e).__name__}: {e}", file=sys.stderr)
             import traceback
