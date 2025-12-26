@@ -48,7 +48,7 @@ If you used `--generate-report`, open `scan-results-report.html` in your browser
 
 ### 3. Visualize Results
 
-Open the OID-See web app at your deployment URL (or run locally with `npm run dev`), then:
+Open the OID-See web app at **https://oid-see.netlify.app/** (or run locally with `npm run dev`), then:
 1. Click **Upload JSON** and select your `scan-results.json` file
 2. Use the **Risk** lens to focus on high-risk applications
 3. Filter by risk score: `n.risk.score>=70`
