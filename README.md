@@ -3,6 +3,16 @@
 
 A public, static web app that renders an interactive graph (via `vis-network`) from a JSON export — processed **entirely in your browser**.
 
+## 📚 Documentation
+
+Comprehensive documentation is available in the [`docs/`](./docs/) directory:
+
+- **[Documentation Index](./docs/README.md)** - Start here for navigation
+- **[Scanner Guide](./docs/scanner.md)** - How to collect tenant data
+- **[Scoring Logic](./docs/scoring-logic.md)** - Understanding risk assessment
+- **[Schema Reference](./docs/schema.md)** - Export format specification
+- **[Web App Guide](./docs/web-app.md)** - Using the visualization tool
+
 ## Primary schema: OID-See Graph Export v1.x
 This repo includes the full JSON Schema at:
 
