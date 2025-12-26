@@ -12,12 +12,36 @@ The report aligns with OID-See's scoring logic as documented in docs/scoring-log
 """
 
 import json
+import base64
+import os
 from typing import Dict, List, Any
 from collections import Counter, defaultdict
 from datetime import datetime
 
 # Repository URL for report footer
 REPOSITORY_URL = "https://github.com/OID-See/OID-See"
+
+
+def _get_logo_base64() -> str:
+    """Get the OID-See logo as base64 encoded string."""
+    # Try to load logo from the public/icons directory
+    logo_paths = [
+        'public/icons/oidsee_logo.png',
+        '../public/icons/oidsee_logo.png',
+        os.path.join(os.path.dirname(__file__), 'public/icons/oidsee_logo.png'),
+    ]
+    
+    for logo_path in logo_paths:
+        if os.path.exists(logo_path):
+            try:
+                with open(logo_path, 'rb') as f:
+                    logo_data = f.read()
+                    return base64.b64encode(logo_data).decode('utf-8')
+            except Exception:
+                pass
+    
+    # Return empty string if logo not found
+    return ""
 
 
 def generate_html_report(export_data: Dict[str, Any], output_path: str) -> None:
@@ -162,6 +186,9 @@ def _generate_html(metrics: Dict[str, Any], export_data: Dict[str, Any]) -> str:
     tenant_id = tenant.get('tenantId', 'Unknown')
     generated_at = export_data.get('generatedAt', 'Unknown')
     
+    # Get logo as base64
+    logo_base64 = _get_logo_base64()
+    
     # Calculate percentages
     total_sps = metrics['total_service_principals']
     risk_dist = metrics['risk_distribution']
@@ -228,6 +255,11 @@ def _generate_html(metrics: Dict[str, Any], export_data: Dict[str, Any]) -> str:
     if not top_risky_rows:
         top_risky_rows = '<tr><td colspan="4" class="text-center">No high-risk applications found</td></tr>'
     
+    # Prepare logo HTML if available
+    logo_html = ""
+    if logo_base64:
+        logo_html = f'<img src="data:image/png;base64,{logo_base64}" alt="OID-See Logo" class="logo">'
+    
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -263,6 +295,12 @@ def _generate_html(metrics: Dict[str, Any], export_data: Dict[str, Any]) -> str:
             color: white;
             padding: 40px;
             text-align: center;
+        }}
+        
+        .header .logo {{
+            max-width: 300px;
+            height: auto;
+            margin-bottom: 20px;
         }}
         
         .header h1 {{
@@ -608,6 +646,7 @@ def _generate_html(metrics: Dict[str, Any], export_data: Dict[str, Any]) -> str:
 <body>
     <div class="container">
         <div class="header">
+            {logo_html}
             <h1>🔒 OID-See Security Report</h1>
             <div class="subtitle">Microsoft Entra ID Third-Party Application Risk Assessment</div>
         </div>

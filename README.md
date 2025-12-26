@@ -1,4 +1,8 @@
 
+<p align="center">
+  <img src="public/icons/oidsee_logo.png" alt="OID-See Logo" width="400">
+</p>
+
 # OID-See
 
 **Visualize and assess security risks in your Microsoft Entra ID tenant's third-party and multi-tenant applications.**
