@@ -167,7 +167,9 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
   // Apply lens-based node filtering by risk score
   // Risk lens: only show nodes WITH risk.score
   // Structure lens: only show nodes WITHOUT risk.score
+  const DEBUG = false  // Set to true to enable diagnostic logging
   if (lens !== 'full' && nodeClauses.length === 0) {
+    const beforeCount = nodePass.size
     const lensFiltered = new Set<string>()
     for (const n of data.nodes) {
       if (!nodePass.has(n.id)) continue
@@ -183,6 +185,9 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
     // Replace nodePass with lens-filtered set
     nodePass.clear()
     lensFiltered.forEach(id => nodePass.add(id))
+    if (DEBUG) {
+      console.log(`[Lens Filter] ${lens} lens: ${beforeCount} → ${nodePass.size} nodes`)
+    }
   }
 
   const edgeById = new Map<string, any>()
@@ -233,13 +238,19 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
     nodesWithEdges.add(e.to)
   }
 
-  // If there are explicit node filters, show all nodes that match (even if isolated)
+  // If there are explicit node filters OR lens-based filtering, show all nodes that match (even if isolated)
   // Otherwise, only show nodes that have edges
   const nodesOut = data.nodes.filter((n) => {
     if (!nodePass.has(n.id)) return false
-    if (nodeClauses.length > 0) return true  // Show all filtered nodes
+    if (nodeClauses.length > 0 || lens !== 'full') return true  // Show all filtered nodes
     return nodesWithEdges.has(n.id)  // Only show nodes with edges if no node filter
   })
+  
+  if (DEBUG) {
+    console.log(`[Final Output] ${nodesOut.length} nodes, ${edgesOut.length} edges`)
+    console.log(`  - Nodes with edges: ${nodesWithEdges.size}`)
+    console.log(`  - Nodes without edges: ${nodesOut.length - nodesWithEdges.size}`)
+  }
   
   const edgesFinal = edgesOut
 
