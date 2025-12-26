@@ -57,7 +57,89 @@ AZURE_CLI_CLIENT_ID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
 MICROSOFT_TENANT_IDS = [
     "f8cdef31-a31e-4b4a-93e4-5f571e91255a",  # Microsoft Accounts (MSA)
     "72f988bf-86f1-41af-91ab-2d7cd011db47",  # Microsoft Services
+    "cdc5aeea-15c5-4db6-b079-fcadd2505dc2",  # Microsoft third tenant
 ]
+
+# URL for Merill's Microsoft Apps list
+# Attribution: https://github.com/merill/microsoft-info by Merill Fernando
+MERILL_MICROSOFT_APPS_URL = "https://raw.githubusercontent.com/merill/microsoft-info/main/_info/MicrosoftApps.json"
+
+# Global cache for Microsoft first-party apps
+_MICROSOFT_APPS_CACHE: Optional[Dict[str, Dict[str, Any]]] = None
+
+
+def _fetch_microsoft_apps_list() -> Dict[str, Dict[str, Any]]:
+    """
+    Fetch the list of Microsoft first-party apps from Merill's repository.
+    
+    Attribution: This uses the Microsoft Apps list maintained by Merill Fernando
+    at https://github.com/merill/microsoft-info
+    
+    Returns a dict mapping appId to app info.
+    """
+    global _MICROSOFT_APPS_CACHE
+    
+    if _MICROSOFT_APPS_CACHE is not None:
+        return _MICROSOFT_APPS_CACHE
+    
+    apps_dict = {}
+    
+    try:
+        print(f"Fetching Microsoft first-party apps list from Merill's repository...")
+        response = requests.get(MERILL_MICROSOFT_APPS_URL, timeout=10)
+        response.raise_for_status()
+        
+        apps_list = response.json()
+        
+        # Convert list to dict keyed by appId for fast lookup
+        for app in apps_list:
+            app_id = app.get("AppId")
+            if app_id:
+                apps_dict[app_id.lower()] = app
+        
+        print(f"Loaded {len(apps_dict)} Microsoft first-party apps from Merill's list")
+        _MICROSOFT_APPS_CACHE = apps_dict
+        return apps_dict
+        
+    except Exception as e:
+        print(f"Warning: Could not fetch Microsoft apps list from Merill's repository: {e}")
+        print("Falling back to tenant ID-based detection only")
+        _MICROSOFT_APPS_CACHE = {}
+        return {}
+
+
+def classify_app_ownership(app_id: str, app_owner_org_id: Optional[str], 
+                           has_app_object_in_tenant: bool) -> str:
+    """
+    Classify an app as "1st Party" (Microsoft), "3rd Party" (external), or "Internal" (tenant-owned).
+    
+    Attribution: Uses Microsoft Apps list from https://github.com/merill/microsoft-info by Merill Fernando
+    
+    Args:
+        app_id: The application ID (GUID)
+        app_owner_org_id: The appOwnerOrganizationId from the service principal
+        has_app_object_in_tenant: Whether the Application object exists in the current tenant
+        
+    Returns:
+        "1st Party", "3rd Party", or "Internal"
+    """
+    # Get the Microsoft apps list
+    microsoft_apps = _fetch_microsoft_apps_list()
+    
+    # Check if app is in Merill's authoritative list
+    if app_id and app_id.lower() in microsoft_apps:
+        return "1st Party"
+    
+    # Fallback: Check if appOwnerOrganizationId is a Microsoft tenant
+    if app_owner_org_id in MICROSOFT_TENANT_IDS:
+        return "1st Party"
+    
+    # If the Application object exists in this tenant, it's Internal
+    if has_app_object_in_tenant:
+        return "Internal"
+    
+    # Otherwise it's 3rd Party
+    return "3rd Party"
 
 # -----------------------------
 # Scoring configuration loader
@@ -2750,6 +2832,15 @@ class OidSeeCollector:
             password_creds_value = sp.get("passwordCredentials")
             password_creds_safe = password_creds_value if isinstance(password_creds_value, list) else []
             
+            # Classify app ownership (1st Party, 3rd Party, or Internal)
+            # Attribution: Uses Microsoft Apps list from https://github.com/merill/microsoft-info by Merill Fernando
+            has_app_obj = appid and (appid in self.app_cache_by_appid)
+            app_ownership = classify_app_ownership(
+                sp.get("appId") or "",
+                sp.get("appOwnerOrganizationId"),
+                has_app_obj
+            )
+            
             props = {
                 "servicePrincipalId": sp_id,
                 "appId": sp.get("appId"),
@@ -2757,6 +2848,7 @@ class OidSeeCollector:
                 "publisherName": sp.get("publisherName"),
                 "signInAudience": sp.get("signInAudience"),
                 "appOwnerOrganizationId": sp.get("appOwnerOrganizationId"),
+                "appOwnership": app_ownership,  # 1st Party, 3rd Party, or Internal
                 "createdDateTime": sp.get("createdDateTime"),
                 "replyUrls": reply_urls,  # Use the type-checked value
                 "homepage": sp.get("homepage"),
