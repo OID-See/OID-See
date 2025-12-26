@@ -1918,16 +1918,17 @@ def compute_risk_for_sp(
             "weight": weight,
         })
 
-    # DECEPTION (name mismatch in addition to unverified) - gate for well-known Microsoft platform apps
+    # DECEPTION (name mismatch in addition to unverified) - gate for well-known Microsoft platform apps and 1st Party apps
     # Only applies when there are reply URLs (user-facing OAuth flows where deception matters)
     publisher = sp.get("publisherName") or ""
     display_name = sp_display or sp.get("appDisplayName") or ""
     deception = (not verified) and publisher and display_name and publisher.lower() != display_name.lower()
     
-    # Skip for well-known Microsoft platform apps
+    # Skip for well-known Microsoft platform apps and 1st Party apps (identified via Merill's feed)
     is_well_known_ms = platform_signals and platform_signals.get("isWellKnownMicrosoftAppId", False)
+    is_first_party = app_ownership == "1st Party"
     
-    if deception and not is_well_known_ms and total_urls > 0:
+    if deception and not is_well_known_ms and not is_first_party and total_urls > 0:
         deception_config = contributors.get("DECEPTION", {})
         weight = deception_config.get("weight", 20)
         description = deception_config.get("description", "Unverified publisher with name mismatch")
@@ -1940,8 +1941,10 @@ def compute_risk_for_sp(
 
     # IDENTITY_LAUNDERING (Microsoft-owned appOwnerOrganizationId but not a first-party app)
     # Only applies when there are reply URLs (user-facing OAuth flows where attribution confusion matters)
+    # Skip if app is confirmed as 1st Party via Merill's Microsoft Apps feed
     app_owner_org_id = sp.get("appOwnerOrganizationId")
-    if not verified and app_owner_org_id in MICROSOFT_TENANT_IDS and total_urls > 0:
+    is_first_party = app_ownership == "1st Party"
+    if not verified and app_owner_org_id in MICROSOFT_TENANT_IDS and not is_first_party and total_urls > 0:
         identity_laundering_config = contributors.get("IDENTITY_LAUNDERING", {})
         weight = identity_laundering_config.get("weight", 15)
         details = identity_laundering_config.get("details", "App appears Microsoft-owned but is unverified multi-tenant")
