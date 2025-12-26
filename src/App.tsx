@@ -221,12 +221,11 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
     nodesWithEdges.add(e.to)
   }
 
-  // Show nodes that have at least one visible edge
-  // If there are explicit node filters, show all nodes that match (even if isolated)
+  // Show all nodes that pass the filter
+  // - If there are explicit node filters, show all nodes that match (even if isolated)
+  // - If there are NO node filters, show ALL nodes (don't hide nodes just because edges are filtered)
   const nodesOut = data.nodes.filter((n) => {
-    if (!nodePass.has(n.id)) return false
-    if (nodeClauses.length > 0) return true  // Show all filtered nodes
-    return nodesWithEdges.has(n.id)  // Only show nodes with edges if no node filter
+    return nodePass.has(n.id)
   })
   
   const edgesFinal = edgesOut
