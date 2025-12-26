@@ -278,7 +278,7 @@ export function FilterBar({
             </li>
           </ul>
           <div className="help__text muted">
-            Lenses: <b>Risk</b> shows only nodes with risk scores and their risk-related edges. <b>Structure</b> shows only nodes without risk scores and their organizational structure edges. <b>Full</b> shows all nodes and edges. Path-aware keeps the inputs for derived
+            Lenses: <b>Risk</b> shows risk-related edges (scopes, roles, impersonation, etc.) and their connected nodes. <b>Structure</b> shows organizational structure edges (instance, membership, ownership, etc.) and their connected nodes. <b>Full</b> shows all nodes and edges. Path-aware keeps the inputs for derived
             edges (via <span className="mono">derived.inputs</span>).
           </div>
         </div>
