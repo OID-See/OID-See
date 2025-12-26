@@ -191,7 +191,7 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
     const ok = edgeClauses.every((c) => evalClause(raw, c))
     if (!ok) continue
 
-    // Check if both endpoints pass node filters (but not lens filtering yet)
+    // Check if both endpoints pass explicit node filter clauses
     if (!nodePass.has(e.from) || !nodePass.has(e.to)) continue
 
     if (!edgesKept.has(e.id)) {
@@ -223,7 +223,7 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
 
   // Filter nodes based on lens and filter settings:
   // - If there are explicit node filters, show all nodes that match (even if isolated)
-  // - If lens is risk/structure, show only nodes connected by visible edges AND matching risk score criteria
+  // - If lens is risk/structure, show only nodes connected by visible edges
   // - If lens is full, show all nodes (no filtering)
   const nodesOut = data.nodes.filter((n) => {
     // Must pass explicit node filters
