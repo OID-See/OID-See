@@ -89,7 +89,7 @@
       "DECEPTION": {
         "weight": 20,
         "description": "Unverified publisher with name mismatch between publisher and display name",
-        "details": "Applied when publisher is unverified AND there is a significant mismatch between publisherName and appDisplayName, suggesting potential deceptive naming. Verification context includes checking if verifiedPublisher is null/empty and comparing name strings for similarity."
+        "details": "Applied when publisher is unverified AND there is a significant mismatch between publisherName and appDisplayName, suggesting potential deceptive naming. Verification context includes checking if verifiedPublisher is null/empty and comparing name strings for similarity. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows) and not for well-known Microsoft platform apps."
       },
       "MIXED_REPLYURL_DOMAINS": {
         "identity_laundering_weight": 15,
@@ -97,7 +97,7 @@
         "attribution_ambiguity_weight": 5,
         "attribution_ambiguity_description": "Attribution ambiguity: multiple distinct domains in reply URLs",
         "weight": 2,
-        "details": "Multiple eTLD+1 values is a weak signal (locales/admin portals are common). Only elevate when an outlier domain is unrelated to primary vendor domain(s)."
+        "details": "Multiple eTLD+1 values is a weak signal (locales/admin portals are common). Only elevate when an outlier domain is unrelated to primary vendor domain(s). GATED: Only applied when total_urls > 0. Uses RDAP/WHOIS enrichment to verify if domains belong to the same organization (with name normalization) to prevent false positives."
       },
       "CREDENTIAL_HYGIENE": {
         "long_lived_secret_weight": 10,
@@ -144,7 +144,7 @@
       },
       "UNVERIFIED_PUBLISHER": {
         "weight": 6,
-        "details": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies)."
+        "details": "Service principal has no verifiedPublisherId (unverified publisher). Alone is moderate risk; combine with other signals (privileged scopes, broad reachability, URL anomalies). GATED: Not applied to Internal apps (appOwnership='Internal') as tenant-owned apps don't require publisher verification."
       },
       "OFFLINE_ACCESS_PERSISTENCE": {
         "weight": 8,
@@ -160,11 +160,15 @@
       },
       "IDENTITY_LAUNDERING": {
         "weight": 15,
-        "details": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps."
+        "details": "App appears 'Microsoft-owned' in appOwnerOrganizationId/publisherName (e.g., Microsoft Accounts/Services) while not being a Microsoft first-party app. Indicates ownership attribution is obscured for unverified multi-tenant apps. GATED: Only applied when total_urls > 0 (apps with reply URLs capable of OAuth flows where attribution confusion matters to users)."
       },
       "REPLYURL_OUTLIER_DOMAIN": {
         "weight": 10,
-        "details": "One or more replyUrls are on a domain that is not in the main vendor domain set (eTLD+1 cluster) for the app. This is stronger than simply 'multiple domains'."
+        "details": "One or more replyUrls are on a domain that is not in the main vendor domain set (eTLD+1 cluster) for the app. This is stronger than simply 'multiple domains'. GATED: Only applied when total_urls > 0. Uses RDAP/WHOIS enrichment to verify if domains belong to the same organization (with name normalization) to prevent false positives."
+      },
+      "REPLY_URL_ANOMALIES": {
+        "weight": "varies",
+        "details": "Reply URLs contain security anomalies such as non-HTTPS URLs, IP literals, localhost, punycode, or wildcards. GATED: Only applied when total_urls > 0."
       }
     },
     "final_score_limitation": {
