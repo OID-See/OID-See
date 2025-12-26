@@ -206,12 +206,6 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
   }
 
   // Step 3: Determine final nodes and edges
-  const nodesWithEdges = new Set<string>()
-  for (const e of edgesOut) {
-    nodesWithEdges.add(e.from)
-    nodesWithEdges.add(e.to)
-  }
-
   // Show all nodes that pass the filter
   // - If there are explicit node filters, show all nodes that match (even if isolated)
   // - If there are NO node filters, show ALL nodes (don't hide nodes just because edges are filtered)
