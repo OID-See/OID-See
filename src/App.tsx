@@ -73,7 +73,7 @@ const PRESET_QUERIES: SavedQuery[] = [
   { name: 'App Assignments', query: 'e.type=ASSIGNED_TO' },
   
   // Complex multi-condition queries
-  { name: 'High Risk with Credentials', query: 'n.risk.score>=60 n.properties.credentialInsights.active_password_credentials>0' },
+  { name: 'High Risk with Credentials', query: 'n.risk.score>=70 n.properties.credentialInsights.active_password_credentials>0' },
   { name: 'Unverified with Offline Access', query: 'n.properties.verifiedPublisher.displayName=null e.type=HAS_OFFLINE_ACCESS' },
   { name: 'Impersonation Capable Service Principals', query: 'e.type=CAN_IMPERSONATE e.properties.markers~user_impersonation' },
 ]
