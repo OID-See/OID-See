@@ -157,6 +157,10 @@ For detailed information about changes and releases:
 - **[RELEASE_NOTES.md](RELEASE_NOTES.md)** - Detailed release documentation
 
 ## Deploy to Netlify
+
+**Official Deployment**: The OID-See visualizer is hosted at **https://oid-see.netlify.app/**
+
+To deploy your own instance:
 1. Push to GitHub
 2. Netlify → **New site from Git**
 3. `netlify.toml` handles build + publish
