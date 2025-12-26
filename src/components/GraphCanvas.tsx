@@ -251,7 +251,7 @@ export const GraphCanvas = forwardRef<
           tooltipDelay: 120,
           multiselect: true,
           navigationButtons: true,
-          keyboard: true,
+          keyboard: false, // Disable to prevent interference with filter text field
           selectOnClick: false, // Disable automatic selection to prevent label clicks from selecting elements
         },
         nodes: {
