@@ -11,18 +11,17 @@ flowchart TD
     A[Start Risk Calculation] --> B[Initialize Score = 0]
     B --> C[Capability Assessment]
     C --> D[Exposure Assessment]
-    D --> E[Governance & Lifecycle]
+    D --> E[Lifecycle Assessment]
     E --> F[Credential Hygiene]
     F --> G[Reply URL Anomalies]
-    G --> H[Apply Governance Deductions]
-    H --> I{Score > 100?}
-    I -->|Yes| J[Clamp to 100]
-    I -->|No| K[Keep Score]
-    J --> L[Map to Risk Level]
-    K --> L
-    L --> M{Score Range?}
-    M -->|0-19| N[Info]
-    M -->|20-39| O[Low]
+    G --> H{Score > 100?}
+    H -->|Yes| I[Clamp to 100]
+    H -->|No| J[Keep Score]
+    I --> K[Map to Risk Level]
+    J --> K
+    K --> L{Score Range?}
+    L -->|0-19| M[Info]
+    L -->|20-39| N[Low]
     M -->|40-69| P[Medium]
     M -->|70-89| Q[High]
     M -->|90-100| R[Critical]
@@ -249,75 +248,50 @@ elif assigned_count > 0:
 
 **Gating**: If `ASSIGNED_TO` applies, `BROAD_REACHABILITY` does not (they're mutually exclusive).
 
-### 3. Governance & Lifecycle
+### 3. Lifecycle Assessment
 
-Evaluates security controls and organizational factors.
+Evaluates organizational factors and app lifecycle.
 
 ```mermaid
 flowchart TD
-    A[Governance & Lifecycle] --> B{Has Governance?}
-    B -->|Yes| C[Apply Deductions]
-    B -->|No| D[Check Other Factors]
+    A[Lifecycle Assessment] --> B{Has Owners?}
+    B -->|No| C[+15 NO_OWNERS]
+    B -->|Yes| D[Check Publisher]
     
-    C --> E{Governance Strength?}
-    E -->|Strong| F[-30 Deduction]
-    E -->|Moderate| G[-15 Deduction]
-    E -->|Weak| H[-5 Deduction]
+    D --> E{Verified Publisher?}
+    E -->|No| F[+6 UNVERIFIED_PUBLISHER]
+    E -->|Yes| G[Check Deception]
     
-    D --> I{Has Owners?}
-    I -->|No| J[+15 NO_OWNERS]
-    I -->|Yes| K[Check Publisher]
+    F --> H{Name Mismatch?}
+    H -->|Yes| I[+20 DECEPTION]
+    H -->|No| J[Check Identity Laundering]
     
-    K --> L{Verified Publisher?}
-    L -->|No| M[+6 UNVERIFIED_PUBLISHER]
-    L -->|Yes| N[Check Deception]
+    G --> J
+    I --> J
+    J --> K{Microsoft Tenant + Unverified?}
+    K -->|Yes| L[+15 IDENTITY_LAUNDERING]
+    K -->|No| M[Check Reply URLs]
     
-    M --> O{Name Mismatch?}
-    O -->|Yes| P[+20 DECEPTION]
-    O -->|No| Q[Check Identity Laundering]
+    M --> N{Mixed Domains?}
+    N -->|Yes, Non-aligned| O[+10 REPLYURL_OUTLIER_DOMAIN]
+    N -->|Yes, All aligned| P[+5 Attribution Ambiguity]
+    N -->|No| Q[Check Credentials]
     
-    N --> Q
+    O --> Q
     P --> Q
-    Q --> R{Microsoft Tenant + Unverified?}
-    R -->|Yes| S[+15 IDENTITY_LAUNDERING]
-    R -->|No| T[Check Reply URLs]
+    Q --> R{Has Credentials?}
+    R -->|Yes| S[+10 CREDENTIALS_PRESENT]
+    R -->|No| T[Check Legacy]
     
-    T --> U{Mixed Domains?}
-    U -->|Yes, Non-aligned| V[+10 REPLYURL_OUTLIER_DOMAIN]
-    U -->|Yes, All aligned| W[+5 Attribution Ambiguity]
-    U -->|No| X[Check Credentials]
+    S --> U{Password Creds?}
+    U -->|Yes| V[+12 PASSWORD_CREDENTIALS_PRESENT]
+    U -->|No| T
     
-    V --> X
-    W --> X
-    X --> Y{Has Credentials?}
-    Y -->|Yes| Z[+10 CREDENTIALS_PRESENT]
-    Y -->|No| AA[Check Legacy]
-    
-    Z --> AB{Password Creds?}
-    AB -->|Yes| AC[+12 PASSWORD_CREDENTIALS_PRESENT]
-    AB -->|No| AA
-    
-    AC --> AA
-    AA --> AD{Created Before July 2025?}
-    AD -->|Yes| AE[+10 LEGACY]
-    AD -->|No| AF[End]
+    V --> T
+    T --> W{Created Before July 2024?}
+    W -->|Yes| X[+10 LEGACY]
+    W -->|No| Y[End]
 ```
-
-#### GOVERNS (Deductions: -30, -15, -5)
-
-**Description**: Conditional Access policies govern the application
-
-**Deduction Levels**:
-
-| Strength  | Deduction | Examples |
-|-----------|-----------|----------|
-| Strong    | -30       | MFA required, compliant device, trusted location |
-| Moderate  | -15       | Some controls, but not comprehensive |
-| Weak      | -5        | Minimal controls |
-
-**Risk Rationale**: Conditional Access provides security controls that reduce risk. Stronger policies provide greater risk reduction.
-
-**Note**: Governance deductions are applied AFTER all other scores are calculated, so they can bring the score below what it would otherwise be.
 
 #### NO_OWNERS (+15)
 
@@ -667,7 +641,6 @@ Total: 158 → Clamped to 100 → CRITICAL
 - Reply URLs: `https://hr.contoso.com/callback`
 - Credentials: Certificate (expires in 90 days)
 - Owners: 2 admins
-- Governance: Strong Conditional Access (MFA + compliant device)
 
 **Score Calculation**:
 
@@ -678,7 +651,7 @@ Capability:
 Exposure:
   ASSIGNED_TO (25 users)                          +15
 
-Governance & Lifecycle:
+Lifecycle:
   (No negative factors)                           +0
 
 Credential Hygiene:
@@ -687,20 +660,14 @@ Credential Hygiene:
 Reply URL Anomalies:
   (No issues)                                     +0
 
-Subtotal:                                         23
-
-Governance Deductions:
-  GOVERNS (Strong CA policy)                      -30
-
-Final Score: 0 (min 0) → INFO
+Final Score: 23 → LOW
 ```
 
 **Risk Reasons**:
 ```json
 [
   {"code": "HAS_OFFLINE_ACCESS", "weight": 8, "message": "Persistence via refresh tokens"},
-  {"code": "ASSIGNED_TO", "weight": 15, "message": "Assigned to 25 users"},
-  {"code": "GOVERNS", "weight": -30, "message": "Strong Conditional Access policy applied"}
+  {"code": "ASSIGNED_TO", "weight": 15, "message": "Assigned to 25 users"}
 ]
 ```
 
@@ -744,11 +711,11 @@ To adjust risk weights, edit `scoring_logic.json`:
 
 ### 2. Focus on High/Critical
 - **Priority**: Address critical and high-risk apps first
-- **Investigation**: Review permissions, governance, and credentials
+- **Investigation**: Review permissions, ownership, and credentials
 
-### 3. Governance Implementation
-- **Conditional Access**: Apply MFA and device compliance requirements
-- **Effect**: Can reduce scores by up to 30 points
+### 3. Ownership Management
+- **Assign Owners**: Ensure all apps have proper ownership
+- **Effect**: Prevents +15 point NO_OWNERS penalty
 
 ### 4. Credential Hygiene
 - **Review**: Check for long-lived and expired secrets

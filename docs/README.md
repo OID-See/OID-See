@@ -92,7 +92,7 @@ The scoring logic documentation includes:
 **Risk Categories**:
 1. **Capability**: What the app can do (impersonation, app roles, scopes)
 2. **Exposure**: Who can use it (assignments, broad reachability)
-3. **Governance**: How it's protected (Conditional Access, owners)
+3. **Lifecycle**: App age and ownership
 4. **Credential Hygiene**: Secret management (expiry, long-lived)
 5. **Reply URL Anomalies**: Redirect security (non-HTTPS, wildcards)
 
@@ -107,12 +107,11 @@ The schema documentation provides:
 
 **Node Types**:
 - ServicePrincipal, Application, User, Group
-- Role, ResourceApi, TenantPolicy
+- Role, ResourceApi
 
 **Edge Types**:
 - Structural: INSTANCE_OF, OWNS, MEMBER_OF, ASSIGNED_TO
-- Permission: HAS_SCOPES, HAS_APP_ROLE, CAN_IMPERSONATE
-- Governance: GOVERNS, HAS_ROLE
+- Permission: HAS_SCOPES, HAS_APP_ROLE, CAN_IMPERSONATE, HAS_ROLE
 
 ### Web Application Documentation
 
@@ -141,7 +140,7 @@ The web app documentation covers:
 3. **Apply Risk Lens** → Switch to Risk view
 4. **Filter High Risk** → `n.risk.score>=70`
 5. **Review Details** → Click on nodes to see risk reasons
-6. **Check Governance** → Look for GOVERNS edges
+6. **Verify Findings** → Check publisher verification and ownership
 7. **Export Findings** → Save filtered results
 
 ### Permission Review Workflow
@@ -213,8 +212,8 @@ The web app documentation covers:
 
 - **Prioritize**: Focus on Critical and High risk items first
 - **Context**: Consider risk reasons, not just scores
-- **Governance**: Check for protective policies on high-risk apps
 - **Verification**: Always verify publisher status
+- **Ownership**: Check for proper ownership of high-risk apps
 
 ### Query Writing
 

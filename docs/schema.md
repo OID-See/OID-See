@@ -35,12 +35,10 @@ graph TD
     E --> E4[Group]
     E --> E5[Role]
     E --> E6[ResourceApi]
-    E --> E7[TenantPolicy]
     
     F --> F1[Structural Edges]
     F --> F2[Permission Edges]
     F --> F3[Assignment Edges]
-    F --> F4[Governance Edges]
 ```
 
 ## Top-Level Structure
@@ -145,18 +143,12 @@ classDiagram
         +array appRoles
     }
     
-    class TenantPolicy {
-        +string policyType
-        +object conditions
-    }
-    
     Node <|-- ServicePrincipal
     Node <|-- Application
     Node <|-- User
     Node <|-- Group
     Node <|-- Role
     Node <|-- ResourceApi
-    Node <|-- TenantPolicy
 ```
 
 ### Base Node Structure
@@ -436,40 +428,6 @@ Represents resource applications that expose permissions (e.g., Microsoft Graph)
 - **oauth2Permissions**: Delegated permissions (scopes)
 - **appRoles**: Application permissions
 
-### TenantPolicy Node
-
-Represents governance policies like Conditional Access.
-
-```json
-{
-  "id": "policy-55555",
-  "type": "TenantPolicy",
-  "displayName": "CA001: Require MFA for HR Apps",
-  "properties": {
-    "policyType": "ConditionalAccess",
-    "state": "enabled",
-    "conditions": {
-      "applications": {
-        "includeApplications": ["00000000-0000-0000-0000-000000000000"]
-      },
-      "users": {
-        "includeUsers": ["All"]
-      }
-    },
-    "grantControls": {
-      "operator": "AND",
-      "builtInControls": ["mfa", "compliantDevice"]
-    },
-    "strength": "strong"
-  }
-}
-```
-
-**Governance Strength**:
-- **strong**: MFA + device compliance + trusted location
-- **moderate**: Some controls but not comprehensive
-- **weak**: Minimal controls
-
 ## Edge Types
 
 ```mermaid
@@ -477,7 +435,6 @@ graph LR
     A[Edge Types] --> B[Structural]
     A --> C[Permissions]
     A --> D[Assignments]
-    A --> E[Governance]
     
     B --> B1[INSTANCE_OF]
     B --> B2[OWNS]
@@ -492,8 +449,6 @@ graph LR
     
     D --> D1[ASSIGNED_TO]
     D --> D2[HAS_ROLE]
-    
-    E --> E1[GOVERNS]
 ```
 
 ### Base Edge Structure
@@ -762,33 +717,6 @@ Directory role assignment.
 - **roleAssignmentId**: Role assignment object ID
 - **directoryScopeId**: Scope of the role (usually "/" for tenant-wide)
 
-### Governance Edges
-
-#### GOVERNS
-
-Conditional Access policy governing an application.
-
-```json
-{
-  "id": "edge-governs-1",
-  "type": "GOVERNS",
-  "source": "policy-55555",
-  "target": "sp-12345",
-  "properties": {
-    "policyType": "ConditionalAccess",
-    "state": "enabled",
-    "strength": "strong",
-    "controls": ["mfa", "compliantDevice"]
-  }
-}
-```
-
-**Properties**:
-- **policyType**: Type of policy (currently only "ConditionalAccess")
-- **state**: "enabled" or "disabled"
-- **strength**: "strong", "moderate", or "weak"
-- **controls**: Array of required controls
-
 ## Risk Object Structure
 
 All ServicePrincipal nodes include a risk assessment:
@@ -813,11 +741,6 @@ All ServicePrincipal nodes include a risk assessment:
         "code": "NO_OWNERS",
         "weight": 15,
         "message": "No owners assigned to application"
-      },
-      {
-        "code": "GOVERNS",
-        "weight": -30,
-        "message": "Strong Conditional Access policy applied"
       }
     ]
   }
@@ -1128,4 +1051,3 @@ The schema uses `additionalProperties: false` at the top level but allows extens
 - Trust signal detection
 - Public client indicators
 - Enrichment placeholders
-- Conditional Access governance edges

@@ -28,7 +28,7 @@ flowchart TD
     L --> Q[Analyze Credentials]
     M --> R[Classify Scopes]
     N --> S[Calculate Reachability]
-    O --> T[Check Governance]
+    O --> T[Check Ownership]
     P --> T
     Q --> U[Analyze Reply URLs]
     U --> V[Detect Trust Signals]
@@ -36,10 +36,9 @@ flowchart TD
     R --> W
     S --> W
     T --> W
-    W --> X[Apply Governance Deductions]
-    X --> Y[Generate Graph Export]
-    Y --> Z[Validate Schema]
-    Z --> AA[Write JSON Output]
+    W --> X[Generate Graph Export]
+    X --> Y[Validate Schema]
+    Y --> Z[Write JSON Output]
     AA --> AB[End]
 ```
 
@@ -304,9 +303,8 @@ See [Scoring Logic Documentation](scoring-logic.md) for detailed risk calculatio
 
 1. **Generate Nodes**: Create node objects for all entities
 2. **Generate Edges**: Create edges representing relationships
-3. **Apply Governance**: Apply risk deductions for governed apps
-4. **Validate Schema**: Ensure output matches schema
-5. **Write JSON**: Output to specified file
+3. **Validate Schema**: Ensure output matches schema
+4. **Write JSON**: Output to specified file
 
 ## Command-Line Options
 
@@ -369,7 +367,6 @@ The scanner generates a JSON file with the following structure:
 - **Group**: Security/Microsoft 365 groups
 - **Role**: Directory roles
 - **ResourceApi**: Resource applications (e.g., Microsoft Graph)
-- **TenantPolicy**: Conditional Access policies
 
 ### Edge Types
 
@@ -389,9 +386,6 @@ The scanner generates a JSON file with the following structure:
 **Assignment Edges**:
 - `ASSIGNED_TO`: User/Group → Application assignment
 - `HAS_ROLE`: SP → Directory role assignment
-
-**Governance Edges**:
-- `GOVERNS`: Conditional Access policy → Application
 
 ## Performance Characteristics
 
@@ -434,7 +428,6 @@ python oidsee_scanner.py \
 **Required Permissions**:
 - `Application.Read.All`
 - `Directory.Read.All`
-- `Policy.Read.All` (for Conditional Access)
 
 #### 3. Authentication Timeout
 
@@ -456,7 +449,6 @@ The scanner requires read-only permissions:
 
 - **Application.Read.All**: Read application and service principal data
 - **Directory.Read.All**: Read directory data (users, groups, roles)
-- **Policy.Read.All**: Read Conditional Access policies (optional)
 
 ### Data Handling
 

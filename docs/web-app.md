@@ -188,7 +188,6 @@ Nodes are color-coded by type:
 | Group | Orange | Security and distribution groups |
 | Role | Red | Directory roles (e.g., Global Admin) |
 | ResourceApi | Teal | Resource APIs (e.g., Microsoft Graph) |
-| TenantPolicy | Gray | Tenant policies (e.g., Conditional Access) |
 
 #### Edge Types and Styles
 
@@ -208,9 +207,6 @@ Edges represent relationships and are styled differently:
 - `CAN_IMPERSONATE`: User impersonation capability
 - `HAS_APP_ROLE`: Application permissions
 - `HAS_ROLE`: Directory role assignments
-
-**Governance Edges** (dotted lines):
-- `GOVERNS`: Conditional Access or other policy protection
 
 #### Risk Scoring Visualization
 
@@ -403,15 +399,15 @@ You can export the current graph data:
 4. Review credential details in the details panel
 5. Plan remediation actions
 
-### Governance Coverage
+### Credential Hygiene Review
 
-**Scenario**: Check which apps are protected by Conditional Access
+**Scenario**: Find apps with expired credentials
 
 1. Load your OID-See export
-2. Select the **Full** lens
-3. Apply filter: `e.type=GOVERNS`
-4. Review which service principals have governance edges
-5. Identify gaps where high-risk apps lack policy protection
+2. Apply filter: `n.properties.credentialInsights.expired_but_present.length>0`
+3. Identify apps with expired credentials still configured
+4. Review credential details in the details panel
+5. Plan remediation actions
 
 ## Troubleshooting
 
@@ -524,8 +520,8 @@ You can export the current graph data:
 1. **Start with Risk Lens**: Focus on permission and privilege edges
 2. **Filter by Risk Score**: Begin with high-risk items (`n.risk.score>=70`)
 3. **Review Risk Reasons**: Understand why each app scored high
-4. **Check Governance**: Look for `GOVERNS` edges on high-risk apps
-5. **Verify Publishers**: Filter for unverified publishers on critical apps
+4. **Verify Publishers**: Filter for unverified publishers on critical apps
+5. **Check Ownership**: Ensure high-risk apps have assigned owners
 6. **Audit Credentials**: Check for long-lived secrets and expired credentials
 
 ## Related Documentation
