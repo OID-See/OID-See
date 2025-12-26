@@ -1,4 +1,8 @@
 
+<p align="center">
+  <img src="public/icons/oidsee_logo.png" alt="OID-See Logo" width="400">
+</p>
+
 # OID-See
 
 **Visualize and assess security risks in your Microsoft Entra ID tenant's third-party and multi-tenant applications.**
@@ -10,6 +14,7 @@ OID-See is a comprehensive security analysis tool for Microsoft Entra ID (Azure 
 OID-See provides:
 - **Scanner**: Python tool that queries Microsoft Graph to collect application and permission data from your tenant
 - **Enrichment**: Optional DNS, RDAP, and WHOIS lookups to identify outliers and reduce false positives  
+- **HTML Report**: Executive summary with risk distribution, key metrics, and actionable recommendations
 - **Visualization**: Browser-based interactive graph viewer for exploring relationships and risks
 - **Risk Scoring**: Automated security assessment based on permissions, exposure, governance, and credential hygiene
 
@@ -26,11 +31,22 @@ pip install -r requirements.txt
 # Run scanner (interactive device code authentication)
 python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --out scan-results.json
 
+# Generate both JSON export and HTML report
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --generate-report --out scan-results.json
+
 # With enrichment enabled (requires dnspython and ipwhois packages)
 python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --out scan-results.json
 ```
 
-### 2. Visualize Results
+### 2. Review the Report (Optional)
+
+If you used `--generate-report`, open `scan-results-report.html` in your browser to see:
+- Risk distribution across your tenant
+- Top risk contributors and security metrics
+- List of high-risk applications requiring attention
+- Actionable security recommendations
+
+### 3. Visualize Results
 
 Open the OID-See web app at your deployment URL (or run locally with `npm run dev`), then:
 1. Click **Upload JSON** and select your `scan-results.json` file
@@ -38,7 +54,7 @@ Open the OID-See web app at your deployment URL (or run locally with `npm run de
 3. Filter by risk score: `n.risk.score>=70`
 4. Click nodes to see detailed risk analysis
 
-### 3. Take Action
+### 4. Take Action
 
 Review high-risk applications and:
 - Verify publisher identity and permissions
@@ -55,6 +71,30 @@ Comprehensive documentation is available in the [`docs/`](./docs/) directory:
 - **[Scoring Logic](./docs/scoring-logic.md)** - Understanding risk assessment methodology
 - **[Schema Reference](./docs/schema.md)** - Export format specification and field descriptions
 - **[Web App Guide](./docs/web-app.md)** - Using the browser-based visualization tool
+
+## 📊 HTML Report Generation
+
+OID-See can generate comprehensive HTML reports that provide an executive summary of your security posture:
+
+![OID-See Report Screenshot](https://github.com/user-attachments/assets/1be69ab6-b3b2-4fbe-89c3-8e6bffab237b)
+
+**Report Features**:
+- **Risk Distribution**: Visual breakdown of applications by risk level (Critical, High, Medium, Low, Info)
+- **Key Security Metrics**: Unverified publishers, apps without owners, credential hygiene issues, and more
+- **Top Risk Contributors**: Most common risk factors across all applications
+- **High-Risk Applications**: Prioritized list of applications requiring immediate attention
+- **Capability Analysis**: Detailed breakdown of permissions and capabilities
+- **Actionable Recommendations**: Security best practices tailored to your findings
+
+Generate a report alongside your scan:
+```bash
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --generate-report --out scan.json
+```
+
+Or generate from an existing export:
+```bash
+python report_generator.py scan.json report.html
+```
 
 ## Primary Schema: OID-See Graph Export v1.x
 

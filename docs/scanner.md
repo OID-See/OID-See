@@ -354,6 +354,27 @@ See [Scoring Logic Documentation](scoring-logic.md) for detailed risk calculatio
 ### Output Options
 
 - `--out`: Output file path (default: `oidsee-export.json`)
+- `--generate-report`: Generate an HTML report alongside the JSON export
+
+**Example with report generation**:
+```bash
+# Generate both JSON export and HTML report
+python oidsee_scanner.py --tenant-id "TENANT_ID" --generate-report --out scan.json
+
+# This will create:
+# - scan.json (JSON export for visualization tool)
+# - scan-report.html (HTML report with risk summary)
+```
+
+The HTML report provides:
+- Risk level distribution (Critical, High, Medium, Low, Info)
+- Key security metrics and statistics
+- Top risk contributors across all applications
+- List of high-risk applications requiring immediate attention
+- Capability analysis (permissions, roles, scopes)
+- Security recommendations based on findings
+
+The report is aligned with OIDSEE's scoring logic as documented in [Scoring Logic Documentation](scoring-logic.md).
 
 ### Performance Options
 
@@ -402,6 +423,114 @@ python oidsee_scanner.py --tenant-id "TENANT_ID" \
 python oidsee_scanner.py --tenant-id "TENANT_ID" \
   --disable-all-enrichment \
   --out scan.json
+```
+
+## Report Generation
+
+The scanner can generate an HTML report that summarizes security findings and risk metrics. This report is designed for executive summaries, compliance documentation, and security review workflows.
+
+### Generating Reports During Scan
+
+Use the `--generate-report` flag to generate an HTML report alongside the JSON export:
+
+```bash
+python oidsee_scanner.py --tenant-id "TENANT_ID" --generate-report --out scan.json
+```
+
+This creates:
+- `scan.json` - Full JSON export for the visualization tool
+- `scan-report.html` - HTML report with risk summary and metrics
+
+### Generating Reports from Existing JSON Export
+
+You can also generate reports from existing JSON exports using the standalone report generator:
+
+```bash
+python report_generator.py oidsee-export.json report.html
+```
+
+If you omit the output filename, it will automatically create `oidsee-export-report.html`.
+
+### Report Contents
+
+The HTML report includes:
+
+1. **Executive Summary**
+   - Tenant information and scan metadata
+   - Total service principals scanned
+
+2. **Risk Distribution**
+   - Count and percentage of apps by risk level (Critical, High, Medium, Low, Info)
+   - Visual risk cards with color coding
+
+3. **Key Security Metrics**
+   - Unverified publishers
+   - Apps without owners
+   - Credential hygiene issues (password credentials, long-lived secrets, expired credentials)
+   - Identity laundering detection
+   - Governance gaps (no assignment required)
+   - Reply URL security issues (non-HTTPS, IP literals, wildcards)
+
+4. **Top Risk Contributors**
+   - Most common risk factors across all applications
+   - Percentage of apps affected by each risk factor
+   - Average risk weight contribution
+
+5. **High-Risk Applications**
+   - Top 10 applications with risk scores ≥70
+   - Application name, App ID, risk score, and risk level
+
+6. **Capability Analysis**
+   - Count of applications with specific capabilities:
+     - Impersonation capability
+     - Application roles (app permissions)
+     - Privileged scopes
+     - Overly broad scopes
+     - Offline access (refresh tokens)
+     - Directory roles
+
+7. **Security Recommendations**
+   - Actionable recommendations based on detected issues
+   - Prioritized by impact and ease of remediation
+
+### Report Alignment with OIDSEE Scoring
+
+The report metrics are directly aligned with OIDSEE's scoring logic as documented in [Scoring Logic Documentation](scoring-logic.md). All risk factors, weights, and thresholds match the scanner's risk calculation algorithm.
+
+**Risk Level Mapping**:
+- **Critical (90-100)**: Severe risk requiring urgent action
+- **High (70-89)**: Significant risk requiring immediate review
+- **Medium (40-69)**: Notable risk to investigate soon
+- **Low (20-39)**: Some concerns to review periodically
+- **Info (0-19)**: Minimal risk, routine monitoring
+
+### Use Cases
+
+**Executive Reporting**:
+- Share HTML report with leadership for security posture overview
+- Include in security review presentations
+- Track risk trends over time
+
+**Compliance Documentation**:
+- Document third-party application risks for audits
+- Evidence of security controls and monitoring
+- Risk acceptance documentation
+
+**Security Operations**:
+- Prioritize remediation efforts based on risk distribution
+- Track progress on security improvements
+- Communicate findings to application owners
+
+**Automation**:
+```bash
+# Scheduled scan with report (cron example)
+0 2 * * 1 python3 /path/to/oidsee_scanner.py \
+  --tenant-id "$TENANT_ID" \
+  --client-id "$CLIENT_ID" \
+  --client-secret "$CLIENT_SECRET" \
+  --generate-report \
+  --out "/reports/weekly-scan-$(date +\%Y\%m\%d).json" \
+  2>&1 | logger -t oidsee-scanner
 ```
 
 ## Output Structure

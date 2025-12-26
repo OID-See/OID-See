@@ -3181,6 +3181,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--disable-rdap-enrichment", action="store_true", help="Disable RDAP lookups for reply URL domains")
     p.add_argument("--disable-ipwhois-enrichment", action="store_true", help="Disable IP WHOIS lookups for IP literals in reply URLs")
     
+    # Report generation options
+    p.add_argument("--generate-report", action="store_true", help="Generate an HTML report alongside the JSON export")
+    
     return p.parse_args()
 
 
@@ -3220,6 +3223,25 @@ def main() -> int:
         json.dump(export, f, indent=2, sort_keys=False)
 
     print(f"✓ Wrote {args.out} ({len(export['nodes'])} nodes, {len(export['edges'])} edges)", file=sys.stderr)
+    
+    # Generate HTML report if requested
+    if args.generate_report:
+        try:
+            from report_generator import generate_html_report
+            report_path = args.out.replace('.json', '-report.html')
+            if report_path == args.out:
+                report_path = args.out + '-report.html'
+            generate_html_report(export, report_path)
+            print(f"✓ Wrote HTML report: {report_path}", file=sys.stderr)
+        except ImportError as e:
+            print(f"✗ Cannot generate report: report_generator module not found. Error: {e}", file=sys.stderr)
+            print("  Make sure report_generator.py is in the same directory as the scanner.", file=sys.stderr)
+        except Exception as e:
+            print(f"✗ Error generating report: {type(e).__name__}: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+            # Don't fail the entire scanner if report generation fails
+    
     return 0
 
 
