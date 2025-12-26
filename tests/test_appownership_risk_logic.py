@@ -225,6 +225,109 @@ def test_internal_app_no_unverified_publisher():
     return True
 
 
+def test_first_party_no_mixed_replyurl_domains():
+    """Test that 1st Party apps do not trigger MIXED_REPLYURL_DOMAINS."""
+    print("\n=== Testing 1st Party App Does Not Trigger MIXED_REPLYURL_DOMAINS ===")
+    
+    # Simulates a Microsoft app with multiple Microsoft domains (common pattern)
+    sp_first_party = {
+        "verifiedPublisher": None,
+        "publisherName": "Microsoft Services",
+        "appOwnerOrganizationId": MICROSOFT_TENANT_IDS[0],
+        "replyUrls": [
+            "https://portal.azure.com",
+            "https://portal.office.com",
+            "https://graph.microsoft.com"
+        ],
+        "homepage": "https://microsoft.com",
+        "info": {},
+    }
+    
+    mock_cache = mock_directory_cache()
+    reply_url_analysis = analyze_reply_urls(sp_first_party.get("replyUrls", []))
+    
+    # Test with app_ownership = "1st Party"
+    risk_first_party = compute_risk_for_sp(
+        sp=sp_first_party,
+        has_impersonation=False,
+        has_offline_access=False,
+        app_role_max_weight=0,
+        has_privileged_scopes=False,
+        has_too_many_scopes=False,
+        delegated_scopes_by_resource={},
+        assignments=[],
+        owners=[{"id": "owner-1"}],
+        requires_assignment=True,
+        dir_role_assignments=[],
+        sp_display="Azure Portal",
+        dir_cache=mock_cache,
+        reply_url_analysis=reply_url_analysis,
+        app_ownership="1st Party",
+    )
+    
+    # MIXED_REPLYURL_DOMAINS should NOT be present
+    mixed_found = any(r["code"] == "MIXED_REPLYURL_DOMAINS" for r in risk_first_party["reasons"])
+    if not mixed_found:
+        print("✓ PASS: 1st Party app does not trigger MIXED_REPLYURL_DOMAINS")
+    else:
+        print("✗ FAIL: 1st Party app should not trigger MIXED_REPLYURL_DOMAINS")
+        print(f"  Risk reasons: {[r['code'] for r in risk_first_party['reasons']]}")
+        return False
+    
+    return True
+
+
+def test_first_party_no_replyurl_outlier_domain():
+    """Test that 1st Party apps do not trigger REPLYURL_OUTLIER_DOMAIN."""
+    print("\n=== Testing 1st Party App Does Not Trigger REPLYURL_OUTLIER_DOMAIN ===")
+    
+    # Simulates a Microsoft app with multiple Microsoft domains
+    sp_first_party = {
+        "verifiedPublisher": None,
+        "publisherName": "Microsoft Services",
+        "appOwnerOrganizationId": MICROSOFT_TENANT_IDS[0],
+        "replyUrls": [
+            "https://portal.azure.com",
+            "https://portal.office.com",
+        ],
+        "homepage": "https://microsoft.com",
+        "info": {},
+    }
+    
+    mock_cache = mock_directory_cache()
+    reply_url_analysis = analyze_reply_urls(sp_first_party.get("replyUrls", []))
+    
+    # Test with app_ownership = "1st Party"
+    risk_first_party = compute_risk_for_sp(
+        sp=sp_first_party,
+        has_impersonation=False,
+        has_offline_access=False,
+        app_role_max_weight=0,
+        has_privileged_scopes=False,
+        has_too_many_scopes=False,
+        delegated_scopes_by_resource={},
+        assignments=[],
+        owners=[{"id": "owner-1"}],
+        requires_assignment=True,
+        dir_role_assignments=[],
+        sp_display="Azure Portal",
+        dir_cache=mock_cache,
+        reply_url_analysis=reply_url_analysis,
+        app_ownership="1st Party",
+    )
+    
+    # REPLYURL_OUTLIER_DOMAIN should NOT be present
+    outlier_found = any(r["code"] == "REPLYURL_OUTLIER_DOMAIN" for r in risk_first_party["reasons"])
+    if not outlier_found:
+        print("✓ PASS: 1st Party app does not trigger REPLYURL_OUTLIER_DOMAIN")
+    else:
+        print("✗ FAIL: 1st Party app should not trigger REPLYURL_OUTLIER_DOMAIN")
+        print(f"  Risk reasons: {[r['code'] for r in risk_first_party['reasons']]}")
+        return False
+    
+    return True
+
+
 def main():
     print("=" * 70)
     print("appOwnership Field Integration in Risk Scoring Test Suite")
@@ -234,6 +337,8 @@ def main():
         test_first_party_no_identity_laundering,
         test_first_party_no_deception,
         test_internal_app_no_unverified_publisher,
+        test_first_party_no_mixed_replyurl_domains,
+        test_first_party_no_replyurl_outlier_domain,
     ]
     
     passed = 0

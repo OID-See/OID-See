@@ -1955,7 +1955,7 @@ def compute_risk_for_sp(
             "weight": weight,
         })
 
-    # MIXED_REPLYURL_DOMAINS (heuristic, non-blocking) - gate for well-known Microsoft platform apps
+    # MIXED_REPLYURL_DOMAINS (heuristic, non-blocking) - gate for well-known Microsoft platform apps and 1st Party apps
     reply_urls_value = sp.get("replyUrls")
     reply_urls = reply_urls_value if isinstance(reply_urls_value, list) else []
     homepage = sp.get("homepage")
@@ -1964,11 +1964,12 @@ def compute_risk_for_sp(
     info = info_value if isinstance(info_value, dict) else {}
     mixed_domains_result = check_mixed_replyurl_domains(reply_urls, homepage, info)
     
-    # Skip for well-known Microsoft platform apps
+    # Skip for well-known Microsoft platform apps and 1st Party apps
     is_well_known_ms = platform_signals and platform_signals.get("isWellKnownMicrosoftAppId", False)
+    is_first_party = app_ownership == "1st Party"
     
     # Only check mixed domains if there are reply URLs to analyze (total_urls calculated at function start)
-    if total_urls > 0 and mixed_domains_result.get("has_mixed_domains") and mixed_domains_result.get("signal_type") and not is_well_known_ms:
+    if total_urls > 0 and mixed_domains_result.get("has_mixed_domains") and mixed_domains_result.get("signal_type") and not is_well_known_ms and not is_first_party:
         mixed_domains_config = contributors.get("MIXED_REPLYURL_DOMAINS", {})
         signal_type = mixed_domains_result["signal_type"]
         
@@ -2012,7 +2013,11 @@ def compute_risk_for_sp(
     # REPLYURL_OUTLIER_DOMAIN (domain not in main vendor domain set)
     # Only check for outlier domains if there are reply URLs to analyze
     # Also check enrichment data to see if non-aligned domains belong to same organization
-    if reply_url_analysis and total_urls > 0 and mixed_domains_result.get("non_aligned_domains"):
+    # Skip for well-known Microsoft platform apps and 1st Party apps
+    is_first_party = app_ownership == "1st Party"
+    is_well_known_ms = platform_signals and platform_signals.get("isWellKnownMicrosoftAppId", False)
+    
+    if reply_url_analysis and total_urls > 0 and mixed_domains_result.get("non_aligned_domains") and not is_well_known_ms and not is_first_party:
         non_aligned_domains = mixed_domains_result["non_aligned_domains"]
         
         # Check if non-aligned domains belong to the same organization as reference domains
