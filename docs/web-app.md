@@ -249,7 +249,13 @@ When you select a node or edge, the details panel displays comprehensive informa
 - **ID**: Unique identifier
 - **Type**: Node type (ServicePrincipal, User, etc.)
 - **Display Name**: Human-readable name
-- **Properties**: Full property object from the export
+- **Risk**: Risk score and reasons (displayed first when available)
+- **Properties**: Full property object from the export (collapsible for long lists)
+
+**Property Display**:
+- Properties are initially limited to the first 5 entries for readability
+- Click **"Click Here for more details"** to expand and view all properties
+- Click **"Show less"** to collapse the property list back to the first 5 entries
 
 **ServicePrincipal Specific**:
 - **Risk Score**: 0-100 score with level (Info/Low/Medium/High/Critical)

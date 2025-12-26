@@ -1,4 +1,4 @@
-
+import { useState, useEffect } from 'react'
 import type { Selection } from './GraphCanvas'
 
 function entries(obj: Record<string, any>) {
@@ -85,6 +85,13 @@ export function DetailsPanel({
   selection: Selection | null
   onFocus?: (selection: Selection) => void
 }) {
+  const [showAllProperties, setShowAllProperties] = useState(false)
+  
+  // Reset show-more state when selection changes
+  useEffect(() => {
+    setShowAllProperties(false)
+  }, [selection?.id])
+  
   if (!selection) {
     return (
       <div className="details-empty">
@@ -96,10 +103,13 @@ export function DetailsPanel({
 
   const o = selection.oidsee ?? {}
   const isNode = selection.kind === 'node'
-  const isServicePrincipalNode = isNode && o.type === 'ServicePrincipal'
   const isInstanceOfEdge = !isNode && o.type === 'INSTANCE_OF'
-  // Show properties for edges (especially INSTANCE_OF) and non-ServicePrincipal nodes
-  const shouldShowProperties = !isNode || !isServicePrincipalNode
+  
+  // Always show properties for selected nodes and edges
+  const hasProperties = o.properties && typeof o.properties === 'object'
+  const propertyEntries = hasProperties ? entries(o.properties) : []
+  const INITIAL_PROPERTY_LIMIT = 5
+  const hasMoreProperties = propertyEntries.length > INITIAL_PROPERTY_LIMIT
 
   return (
     <div className="details">
@@ -142,16 +152,18 @@ export function DetailsPanel({
         </div>
       )}
 
+      {/* Risk details displayed first (priority) */}
       <Risk risk={o.risk} />
 
-      {shouldShowProperties && o.properties && typeof o.properties === 'object' && (
+      {/* Properties section with show-more mechanism */}
+      {hasProperties && (
         <div className="block">
           <div className="block__title">
             {isInstanceOfEdge ? 'Instance Properties' : 'Properties'}
           </div>
           <table className="table">
             <tbody>
-              {entries(o.properties).slice(0, 50).map(([k, v]) => (
+              {(showAllProperties ? propertyEntries : propertyEntries.slice(0, INITIAL_PROPERTY_LIMIT)).map(([k, v]) => (
                 <tr key={k}>
                   <td className="muted">{k}</td>
                   <td className="mono" style={{ whiteSpace: 'pre-wrap' }}>{formatValue(v)}</td>
@@ -159,6 +171,16 @@ export function DetailsPanel({
               ))}
             </tbody>
           </table>
+          {hasMoreProperties && (
+            <button 
+              type="button"
+              className="clickable-link"
+              onClick={() => setShowAllProperties(!showAllProperties)}
+              style={{ marginTop: '.5rem', fontSize: '.9rem' }}
+            >
+              {showAllProperties ? 'Show less' : 'Click Here for more details'}
+            </button>
+          )}
         </div>
       )}
 
