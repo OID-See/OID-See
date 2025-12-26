@@ -33,14 +33,31 @@ const SCROLL_DELAY_OFFSET = 50 // ms additional delay to ensure panel has expand
 const GRAPH_RESTABILIZE_DELAY = 100 // ms delay before triggering graph restabilization
 
 const PRESET_QUERIES: SavedQuery[] = [
-  { name: 'High Risk Apps', query: 'n.risk.score>=70' },
-  { name: 'Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
+  // Risk level queries
+  { name: 'Critical Risk', query: 'n.risk.score>=85' },
+  { name: 'High Risk', query: 'n.risk.score>=60 n.risk.score<85' },
+  { name: 'Medium Risk', query: 'n.risk.score>=35 n.risk.score<60' },
+  
+  // Risk-focused edge queries
   { name: 'Can Impersonate', query: 'e.type=CAN_IMPERSONATE' },
-  { name: 'Too Many Scopes', query: 'e.type=HAS_TOO_MANY_SCOPES' },
+  { name: 'Has App Roles', query: 'e.type=HAS_APP_ROLE' },
+  { name: 'Has Directory Roles', query: 'e.type=HAS_ROLE' },
   { name: 'Privileged Scopes', query: 'e.type=HAS_PRIVILEGED_SCOPES' },
-  { name: 'Persistence Paths', query: 'e.type=PERSISTENCE_PATH' },
-  { name: 'Users Only', query: 'n.type=User' },
+  { name: 'Too Many Scopes', query: 'e.type=HAS_TOO_MANY_SCOPES' },
+  { name: 'Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
+  
+  // Node type queries
+  { name: 'Service Principals', query: 'n.type=ServicePrincipal' },
   { name: 'Applications', query: 'n.type=Application' },
+  { name: 'Users', query: 'n.type=User' },
+  { name: 'Groups', query: 'n.type=Group' },
+  { name: 'Roles', query: 'n.type=Role' },
+  { name: 'Resource APIs', query: 'n.type=ResourceApi' },
+  
+  // Structure queries
+  { name: 'App Ownership', query: 'e.type=OWNS' },
+  { name: 'App Instances', query: 'e.type=INSTANCE_OF' },
+  { name: 'App Assignments', query: 'e.type=ASSIGNED_TO' },
 ]
 
 function loadPhysicsConfig(): PhysicsConfig {
