@@ -291,6 +291,14 @@
           ],
           "pattern": "^[0-9a-fA-F-]{36}$"
         },
+        "appOwnership": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": ["1st Party", "3rd Party", "Internal", null],
+          "description": "Classification of app ownership: '1st Party' (Microsoft), '3rd Party' (external), or 'Internal' (tenant-owned with Application object in tenant). Based on Merill Fernando's Microsoft Apps list (https://github.com/merill/microsoft-info) with fallback to tenant ID-based detection."
+        },
         "isMultiTenant": {
           "type": [
             "boolean",
@@ -331,7 +339,7 @@
         "replyUrlEnrichment": {
           "type": ["object", "null"],
           "additionalProperties": true,
-          "description": "Optional enrichment data for reply URL domains (DNS, RDAP, IPWHOIS lookups). Null if enrichment not performed or failed."
+          "description": "Friendly summary of domain ownership enrichment for reply URL domains. Includes same_organization (boolean), organizations_found (list), domain_details (per-domain ownership/ASN), domains_analyzed/enriched counts. Raw RDAP/WHOIS query results are omitted. Null if enrichment not performed or failed."
         },
         "replyUrlProvenance": {
           "type": ["object", "null"],

@@ -57,7 +57,89 @@ AZURE_CLI_CLIENT_ID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
 MICROSOFT_TENANT_IDS = [
     "f8cdef31-a31e-4b4a-93e4-5f571e91255a",  # Microsoft Accounts (MSA)
     "72f988bf-86f1-41af-91ab-2d7cd011db47",  # Microsoft Services
+    "cdc5aeea-15c5-4db6-b079-fcadd2505dc2",  # Microsoft third tenant
 ]
+
+# URL for Merill's Microsoft Apps list
+# Attribution: https://github.com/merill/microsoft-info by Merill Fernando
+MERILL_MICROSOFT_APPS_URL = "https://raw.githubusercontent.com/merill/microsoft-info/main/_info/MicrosoftApps.json"
+
+# Global cache for Microsoft first-party apps
+_MICROSOFT_APPS_CACHE: Optional[Dict[str, Dict[str, Any]]] = None
+
+
+def _fetch_microsoft_apps_list() -> Dict[str, Dict[str, Any]]:
+    """
+    Fetch the list of Microsoft first-party apps from Merill's repository.
+    
+    Attribution: This uses the Microsoft Apps list maintained by Merill Fernando
+    at https://github.com/merill/microsoft-info
+    
+    Returns a dict mapping appId to app info.
+    """
+    global _MICROSOFT_APPS_CACHE
+    
+    if _MICROSOFT_APPS_CACHE is not None:
+        return _MICROSOFT_APPS_CACHE
+    
+    apps_dict = {}
+    
+    try:
+        print(f"Fetching Microsoft first-party apps list from Merill's repository...")
+        response = requests.get(MERILL_MICROSOFT_APPS_URL, timeout=10)
+        response.raise_for_status()
+        
+        apps_list = response.json()
+        
+        # Convert list to dict keyed by appId for fast lookup
+        for app in apps_list:
+            app_id = app.get("AppId")
+            if app_id:
+                apps_dict[app_id.lower()] = app
+        
+        print(f"Loaded {len(apps_dict)} Microsoft first-party apps from Merill's list")
+        _MICROSOFT_APPS_CACHE = apps_dict
+        return apps_dict
+        
+    except Exception as e:
+        print(f"Warning: Could not fetch Microsoft apps list from Merill's repository: {e}")
+        print("Falling back to tenant ID-based detection only")
+        _MICROSOFT_APPS_CACHE = {}
+        return {}
+
+
+def classify_app_ownership(app_id: str, app_owner_org_id: Optional[str], 
+                           has_app_object_in_tenant: bool) -> str:
+    """
+    Classify an app as "1st Party" (Microsoft), "3rd Party" (external), or "Internal" (tenant-owned).
+    
+    Attribution: Uses Microsoft Apps list from https://github.com/merill/microsoft-info by Merill Fernando
+    
+    Args:
+        app_id: The application ID (GUID)
+        app_owner_org_id: The appOwnerOrganizationId from the service principal
+        has_app_object_in_tenant: Whether the Application object exists in the current tenant
+        
+    Returns:
+        "1st Party", "3rd Party", or "Internal"
+    """
+    # Get the Microsoft apps list
+    microsoft_apps = _fetch_microsoft_apps_list()
+    
+    # Check if app is in Merill's authoritative list
+    if app_id and app_id.lower() in microsoft_apps:
+        return "1st Party"
+    
+    # Fallback: Check if appOwnerOrganizationId is a Microsoft tenant
+    if app_owner_org_id in MICROSOFT_TENANT_IDS:
+        return "1st Party"
+    
+    # If the Application object exists in this tenant, it's Internal
+    if has_app_object_in_tenant:
+        return "Internal"
+    
+    # Otherwise it's 3rd Party
+    return "3rd Party"
 
 # -----------------------------
 # Scoring configuration loader
@@ -1429,6 +1511,238 @@ def _level_from_score(score: int) -> str:
     return "info"
 
 
+def _normalize_organization_name(org_name: str) -> str:
+    """
+    Normalize organization names to handle common variations.
+    
+    This helps identify that "MICROSOFT", "MSFT", "Microsoft Corporation", 
+    "Microsoft Corp.", etc. are all the same organization.
+    
+    Returns a normalized string for comparison.
+    """
+    if not org_name:
+        return ""
+    
+    # Convert to lowercase for comparison
+    normalized = org_name.lower().strip()
+    
+    # Remove common suffixes and variations
+    suffixes_to_remove = [
+        " corporation",
+        " corp.",
+        " corp",
+        " incorporated",
+        " inc.",
+        " inc",
+        " limited",
+        " ltd.",
+        " ltd",
+        " llc",
+        " l.l.c.",
+        " gmbh",
+        " ag",
+        " s.a.",
+        " sa",
+        " bv",
+        " nv",
+        " services",
+        " service",
+    ]
+    
+    for suffix in suffixes_to_remove:
+        if normalized.endswith(suffix):
+            normalized = normalized[:-len(suffix)].strip()
+    
+    # Handle common abbreviations and variations
+    # Map known abbreviations to their canonical forms
+    abbreviation_map = {
+        "msft": "microsoft",
+        "ms": "microsoft",
+        "ibm corp": "ibm",
+        "google llc": "google",
+        "amazon technologies": "amazon",
+        "fb": "facebook",
+        "meta platforms": "meta",
+    }
+    
+    # Check if the normalized name matches any abbreviation
+    for abbrev, canonical in abbreviation_map.items():
+        if normalized == abbrev or normalized.startswith(abbrev + " "):
+            return canonical
+    
+    # Remove extra whitespace
+    normalized = " ".join(normalized.split())
+    
+    return normalized
+
+
+def _check_same_organization(enrichment_data: Optional[Dict[str, Any]], domains: List[str]) -> bool:
+    """
+    Check if all domains belong to the same organization based on RDAP/WHOIS enrichment data.
+    
+    Returns True if:
+    - Enrichment data is available and shows all domains have the same registrant organization
+    - No enrichment data is available (benefit of the doubt)
+    
+    Returns False if:
+    - Enrichment shows different organizations own different domains
+    """
+    if not enrichment_data or not domains:
+        # No enrichment data or no domains - can't determine, give benefit of doubt
+        return True
+    
+    rdap_queries = enrichment_data.get("rdap_queries", {})
+    if not rdap_queries:
+        # No RDAP data available - can't determine, give benefit of doubt
+        return True
+    
+    # Extract organizations from RDAP data for each domain
+    organizations = set()
+    for domain in domains:
+        rdap_data = rdap_queries.get(domain, {})
+        if not rdap_data.get("success"):
+            # If lookup failed for any domain, can't determine - give benefit of doubt
+            continue
+        
+        # Try to extract organization from raw RDAP data
+        raw_data = rdap_data.get("raw_data", {})
+        if not raw_data:
+            continue
+        
+        # RDAP data structure: objects -> entities -> vcardArray
+        # Look for organization in various places
+        org_name = None
+        
+        # Try to get from network object
+        network = raw_data.get("network", {})
+        if network:
+            # Some registries put org name in network name
+            network_name = network.get("name", "")
+            if network_name:
+                org_name = network_name
+        
+        # Try to get from objects/entities with role "registrant"
+        if not org_name:
+            objects = raw_data.get("objects", {})
+            for obj_key, obj_data in objects.items():
+                if isinstance(obj_data, dict):
+                    roles = obj_data.get("roles", [])
+                    if "registrant" in roles or "administrative" in roles:
+                        # Look for organization in vcard
+                        vcard = obj_data.get("vcardArray")
+                        if vcard and len(vcard) > 1:
+                            for field in vcard[1]:
+                                if isinstance(field, list) and len(field) > 3:
+                                    # vCard format: ["org", {}, "text", "Organization Name"]
+                                    if field[0] == "org" and len(field) > 3:
+                                        org_name = str(field[3])
+                                        break
+                    if org_name:
+                        break
+        
+        if org_name:
+            # Normalize the organization name before adding to set
+            normalized_org = _normalize_organization_name(org_name)
+            if normalized_org:
+                organizations.add(normalized_org)
+    
+    # If we found organizations for multiple domains, check if they're all the same
+    if len(organizations) > 1:
+        # Multiple different organizations found
+        return False
+    
+    # Either all same organization or couldn't determine - give benefit of doubt
+    return True
+
+
+def _create_enrichment_summary(enrichment_data: Optional[Dict[str, Any]], domains: List[str]) -> Optional[Dict[str, Any]]:
+    """
+    Create a friendly summary of enrichment data without raw RDAP/WHOIS responses.
+    
+    Returns a summary indicating:
+    - Whether domains appear to be owned by the same organization
+    - List of organizations found
+    - Which domains were successfully enriched
+    """
+    if not enrichment_data or not domains:
+        return None
+    
+    rdap_queries = enrichment_data.get("rdap_queries", {})
+    if not rdap_queries:
+        return None
+    
+    # Extract organization information for each domain
+    domain_organizations = {}
+    organizations = set()
+    
+    for domain in domains:
+        rdap_data = rdap_queries.get(domain, {})
+        
+        if not rdap_data.get("success"):
+            domain_organizations[domain] = {
+                "enriched": False,
+                "organization": None,
+                "error": rdap_data.get("error", "Unknown error")
+            }
+            continue
+        
+        # Try to extract organization from raw RDAP data
+        raw_data = rdap_data.get("raw_data", {})
+        org_name = None
+        
+        if raw_data:
+            # Try to get from network object
+            network = raw_data.get("network", {})
+            if network:
+                network_name = network.get("name", "")
+                if network_name:
+                    org_name = network_name
+            
+            # Try to get from objects/entities with role "registrant"
+            if not org_name:
+                objects = raw_data.get("objects", {})
+                for obj_key, obj_data in objects.items():
+                    if isinstance(obj_data, dict):
+                        roles = obj_data.get("roles", [])
+                        if "registrant" in roles or "administrative" in roles:
+                            vcard = obj_data.get("vcardArray")
+                            if vcard and len(vcard) > 1:
+                                for field in vcard[1]:
+                                    if isinstance(field, list) and len(field) > 3:
+                                        if field[0] == "org" and len(field) > 3:
+                                            org_name = str(field[3])
+                                            break
+                        if org_name:
+                            break
+        
+        domain_organizations[domain] = {
+            "enriched": True,
+            "organization": org_name,
+            "asn": rdap_data.get("asn"),
+            "asn_description": rdap_data.get("asn_description")
+        }
+        
+        if org_name:
+            # Use normalized name for comparison
+            normalized_org = _normalize_organization_name(org_name)
+            if normalized_org:
+                organizations.add(normalized_org)
+    
+    # Determine if all domains appear to be owned by the same organization
+    enriched_domains = [d for d, info in domain_organizations.items() if info["enriched"]]
+    same_organization = len(organizations) <= 1 if organizations else None
+    
+    summary = {
+        "domains_analyzed": len(domains),
+        "domains_enriched": len(enriched_domains),
+        "same_organization": same_organization,
+        "organizations_found": sorted(organizations) if organizations else [],
+        "domain_details": domain_organizations
+    }
+    
+    return summary
+
+
 def compute_risk_for_sp(
     sp: Dict[str, Any],
     has_impersonation: bool,
@@ -1447,6 +1761,8 @@ def compute_risk_for_sp(
     reply_url_analysis: Optional[Dict[str, Any]] = None,
     public_client_indicators: Optional[Dict[str, Any]] = None,
     platform_signals: Optional[Dict[str, Any]] = None,
+    reply_url_enrichment: Optional[Dict[str, Any]] = None,
+    app_ownership: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Compute risk score for service principal based on loaded configuration."""
     config = SCORING_CONFIG.get("compute_risk_for_sp", {})
@@ -1455,6 +1771,9 @@ def compute_risk_for_sp(
     
     score = 0
     reasons: List[Dict[str, Any]] = []
+    
+    # Extract total_urls once for use in multiple reply URL checks
+    total_urls = reply_url_analysis.get("total_urls", 0) if reply_url_analysis else 0
 
     # CAN_IMPERSONATE
     if has_impersonation:
@@ -1585,8 +1904,10 @@ def compute_risk_for_sp(
         })
 
     # UNVERIFIED_PUBLISHER
+    # Skip for Internal apps (appOwnerOrganizationId == tenantId) as they don't need verification
     verified = is_verified_publisher(sp.get("verifiedPublisher"))
-    if not verified:
+    is_internal = app_ownership == "Internal"
+    if not verified and not is_internal:
         unverified_config = contributors.get("UNVERIFIED_PUBLISHER", {})
         weight = unverified_config.get("weight", 6)
         details = unverified_config.get("details", "Service principal has no verifiedPublisherId")
@@ -1598,6 +1919,7 @@ def compute_risk_for_sp(
         })
 
     # DECEPTION (name mismatch in addition to unverified) - gate for well-known Microsoft platform apps
+    # Only applies when there are reply URLs (user-facing OAuth flows where deception matters)
     publisher = sp.get("publisherName") or ""
     display_name = sp_display or sp.get("appDisplayName") or ""
     deception = (not verified) and publisher and display_name and publisher.lower() != display_name.lower()
@@ -1605,7 +1927,7 @@ def compute_risk_for_sp(
     # Skip for well-known Microsoft platform apps
     is_well_known_ms = platform_signals and platform_signals.get("isWellKnownMicrosoftAppId", False)
     
-    if deception and not is_well_known_ms:
+    if deception and not is_well_known_ms and total_urls > 0:
         deception_config = contributors.get("DECEPTION", {})
         weight = deception_config.get("weight", 20)
         description = deception_config.get("description", "Unverified publisher with name mismatch")
@@ -1617,8 +1939,9 @@ def compute_risk_for_sp(
         })
 
     # IDENTITY_LAUNDERING (Microsoft-owned appOwnerOrganizationId but not a first-party app)
+    # Only applies when there are reply URLs (user-facing OAuth flows where attribution confusion matters)
     app_owner_org_id = sp.get("appOwnerOrganizationId")
-    if not verified and app_owner_org_id in MICROSOFT_TENANT_IDS:
+    if not verified and app_owner_org_id in MICROSOFT_TENANT_IDS and total_urls > 0:
         identity_laundering_config = contributors.get("IDENTITY_LAUNDERING", {})
         weight = identity_laundering_config.get("weight", 15)
         details = identity_laundering_config.get("details", "App appears Microsoft-owned but is unverified multi-tenant")
@@ -1641,53 +1964,71 @@ def compute_risk_for_sp(
     # Skip for well-known Microsoft platform apps
     is_well_known_ms = platform_signals and platform_signals.get("isWellKnownMicrosoftAppId", False)
     
-    if mixed_domains_result.get("has_mixed_domains") and mixed_domains_result.get("signal_type") and not is_well_known_ms:
+    # Only check mixed domains if there are reply URLs to analyze (total_urls calculated at function start)
+    if total_urls > 0 and mixed_domains_result.get("has_mixed_domains") and mixed_domains_result.get("signal_type") and not is_well_known_ms:
         mixed_domains_config = contributors.get("MIXED_REPLYURL_DOMAINS", {})
         signal_type = mixed_domains_result["signal_type"]
         
-        # Different weights for different signal types
-        if signal_type == "identity_laundering":
-            weight = mixed_domains_config.get("identity_laundering_weight", 15)
-            description = mixed_domains_config.get(
-                "identity_laundering_description",
-                "Identity laundering signal: reply URLs use domains not aligned with homepage/branding"
-            )
-            reasons.append({
-                "code": "MIXED_REPLYURL_DOMAINS",
-                "message": description,
-                "weight": weight,
-                "signal_type": "identity_laundering",
-                "domains": mixed_domains_result["domains"],
-                "non_aligned_domains": mixed_domains_result["non_aligned_domains"],
-            })
-            score += weight
-        elif signal_type == "attribution_ambiguity":
-            weight = mixed_domains_config.get("attribution_ambiguity_weight", 5)
-            description = mixed_domains_config.get(
-                "attribution_ambiguity_description",
-                "Attribution ambiguity: multiple distinct domains in reply URLs"
-            )
-            reasons.append({
-                "code": "MIXED_REPLYURL_DOMAINS",
-                "message": description,
-                "weight": weight,
-                "signal_type": "attribution_ambiguity",
-                "domains": mixed_domains_result["domains"],
-            })
-            score += weight
+        # Check if all domains belong to the same organization via enrichment data
+        all_domains = mixed_domains_result.get("domains", [])
+        same_org = _check_same_organization(reply_url_enrichment, all_domains)
+        
+        # Only flag if enrichment doesn't show they're all owned by same organization
+        if not same_org:
+            # Different weights for different signal types
+            if signal_type == "identity_laundering":
+                weight = mixed_domains_config.get("identity_laundering_weight", 15)
+                description = mixed_domains_config.get(
+                    "identity_laundering_description",
+                    "Identity laundering signal: reply URLs use domains not aligned with homepage/branding"
+                )
+                reasons.append({
+                    "code": "MIXED_REPLYURL_DOMAINS",
+                    "message": description,
+                    "weight": weight,
+                    "signal_type": "identity_laundering",
+                    "domains": mixed_domains_result["domains"],
+                    "non_aligned_domains": mixed_domains_result["non_aligned_domains"],
+                })
+                score += weight
+            elif signal_type == "attribution_ambiguity":
+                weight = mixed_domains_config.get("attribution_ambiguity_weight", 5)
+                description = mixed_domains_config.get(
+                    "attribution_ambiguity_description",
+                    "Attribution ambiguity: multiple distinct domains in reply URLs"
+                )
+                reasons.append({
+                    "code": "MIXED_REPLYURL_DOMAINS",
+                    "message": description,
+                    "weight": weight,
+                    "signal_type": "attribution_ambiguity",
+                    "domains": mixed_domains_result["domains"],
+                })
+                score += weight
     
     # REPLYURL_OUTLIER_DOMAIN (domain not in main vendor domain set)
-    if reply_url_analysis and mixed_domains_result.get("non_aligned_domains"):
-        outlier_config = contributors.get("REPLYURL_OUTLIER_DOMAIN", {})
-        weight = outlier_config.get("weight", 10)
-        details = outlier_config.get("details", "Reply URLs on domains outside main vendor domain set")
-        score += weight
-        reasons.append({
-            "code": "REPLYURL_OUTLIER_DOMAIN",
-            "message": details,
-            "weight": weight,
-            "outlier_domains": mixed_domains_result["non_aligned_domains"],
-        })
+    # Only check for outlier domains if there are reply URLs to analyze
+    # Also check enrichment data to see if non-aligned domains belong to same organization
+    if reply_url_analysis and total_urls > 0 and mixed_domains_result.get("non_aligned_domains"):
+        non_aligned_domains = mixed_domains_result["non_aligned_domains"]
+        
+        # Check if non-aligned domains belong to the same organization as reference domains
+        # If enrichment data shows they're all owned by the same org, don't flag as outlier
+        all_domains = mixed_domains_result.get("domains", [])
+        same_org = _check_same_organization(reply_url_enrichment, all_domains)
+        
+        if not same_org:
+            # Different organizations confirmed via enrichment - this is a real outlier
+            outlier_config = contributors.get("REPLYURL_OUTLIER_DOMAIN", {})
+            weight = outlier_config.get("weight", 10)
+            details = outlier_config.get("details", "Reply URLs on domains outside main vendor domain set")
+            score += weight
+            reasons.append({
+                "code": "REPLYURL_OUTLIER_DOMAIN",
+                "message": details,
+                "weight": weight,
+                "outlier_domains": non_aligned_domains,
+            })
 
     # LEGACY
     created = _parse_iso_datetime(sp.get("createdDateTime"))
@@ -1821,7 +2162,8 @@ def compute_risk_for_sp(
         })
 
     # REPLY_URL_ANOMALIES
-    if reply_url_analysis:
+    # Only check for anomalies if there are reply URLs to analyze
+    if reply_url_analysis and total_urls > 0:
         anomaly_config = contributors.get("REPLY_URL_ANOMALIES", {})
         
         # Non-HTTPS URLs
@@ -2436,6 +2778,26 @@ class OidSeeCollector:
             
             # Analyze platform signals for well-known Microsoft appIds
             platform_signals = analyze_platform_signals(sp.get("appId"))
+            
+            # Create a friendly enrichment summary (without raw RDAP/WHOIS data)
+            enrichment_summary = None
+            if reply_url_enrichment:
+                # Extract domains from reply URLs for summary
+                domains_for_summary = []
+                for url in reply_urls:
+                    etld = extract_etldplus1(url)
+                    if etld:
+                        domains_for_summary.append(etld)
+                enrichment_summary = _create_enrichment_summary(reply_url_enrichment, domains_for_summary)
+            
+            # Classify app ownership (1st Party, 3rd Party, or Internal)
+            # Attribution: Uses Microsoft Apps list from https://github.com/merill/microsoft-info by Merill Fernando
+            has_app_obj = appid and (appid in self.app_cache_by_appid)
+            app_ownership = classify_app_ownership(
+                sp.get("appId") or "",
+                sp.get("appOwnerOrganizationId"),
+                has_app_obj
+            )
 
             # service principal node - compute risk with enhanced insights
             risk = compute_risk_for_sp(
@@ -2456,6 +2818,8 @@ class OidSeeCollector:
                 reply_url_analysis,
                 public_client_indicators,
                 platform_signals,
+                reply_url_enrichment,
+                app_ownership,
             )
             
             # Check for identity laundering signals
@@ -2488,6 +2852,7 @@ class OidSeeCollector:
                 "publisherName": sp.get("publisherName"),
                 "signInAudience": sp.get("signInAudience"),
                 "appOwnerOrganizationId": sp.get("appOwnerOrganizationId"),
+                "appOwnership": app_ownership,  # 1st Party, 3rd Party, or Internal
                 "createdDateTime": sp.get("createdDateTime"),
                 "replyUrls": reply_urls,  # Use the type-checked value
                 "homepage": sp.get("homepage"),
@@ -2501,12 +2866,12 @@ class OidSeeCollector:
                 # Enhanced fields
                 "credentialInsights": credential_insights,
                 "replyUrlAnalysis": reply_url_analysis,
-                "replyUrlEnrichment": reply_url_enrichment,
+                "replyUrlEnrichment": enrichment_summary,  # Friendly summary without raw data
                 "replyUrlProvenance": {
                     "source": "microsoft_graph",
                     "collection_timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
                     "enrichment_enabled": any([self.opts.enable_dns_enrichment, self.opts.enable_rdap_enrichment, self.opts.enable_ipwhois_enrichment]),
-                    "enrichment_success": reply_url_enrichment is not None and not reply_url_enrichment.get("enrichment_errors")
+                    "enrichment_success": enrichment_summary is not None
                 } if any([self.opts.enable_dns_enrichment, self.opts.enable_rdap_enrichment, self.opts.enable_ipwhois_enrichment]) else None,
                 "publicClientIndicators": public_client_indicators,
                 "platformSignals": platform_signals,
@@ -2520,27 +2885,29 @@ class OidSeeCollector:
             if risk and risk.get("score", 0) > 0:
                 self.nodes[sp_nid]["risk"] = risk
 
-            # Application node (best-effort)
+            # Application node (only if Application object exists in tenant)
             if appid:
                 app_obj = self.app_cache_by_appid.get(appid)
-                app_display = (app_obj or {}).get("displayName") or sp.get("appDisplayName")
-                app_nid = node_id("app", appid, app_display)
-                self.add_node(app_nid, "Application", app_display, {
-                    "appId": appid,
-                    "isMultiTenant": (app_obj or {}).get("signInAudience") not in (None, "AzureADMyOrg"),
-                    "createdDateTime": (app_obj or {}).get("createdDateTime"),
-                    "signInAudience": (app_obj or {}).get("signInAudience") or sp.get("signInAudience"),
-                    "replyUrls": sp.get("replyUrls") or [],
-                    "web": (app_obj or {}).get("web"),
-                    "spa": (app_obj or {}).get("spa"),
-                    "publicClient": (app_obj or {}).get("publicClient"),
-                    "requiredResourceAccess": (app_obj or {}).get("requiredResourceAccess"),
-                    "passwordCredentials": (app_obj or {}).get("passwordCredentials") or [],
-                    "keyCredentials": (app_obj or {}).get("keyCredentials") or [],
-                    "federatedIdentityCredentials": (app_obj or {}).get("federatedIdentityCredentials") or [],
-                })
-                # Pass servicePrincipalId to ensure unique edge IDs when multiple SPs instance the same app
-                self.add_edge(sp_nid, app_nid, "INSTANCE_OF", {"servicePrincipalId": sp_id})
+                # Only create Application node if we actually have the Application object
+                if app_obj:
+                    app_display = app_obj.get("displayName") or sp.get("appDisplayName")
+                    app_nid = node_id("app", appid, app_display)
+                    self.add_node(app_nid, "Application", app_display, {
+                        "appId": appid,
+                        "isMultiTenant": app_obj.get("signInAudience") not in (None, "AzureADMyOrg"),
+                        "createdDateTime": app_obj.get("createdDateTime"),
+                        "signInAudience": app_obj.get("signInAudience"),
+                        "replyUrls": sp.get("replyUrls") or [],
+                        "web": app_obj.get("web"),
+                        "spa": app_obj.get("spa"),
+                        "publicClient": app_obj.get("publicClient"),
+                        "requiredResourceAccess": app_obj.get("requiredResourceAccess"),
+                        "passwordCredentials": app_obj.get("passwordCredentials") or [],
+                        "keyCredentials": app_obj.get("keyCredentials") or [],
+                        "federatedIdentityCredentials": app_obj.get("federatedIdentityCredentials") or [],
+                    })
+                    # Pass servicePrincipalId to ensure unique edge IDs when multiple SPs instance the same app
+                    self.add_edge(sp_nid, app_nid, "INSTANCE_OF", {"servicePrincipalId": sp_id})
 
             # Owners
             for o in owners_by_sp.get(sp_id, []):
