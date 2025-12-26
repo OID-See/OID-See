@@ -205,7 +205,10 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
         const inp = edgeById.get(id)
         if (inp && !edgesKept.has(inp.id)) {
           // Only include input edge if both its endpoints are in nodePass
-          if (nodePass.has(inp.from) && nodePass.has(inp.to)) {
+          // AND if the input edge type is allowed in the current lens
+          const inpRaw = inp.__oidsee ?? inp
+          const inpType = inpRaw.type ?? inp.label ?? ''
+          if (nodePass.has(inp.from) && nodePass.has(inp.to) && lensEdgeAllowed(lens, inpType)) {
             edgesOut.push(inp)
             edgesKept.add(inp.id)
           }
@@ -222,20 +225,18 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
   }
 
   // Filter nodes based on lens and filter settings:
-  // - If there are explicit node filters, show all nodes that match (even if isolated)
-  // - If lens is risk/structure, show only nodes connected by visible edges
-  // - If lens is full, show all nodes (no filtering)
+  // - Must pass explicit node filter clauses (if any)
+  // - In Full lens: show all nodes that pass node filters
+  // - In Risk/Structure lens: only show nodes connected by visible edges (even with node filters)
   const nodesOut = data.nodes.filter((n) => {
     // Must pass explicit node filters
     if (!nodePass.has(n.id)) return false
     
-    // If there are explicit node filters, show all matching nodes
-    if (nodeClauses.length > 0) return true
-    
-    // In Full lens, show all nodes
+    // In Full lens, show all nodes that pass node filters
     if (lens === 'full') return true
     
     // In Risk/Structure lens, only show nodes connected by visible edges
+    // This applies even when there are explicit node filters
     return nodesWithEdges.has(n.id)
   })
   
