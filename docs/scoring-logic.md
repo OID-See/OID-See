@@ -4,6 +4,13 @@
 
 The OID-See scoring system provides comprehensive risk assessment for service principals and applications in your Entra ID tenant. Scores range from 0-100 and are mapped to risk levels: Info, Low, Medium, High, and Critical.
 
+**Risk Reason Codes**: Each service principal's risk score includes a `reasons` array with specific risk contributors. Each reason has:
+- `code`: The risk factor identifier (e.g., `NO_OWNERS`, `HAS_APP_ROLE`)
+- `message`: Human-readable description
+- `weight`: Points contributed to the total score
+
+**Note**: Some risk codes in the export may differ from conceptual names in this documentation (e.g., `GOVERNANCE` in exports vs `BROAD_REACHABILITY` conceptually, or `OFFLINE_ACCESS_PERSISTENCE` vs `HAS_OFFLINE_ACCESS` edge type). Both are documented below.
+
 ## Scoring Algorithm
 
 ```mermaid
@@ -173,13 +180,19 @@ flowchart TD
 
 **Risk Rationale**: `.All` scopes grant access to all resources of a type, not just the user's own data. This is "consent sprawl" - more access than typically needed.
 
-#### HAS_OFFLINE_ACCESS (+8)
+#### OFFLINE_ACCESS_PERSISTENCE (+8 to +15)
 
 **Description**: App can obtain refresh tokens for persistence
 
 **Detection**: OAuth2 scope includes `offline_access`
 
+**Risk Code**: `OFFLINE_ACCESS_PERSISTENCE` (in risk.reasons)
+
+**Edge Type**: `HAS_OFFLINE_ACCESS` (in graph edges)
+
 **Risk Rationale**: Refresh tokens allow apps to maintain access without user interaction, providing persistence. This is NOT impersonation - that's tracked separately via `CAN_IMPERSONATE`.
+
+**Note**: The risk reason shows as `OFFLINE_ACCESS_PERSISTENCE` while graph edges use type `HAS_OFFLINE_ACCESS`.
 
 ### 2. Exposure Assessment
 
@@ -236,17 +249,20 @@ elif assigned_count > 0:
 
 **Risk Rationale**: More assignments mean more potential victims if the app is compromised. Large group assignments amplify risk.
 
-#### BROAD_REACHABILITY (+15)
+#### BROAD_REACHABILITY / GOVERNANCE (+5 to +15)
 
 **Description**: App doesn't require assignment, making it broadly reachable
 
+**Risk Codes**: 
+- `GOVERNANCE` (+5): Used in current implementation when `appRoleAssignmentRequired = false`
+- `BROAD_REACHABILITY`: Legacy/conceptual name for the same risk
+
 **Triggers**:
-- `appRoleAssignmentRequired = false`
-- No explicit user/group assignments
+- `appRoleAssignmentRequired = false` (or null)
 
 **Risk Rationale**: Any user in the tenant can consent to and use the app. This is high exposure without explicit governance.
 
-**Gating**: If `ASSIGNED_TO` applies, `BROAD_REACHABILITY` does not (they're mutually exclusive).
+**Note**: If users/groups are explicitly assigned (`ASSIGNED_TO` applies), only the GOVERNANCE/BROAD_REACHABILITY base penalty applies, not cumulative with assignment scores.
 
 ### 3. Lifecycle Assessment
 
@@ -368,6 +384,8 @@ Marketing URL: https://fabrikam.com
 
 **Risk Rationale**: Mixed domains can indicate phishing attempts (identity laundering) or legitimate multi-brand companies (attribution ambiguity).
 
+**Enrichment Impact**: When enrichment is enabled, DNS/RDAP/WHOIS lookups can verify that multi-domain reply URLs belong to the same organization (via ASN/network ownership), reducing false positives for legitimate multi-domain vendors like Microsoft.
+
 #### REPLYURL_OUTLIER_DOMAIN (+10)
 
 **Description**: Reply URLs contain domains outside the main vendor domain set
@@ -375,6 +393,8 @@ Marketing URL: https://fabrikam.com
 **Detection**: Leverages the same domain analysis as `MIXED_REPLYURL_DOMAINS`, but specifically flags non-aligned domains.
 
 **Risk Rationale**: Redirect to unexpected domains may indicate compromise or misconfiguration.
+
+**Enrichment Impact**: When enrichment is enabled, ASN/network ownership verification can reduce false positives by confirming domains belong to the same organization.
 
 #### CREDENTIALS_PRESENT (+10)
 
@@ -407,16 +427,16 @@ Evaluates the security of application credentials.
 ```mermaid
 flowchart TD
     A[Credential Hygiene] --> B{Long-lived Secrets?}
-    B -->|Yes > 180 days| C[+10 LONG_LIVED_SECRET]
+    B -->|Yes > 180 days| C[+10 CREDENTIAL_HYGIENE]
     B -->|No| D{Expired Credentials?}
     
-    D -->|Yes| E[+5 EXPIRED_CREDENTIAL]
+    D -->|Yes| E[+5 CREDENTIAL_HYGIENE]
     D -->|No| F{Multiple Secrets?}
     
-    F -->|Yes > 3| G[+5 MULTIPLE_SECRETS]
+    F -->|Yes > 3| G[+5 CREDENTIAL_HYGIENE]
     F -->|No| H{Certificate Expiring?}
     
-    H -->|Yes < 30 days| I[+8 CERT_EXPIRING]
+    H -->|Yes < 30 days| I[+8 CREDENTIAL_HYGIENE]
     H -->|No| J[No Hygiene Issues]
     
     C --> K[Add to Total Score]
@@ -425,9 +445,13 @@ flowchart TD
     I --> K
 ```
 
+**Note**: All credential hygiene issues contribute to risk using the same code `CREDENTIAL_HYGIENE`, with different weights based on the specific issue detected.
+
 #### Long-lived Secrets (+10)
 
 **Description**: Password credentials with lifetime exceeding 180 days
+
+**Risk Code**: `CREDENTIAL_HYGIENE` with message describing the specific issue
 
 **Risk Rationale**: Long-lived secrets increase the window of opportunity for compromise. Microsoft recommends shorter credential lifetimes.
 
@@ -437,6 +461,8 @@ flowchart TD
 
 **Description**: Expired credentials still present in configuration
 
+**Risk Code**: `CREDENTIAL_HYGIENE` with message describing the specific issue
+
 **Risk Rationale**: Leftover expired credentials indicate poor credential hygiene and may confuse administrators or allow accidental usage.
 
 **Best Practice**: Remove expired credentials promptly.
@@ -445,6 +471,8 @@ flowchart TD
 
 **Description**: More than 3 active credentials present
 
+**Risk Code**: `CREDENTIAL_HYGIENE` with message describing the specific issue
+
 **Risk Rationale**: Too many credentials increases the attack surface and management complexity.
 
 **Best Practice**: Maintain 2 credentials (active + rollover) at most.
@@ -452,6 +480,8 @@ flowchart TD
 #### Certificate Expiring Soon (+8)
 
 **Description**: X.509 certificates expiring within 30 days
+
+**Risk Code**: `CREDENTIAL_HYGIENE` with message describing the specific issue
 
 **Risk Rationale**: Expiring certificates can cause service outages. Advance warning allows planned rotation.
 
@@ -464,16 +494,16 @@ Evaluates security of OAuth2 redirect URIs.
 ```mermaid
 flowchart TD
     A[Reply URL Anomalies] --> B{Non-HTTPS?}
-    B -->|Yes| C[+10 HTTP_URL]
+    B -->|Yes| C[+10 REPLY_URL_ANOMALIES]
     B -->|No| D{IP Literal?}
     
-    D -->|Yes| E[+12 IP_LITERAL]
+    D -->|Yes| E[+12 REPLY_URL_ANOMALIES]
     D -->|No| F{Punycode Domain?}
     
-    F -->|Yes xn--| G[+8 PUNYCODE]
+    F -->|Yes xn--| G[+8 REPLY_URL_ANOMALIES]
     F -->|No| H{Wildcard Domain?}
     
-    H -->|Yes contains *| I[+15 WILDCARD]
+    H -->|Yes contains *| I[+15 REPLY_URL_ANOMALIES]
     H -->|No| J{Localhost?}
     
     J -->|Yes| K[Flag but no score]
@@ -485,9 +515,13 @@ flowchart TD
     I --> M
 ```
 
+**Note**: All reply URL anomalies contribute to risk using the same code `REPLY_URL_ANOMALIES`, with different weights based on the specific anomaly detected.
+
 #### Non-HTTPS URLs (+10)
 
 **Description**: Reply URLs using HTTP instead of HTTPS
+
+**Risk Code**: `REPLY_URL_ANOMALIES` with message describing the specific issue
 
 **Example**: `http://app.contoso.com/callback`
 
@@ -498,6 +532,8 @@ flowchart TD
 #### IP Literal Addresses (+12)
 
 **Description**: Reply URLs contain IP addresses
+
+**Risk Code**: `REPLY_URL_ANOMALIES` with message describing the specific issue
 
 **Examples**:
 - `https://192.168.1.100/callback`
@@ -511,6 +547,8 @@ flowchart TD
 
 **Description**: Reply URLs contain internationalized domain names (IDN)
 
+**Risk Code**: `REPLY_URL_ANOMALIES` with message describing the specific issue
+
 **Detection**: Domain contains `xn--` prefix
 
 **Example**: `https://xn--80akhbyknj4f.com/callback` (Cyrillic characters)
@@ -522,6 +560,8 @@ flowchart TD
 #### Wildcard Domains (+15)
 
 **Description**: Reply URLs contain wildcard domains
+
+**Risk Code**: `REPLY_URL_ANOMALIES` with message describing the specific issue
 
 **Example**: `https://*.contoso.com/callback`
 
@@ -598,7 +638,7 @@ Capability:
   HAS_TOO_MANY_SCOPES (.All suffix)               +15
 
 Exposure:
-  BROAD_REACHABILITY (no assignment required)     +15
+  GOVERNANCE (no assignment required)             +5
 
 Governance & Lifecycle:
   NO_OWNERS                                       +15
@@ -609,7 +649,7 @@ Governance & Lifecycle:
   PASSWORD_CREDENTIALS_PRESENT                    +12
 
 Credential Hygiene:
-  LONG_LIVED_SECRET (400 days)                    +10
+  CREDENTIAL_HYGIENE (long-lived secret)          +10
 
 Total: 158 → Clamped to 100 → CRITICAL
 ```
@@ -617,17 +657,17 @@ Total: 158 → Clamped to 100 → CRITICAL
 **Risk Reasons**:
 ```json
 [
-  {"code": "HAS_APP_ROLE", "weight": 25, "message": "Application permissions granted"},
-  {"code": "HAS_PRIVILEGED_SCOPES", "weight": 20, "message": "Privileged delegated scopes"},
-  {"code": "HAS_TOO_MANY_SCOPES", "weight": 15, "message": "Overly broad consent"},
-  {"code": "BROAD_REACHABILITY", "weight": 15, "message": "No assignment required"},
+  {"code": "HAS_APP_ROLE", "weight": 25, "message": "Application permissions granted (Directory.Read.All)"},
+  {"code": "HAS_PRIVILEGED_SCOPES", "weight": 20, "message": "Privileged delegated scopes (ReadWrite)"},
+  {"code": "HAS_TOO_MANY_SCOPES", "weight": 15, "message": "Overly broad consent (.All scopes)"},
+  {"code": "GOVERNANCE", "weight": 5, "message": "Assignments not required for app"},
   {"code": "NO_OWNERS", "weight": 15, "message": "No owners assigned"},
   {"code": "UNVERIFIED_PUBLISHER", "weight": 6, "message": "Unverified publisher"},
   {"code": "DECEPTION", "weight": 20, "message": "Name mismatch with unverified publisher"},
   {"code": "REPLYURL_OUTLIER_DOMAIN", "weight": 10, "message": "Reply URLs use non-aligned domains"},
   {"code": "CREDENTIALS_PRESENT", "weight": 10, "message": "Credentials present on SP"},
   {"code": "PASSWORD_CREDENTIALS_PRESENT", "weight": 12, "message": "Password credentials present"},
-  {"code": "LONG_LIVED_SECRET", "weight": 10, "message": "Secret lifetime exceeds 180 days"}
+  {"code": "CREDENTIAL_HYGIENE", "weight": 10, "message": "Long-lived secrets detected (>180 days)"}
 ]
 ```
 
@@ -646,7 +686,7 @@ Total: 158 → Clamped to 100 → CRITICAL
 
 ```
 Capability:
-  HAS_OFFLINE_ACCESS                              +8
+  OFFLINE_ACCESS_PERSISTENCE                      +8
 
 Exposure:
   ASSIGNED_TO (25 users)                          +15
@@ -666,8 +706,8 @@ Final Score: 23 → LOW
 **Risk Reasons**:
 ```json
 [
-  {"code": "HAS_OFFLINE_ACCESS", "weight": 8, "message": "Persistence via refresh tokens"},
-  {"code": "ASSIGNED_TO", "weight": 15, "message": "Assigned to 25 users"}
+  {"code": "OFFLINE_ACCESS_PERSISTENCE", "weight": 8, "message": "offline_access delegated grant allows refresh tokens"},
+  {"code": "ASSIGNED_TO", "weight": 15, "message": "App is assigned to principals approximating ~25 users"}
 ]
 ```
 
@@ -755,6 +795,49 @@ The risk score is an **indicator**, not a verdict:
 2. **Trend Analysis**: Track score changes over time
 3. **Governance Validation**: Verify that governed apps have lower scores
 4. **Exception Handling**: Document and accept risk for legitimate high-scoring apps
+
+## Microsoft-Specific Scoring Considerations
+
+### Expected Patterns for Microsoft Apps
+
+Microsoft service principals often exhibit patterns that might appear as risk factors but are expected for first-party services:
+
+**Multi-Domain Reply URLs**:
+- Microsoft apps frequently have reply URLs across multiple Microsoft-owned domains
+- Examples: login.microsoftonline.com, login.windows.net, aadcdn.msauth.net
+- When enrichment is enabled, ASN verification confirms these belong to Microsoft infrastructure
+- Without enrichment, these may be flagged with `MIXED_REPLYURL_DOMAINS` or `REPLYURL_OUTLIER_DOMAIN`
+
+**Wildcard Reply URLs**:
+- Some Microsoft apps use wildcard domains (e.g., `*.office.com`, `*.sharepoint.com`)
+- This is expected for apps serving multiple subdomains
+- Still flagged for visibility but context indicates legitimate use
+
+**Verified Publisher Status**:
+- Microsoft first-party apps should have verified publishers
+- Apps from known Microsoft tenant IDs without verification trigger `IDENTITY_LAUNDERING` detection
+- Use Merill's Microsoft Apps list (integrated in scanner) to identify legitimate first-party apps
+
+**High Permissions**:
+- Microsoft Graph, Exchange Online, SharePoint, and other resource APIs naturally have high permissions
+- These are expected and necessary for platform functionality
+- Focus investigation on third-party apps with similar permission levels
+
+### Broker Schemes
+
+Mobile applications using broker schemes are not penalized:
+- **msauth://**, **ms-app://**, **brk-*://**: Recognized as legitimate mobile patterns
+- Tracked in `replyUrlAnalysis.schemes` for visibility
+- Do not contribute to risk scores
+
+### Enrichment Benefits for Microsoft-Heavy Tenants
+
+Tenants with many Microsoft apps benefit from enrichment:
+- ASN/network ownership verification reduces false positives for multi-domain Microsoft apps
+- RDAP data confirms infrastructure ownership patterns
+- DNS lookups verify expected domain relationships
+
+**Recommendation**: Enable enrichment for tenants with significant Microsoft app presence to improve scoring accuracy.
 
 ## Related Documentation
 

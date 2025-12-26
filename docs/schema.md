@@ -266,25 +266,39 @@ Represents enterprise applications and service principals.
 
 **Key Properties**:
 
-- **appId**: Application ID (globally unique across Azure AD)
-- **servicePrincipalId**: Service principal object ID (tenant-specific)
-- **publisherName**: Self-declared publisher name
-- **verifiedPublisher**: Microsoft-verified publisher information (if verified)
-- **signInAudience**: Audience type
+**Microsoft Graph Fields** (always present):
+- **appId**: Application ID (globally unique across Azure AD) - from Microsoft Graph
+- **servicePrincipalId**: Service principal object ID (tenant-specific) - from Microsoft Graph
+- **publisherName**: Self-declared publisher name - from Microsoft Graph
+- **verifiedPublisher**: Microsoft-verified publisher information (if verified) - from Microsoft Graph
+- **signInAudience**: Audience type - from Microsoft Graph
   - `AzureADMyOrg`: Single-tenant
   - `AzureADMultipleOrgs`: Multi-tenant
   - `AzureADandPersonalMicrosoftAccount`: Multi-tenant + personal accounts
-- **replyUrls**: OAuth2 redirect URIs
-- **credentialInsights**: Analysis of credentials (secrets, certificates)
-- **replyUrlAnalysis**: Security analysis of redirect URIs
-- **trustSignals**: Identity laundering and attribution signals
-- **publicClientIndicators**: Public client and implicit flow detection
+- **replyUrls**: OAuth2 redirect URIs - from Microsoft Graph
 
-**Placeholder Fields** (for future enrichment):
-- **replyUrlEnrichment**: DNS/RDAP/IPWHOIS data (currently null)
-- **replyUrlProvenance**: Enrichment provenance metadata (currently null)
-- **domainWhois**: WHOIS data for domains (currently null)
-- **dnsRecords**: DNS records for domains (currently null)
+**Scanner Analysis Fields** (computed from Graph data):
+- **credentialInsights**: Analysis of credentials (secrets, certificates) - computed by scanner
+- **replyUrlAnalysis**: Security analysis of redirect URIs - computed by scanner
+- **trustSignals**: Identity laundering and attribution signals - computed by scanner
+- **publicClientIndicators**: Public client and implicit flow detection - computed by scanner
+
+**Enrichment Fields** (enabled by default, can be disabled):
+- **replyUrlEnrichment**: Summary of DNS/RDAP/IP WHOIS lookups (null when enrichment disabled via `--disable-all-enrichment` or when no enrichable URLs exist)
+  - When present, includes:
+    - `domains_analyzed`: List of eTLD+1 domains queried
+    - `same_organization_likely`: Boolean indicating if domains appear to belong to same org
+    - `enrichment_timestamp`: ISO 8601 timestamp of enrichment
+    - `enrichment_enabled`: Object showing which enrichment methods were enabled
+- **replyUrlProvenance**: Enrichment metadata (currently always includes source: "microsoft_graph")
+- **domainWhois**: Reserved for future use (currently null)
+- **dnsRecords**: Reserved for future use (currently null)
+
+**Field Nullability**:
+- Fields from Microsoft Graph may be null if not provided by the API
+- `credentialInsights`, `replyUrlAnalysis`, `trustSignals`, `publicClientIndicators` are always present (never null)
+- `replyUrlEnrichment` is null when enrichment is disabled or when there are no enrichable reply URLs
+- `verifiedPublisher` is null when the publisher is not verified
 
 ### Application Node
 
@@ -322,11 +336,137 @@ Represents app registrations in the tenant.
 ```
 
 **Key Properties**:
-- **appId**: Application ID (matches ServicePrincipal appId)
-- **applicationId**: Application object ID
-- **passwordCredentials**: Client secrets with validity periods
-- **keyCredentials**: X.509 certificates for authentication
-- **federatedIdentityCredentials**: Workload identity federation configurations
+- **appId**: Application ID (matches ServicePrincipal appId) - from Microsoft Graph
+- **applicationId**: Application object ID - from Microsoft Graph
+- **passwordCredentials**: Client secrets with validity periods - from Microsoft Graph
+- **keyCredentials**: X.509 certificates for authentication - from Microsoft Graph
+- **federatedIdentityCredentials**: Workload identity federation configurations - from Microsoft Graph
+
+## Analysis Field Details
+
+### credentialInsights Structure
+
+Computed analysis of application credentials (from Microsoft Graph data):
+
+```json
+{
+  "total_password_credentials": 2,
+  "active_password_credentials": 1,
+  "expired_password_credentials": 1,
+  "total_key_credentials": 1,
+  "active_key_credentials": 1,
+  "expired_key_credentials": 0,
+  "long_lived_secrets": ["keyId-of-secret-1"],
+  "expired_but_present": ["keyId-of-expired-secret"],
+  "certificate_rollover_issues": [],
+  "multiple_active_secrets": false
+}
+```
+
+**Fields**:
+- `total_password_credentials`, `active_password_credentials`, `expired_password_credentials`: Counts of client secrets
+- `total_key_credentials`, `active_key_credentials`, `expired_key_credentials`: Counts of certificates
+- `long_lived_secrets`: Array of keyIds for secrets with lifetime > 180 days
+- `expired_but_present`: Array of keyIds for expired credentials still configured
+- `certificate_rollover_issues`: Array of certificate keyIds with rollover concerns
+- `multiple_active_secrets`: Boolean true if more than 3 active secrets
+
+### replyUrlAnalysis Structure
+
+Security analysis of OAuth2 redirect URIs (computed from Microsoft Graph replyUrls):
+
+```json
+{
+  "total_urls": 3,
+  "normalized_domains": ["contoso.com", "fabrikam.com"],
+  "non_https_urls": ["http://localhost:8080/callback"],
+  "ip_literal_urls": ["https://192.168.1.100/callback"],
+  "localhost_urls": ["http://localhost:8080/callback"],
+  "punycode_urls": [],
+  "wildcard_urls": ["https://*.contoso.com/callback"],
+  "schemes": ["https", "http", "msauth"]
+}
+```
+
+**Fields**:
+- `total_urls`: Count of reply URLs
+- `normalized_domains`: eTLD+1 domains extracted from URLs (e.g., "app.contoso.com" → "contoso.com")
+- `non_https_urls`: URLs not using HTTPS scheme (security risk)
+- `ip_literal_urls`: URLs using IP addresses instead of domains (security risk)
+- `localhost_urls`: URLs pointing to localhost (dev/test pattern)
+- `punycode_urls`: URLs with internationalized domains (potential homograph attacks)
+- `wildcard_urls`: URLs with wildcard domains (broad attack surface)
+- `schemes`: Unique schemes found (https, http, msauth, ms-app, brk-*, etc.)
+
+**Broker Schemes**: Mobile broker schemes (msauth://, ms-app://, brk-*://) are tracked in `schemes` but don't contribute to risk scores.
+
+### trustSignals Structure
+
+Identity laundering and publisher trust indicators (computed from Graph data and replyUrlAnalysis):
+
+```json
+{
+  "identityLaunderingSuspected": false,
+  "mixedReplyUrlDomains": true,
+  "nonAlignedDomains": ["suspicious-domain.com"]
+}
+```
+
+**Fields**:
+- `identityLaunderingSuspected`: Boolean true if reply URLs use domains not aligned with homepage/branding/privacyStatementUrl/termsOfServiceUrl
+- `mixedReplyUrlDomains`: Boolean true if multiple distinct eTLD+1 domains are used
+- `nonAlignedDomains`: Array of domains that don't align with expected vendor domains
+
+### replyUrlEnrichment Structure
+
+Optional enrichment data from DNS/RDAP/IP WHOIS lookups (null when enrichment disabled):
+
+```json
+{
+  "domains_analyzed": ["contoso.com", "fabrikam.com"],
+  "same_organization_likely": true,
+  "asn_summary": {
+    "contoso.com": "AS8075 - Microsoft Corporation",
+    "fabrikam.com": "AS8075 - Microsoft Corporation"
+  },
+  "enrichment_timestamp": "2024-12-26T12:00:00Z",
+  "enrichment_enabled": {
+    "dns": true,
+    "rdap": true,
+    "ipwhois": true
+  }
+}
+```
+
+**Fields** (when enrichment enabled):
+- `domains_analyzed`: List of eTLD+1 domains that were enriched
+- `same_organization_likely`: Boolean indicating if ASN/network analysis suggests same organization
+- `asn_summary`: Map of domain to ASN description (from RDAP lookups)
+- `enrichment_timestamp`: ISO 8601 timestamp when enrichment was performed
+- `enrichment_enabled`: Object indicating which enrichment methods were enabled
+
+**When null**: Enrichment was disabled (`--disable-all-enrichment`), enrichment dependencies not installed (dnspython/ipwhois), or there were no enrichable URLs (e.g., all wildcards or IP literals).
+
+### publicClientIndicators Structure
+
+Public client flow detection (from Microsoft Graph application object):
+
+```json
+{
+  "hasPublicClientFlows": false,
+  "hasImplicitFlow": false,
+  "hasImplicitAccessTokenIssuance": false,
+  "hasImplicitIdTokenIssuance": false,
+  "hasSpaRedirectUris": false
+}
+```
+
+**Fields**:
+- `hasPublicClientFlows`: Boolean from application's `isFallbackPublicClient` or `allowPublicClient`
+- `hasImplicitFlow`: Boolean if implicit flow is enabled
+- `hasImplicitAccessTokenIssuance`: Boolean if implicit access token issuance is enabled
+- `hasImplicitIdTokenIssuance`: Boolean if implicit ID token issuance is enabled
+- `hasSpaRedirectUris`: Boolean if reply URLs contain "spa" keyword
 
 ### User Node
 
@@ -670,6 +810,8 @@ Persistence via refresh tokens.
 **Detection**: Scope includes "offline_access".
 
 **Note**: This represents persistence (refresh tokens), NOT impersonation.
+
+**Risk Scoring**: In risk.reasons, this appears as code `OFFLINE_ACCESS_PERSISTENCE` (see [Scoring Logic Documentation](scoring-logic.md#offline_access_persistence-8-to-15)).
 
 ### Assignment Edges
 

@@ -4,6 +4,11 @@
 
 The OID-See Scanner is a comprehensive Microsoft Graph scanner that analyzes your Entra ID (Azure AD) tenant to identify security risks in third-party and multi-tenant applications. It produces a structured JSON export compatible with the OID-See visualization tool.
 
+**Data Collection Approach**:
+- **Primary Source**: Microsoft Graph is the single source of truth for identity and permissions data (service principals, applications, OAuth grants, role assignments, users, groups, owners, etc.)
+- **Optional Enrichment**: External lookups (DNS, RDAP, IP WHOIS) provide additional context to reduce false positives and identify outlier domains in reply URLs
+- **Graph-Only Mode**: By default, the scanner uses Microsoft Graph AND enables optional enrichment. Use `--disable-all-enrichment` flag for pure Graph-only mode (no external lookups).
+
 ## Scanner Flow
 
 ```mermaid
@@ -147,28 +152,36 @@ flowchart TD
     B --> C{Check Scheme}
     C -->|HTTP| D[Flag Non-HTTPS]
     C -->|HTTPS| E[Continue]
+    C -->|msauth://, ms-app://| F[Flag Mobile Broker Scheme]
+    C -->|brk-*://| G[Flag Custom Broker Scheme]
     
-    E --> F{Check Host}
-    F -->|IP Address| G[Flag IP Literal]
-    F -->|localhost| H[Flag Localhost]
-    F -->|Domain| I[Continue]
+    E --> H{Check Host}
+    H -->|IP Address| I[Flag IP Literal]
+    H -->|localhost| J[Flag Localhost]
+    H -->|Domain| K[Continue]
     
-    I --> J{Check for Punycode}
-    J -->|Contains xn--| K[Flag Punycode/IDN]
-    J -->|Normal| L[Continue]
+    K --> L{Check for Punycode}
+    L -->|Contains xn--| M[Flag Punycode/IDN]
+    L -->|Normal| N[Continue]
     
-    L --> M{Check for Wildcards}
-    M -->|Contains *| N[Flag Wildcard Domain]
-    M -->|Normal| O[Continue]
+    N --> O{Check for Wildcards}
+    O -->|Contains *| P[Flag Wildcard Domain]
+    O -->|Normal| Q[Extract eTLD+1]
     
-    O --> P[Extract eTLD+1]
-    P --> Q[Group by Domain]
-    Q --> R[Return Analysis Results]
+    Q --> R[Group by Domain]
+    R --> S{Enrichment Enabled?}
+    S -->|Yes| T[Perform DNS/RDAP/WHOIS]
+    S -->|No| U[Graph-Only Analysis]
     
-    D --> S[Add to Risk Score +10]
-    G --> T[Add to Risk Score +12]
-    K --> U[Add to Risk Score +8]
-    N --> V[Add to Risk Score +15]
+    T --> V[Return Analysis + Enrichment]
+    U --> V
+    
+    D --> W[Add to Risk Score +10]
+    F --> X[Flag but no risk penalty]
+    G --> X
+    I --> Y[Add to Risk Score +12]
+    M --> Z[Add to Risk Score +8]
+    P --> AA[Add to Risk Score +15]
 ```
 
 **Detects**:
@@ -177,6 +190,20 @@ flowchart TD
 - Punycode domains (potential homograph attacks): +8 risk points
 - Wildcard domains: +15 risk points
 - Localhost configurations (dev/test in production)
+- Mobile broker schemes (msauth://, ms-app://, brk-*://) - flagged for analysis but no risk penalty (legitimate for mobile apps)
+
+**Brokered Authentication**:
+- **msauth://**, **ms-app://**: Microsoft Authenticator and platform broker schemes for iOS/Android
+- **brk-*://**: Custom broker schemes following the pattern brk-{identifier}://
+- These schemes are recognized and flagged for visibility but do not contribute to risk scores as they are legitimate for native mobile applications
+
+**Enrichment Impact**:
+When enrichment is enabled, the scanner performs:
+- **DNS lookups**: Resolve domains to IP addresses to verify ownership patterns
+- **RDAP queries**: Retrieve ASN and network ownership information
+- **IP WHOIS**: Lookup ownership for IP literals
+
+Enrichment helps reduce false positives by confirming that multi-domain reply URLs belong to the same organization (e.g., Microsoft service principals often have reply URLs across multiple Microsoft-owned domains).
 
 #### Trust Signal Detection
 
@@ -333,11 +360,49 @@ See [Scoring Logic Documentation](scoring-logic.md) for detailed risk calculatio
 - `--max-retries`: Maximum HTTP retries (default: 6)
 - `--retry-base-delay`: Base delay for exponential backoff in seconds (default: 0.8)
 
-### Future Enrichment Options (Placeholders)
+### Enrichment Options
 
-- `--enable-dns-enrichment`: Enable DNS lookups for reply URL domains
-- `--enable-rdap-enrichment`: Enable RDAP lookups for domain registration
-- `--enable-ipwhois-enrichment`: Enable IP WHOIS for IP literals
+**Note**: Enrichment is **enabled by default** (requires `dnspython` and `ipwhois` packages). Use disable flags to run in Graph-only mode.
+
+**Default behavior** (enrichment enabled):
+```bash
+# DNS, RDAP, and IP WHOIS enrichment enabled by default
+python oidsee_scanner.py --tenant-id "TENANT_ID" --out scan.json
+
+# Install enrichment dependencies if not already installed
+pip install dnspython ipwhois
+```
+
+**Disable specific enrichment methods**:
+- `--disable-all-enrichment`: Disable all enrichment lookups (Graph-only mode)
+- `--disable-dns-enrichment`: Disable DNS lookups for reply URL domains
+- `--disable-rdap-enrichment`: Disable RDAP lookups for domain registration
+- `--disable-ipwhois-enrichment`: Disable IP WHOIS lookups for IP literals
+
+**Enrichment Methods**:
+1. **DNS Lookups**: Resolve reply URL domains to IP addresses to verify domain ownership patterns
+2. **RDAP (Registration Data Access Protocol)**: Query domain registration data including ASN, network ownership, and country codes
+3. **IP WHOIS**: Lookup ownership information for IP literals in reply URLs
+
+**Use Cases for Enrichment**:
+- Identify reply URLs pointing to domains outside the vendor's expected infrastructure
+- Reduce false positives by confirming multi-domain reply URLs belong to the same organization
+- Detect potential domain squatting or typosquatting in reply URLs
+- Verify ASN and network ownership for compliance and risk assessment
+
+**Example with selective enrichment**:
+```bash
+# Enable only DNS lookups (fastest)
+python oidsee_scanner.py --tenant-id "TENANT_ID" \
+  --disable-rdap-enrichment \
+  --disable-ipwhois-enrichment \
+  --out scan.json
+
+# Graph-only mode (no external lookups)
+python oidsee_scanner.py --tenant-id "TENANT_ID" \
+  --disable-all-enrichment \
+  --out scan.json
+```
 
 ## Output Structure
 
@@ -387,6 +452,43 @@ The scanner generates a JSON file with the following structure:
 - `ASSIGNED_TO`: User/Group → Application assignment
 - `HAS_ROLE`: SP → Directory role assignment
 
+## Microsoft-Specific Cases
+
+The scanner recognizes and handles several Microsoft-specific patterns:
+
+### Microsoft Service Principals
+
+**First-Party Apps**: The scanner uses [Merill Fernando's Microsoft Apps list](https://github.com/merill/microsoft-info) to identify Microsoft first-party applications.
+
+**Multi-Domain Reply URLs**: Microsoft service principals often have reply URLs across multiple Microsoft-owned domains (e.g., login.microsoftonline.com, login.windows.net, aadcdn.msauth.net). When enrichment is enabled, the scanner can verify these belong to Microsoft infrastructure via ASN/network ownership checks.
+
+**Wildcard Reply URLs**: Some Microsoft apps use wildcard domains (e.g., `https://*.office.com/callback`). These are flagged for visibility but may be expected for Microsoft apps serving multiple subdomains.
+
+### Known Microsoft Tenant IDs
+
+The scanner recognizes Microsoft tenant IDs to avoid false positives for identity laundering:
+- `f8cdef31-a31e-4b4a-93e4-5f571e91255a` - Microsoft Accounts (MSA)
+- `72f988bf-86f1-41af-91ab-2d7cd011db47` - Microsoft Services
+- `cdc5aeea-15c5-4db6-b079-fcadd2505dc2` - Microsoft third tenant
+
+Apps from these tenants with verified publishers are not flagged for identity laundering.
+
+### Brokered Authentication Schemes
+
+Native mobile applications often use broker schemes for authentication:
+- **msauth://**: iOS/Android Microsoft Authenticator broker
+- **ms-app://**: Universal Windows Platform (UWP) app scheme
+- **brk-*://**: Custom broker pattern (e.g., brk-com.contoso.myapp://)
+
+These are recognized as legitimate and don't contribute to risk scores, though they are tracked in the `schemes` field of `replyUrlAnalysis`.
+
+### Platform-Specific Patterns
+
+The scanner identifies platform-specific reply URL patterns:
+- **localhost with ports**: Common for development (e.g., `http://localhost:8080/callback`)
+- **Mobile deep links**: Custom schemes for iOS/Android apps
+- **SPA redirect URIs**: Single-page application patterns (often with `spa` in the URL)
+
 ## Performance Characteristics
 
 ### Typical Scan Times
@@ -396,13 +498,14 @@ The scanner generates a JSON file with the following structure:
 - **Large Tenant** (200-1000 apps): 5-15 minutes
 - **Very Large Tenant** (> 1000 apps): 15-30+ minutes
 
-*Times vary based on network latency, API throttling, and tenant characteristics*
+*Times vary based on network latency, API throttling, tenant characteristics, and whether enrichment is enabled*
 
 ### Optimization Tips
 
 1. **Use Application Auth**: Client credentials are faster than device code
 2. **Filter Appropriately**: Use filters to scan only what you need
 3. **Increase Retry Delay**: For heavily throttled tenants, increase `--retry-base-delay`
+4. **Disable Enrichment**: Use `--disable-all-enrichment` for fastest scans (Graph-only mode)
 4. **Monitor Progress**: Check stderr logs for category-level progress
 
 ## Troubleshooting
@@ -452,8 +555,9 @@ The scanner requires read-only permissions:
 
 ### Data Handling
 
-- **No Data Transmission**: All processing happens locally
-- **No External APIs**: Only connects to Microsoft Graph
+- **No Data Transmission**: All processing happens locally; no data sent to external services except Microsoft Graph
+- **Optional External Lookups**: When enrichment is enabled, DNS/RDAP/WHOIS queries are sent to public DNS servers and RDAP/WHOIS services
+- **No External APIs**: Only connects to Microsoft Graph (and optionally DNS/RDAP/WHOIS when enrichment is enabled)
 - **Credential Security**: Client secrets are not logged or stored
 - **Output Sensitivity**: JSON export contains tenant data - handle appropriately
 
