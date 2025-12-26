@@ -4,6 +4,13 @@
 
 The OID-See scoring system provides comprehensive risk assessment for service principals and applications in your Entra ID tenant. Scores range from 0-100 and are mapped to risk levels: Info, Low, Medium, High, and Critical.
 
+**Risk Reason Codes**: Each service principal's risk score includes a `reasons` array with specific risk contributors. Each reason has:
+- `code`: The risk factor identifier (e.g., `NO_OWNERS`, `HAS_APP_ROLE`)
+- `message`: Human-readable description
+- `weight`: Points contributed to the total score
+
+**Note**: Some risk codes in the export may differ from conceptual names in this documentation (e.g., `GOVERNANCE` in exports vs `BROAD_REACHABILITY` conceptually, or `OFFLINE_ACCESS_PERSISTENCE` vs `HAS_OFFLINE_ACCESS` edge type). Both are documented below.
+
 ## Scoring Algorithm
 
 ```mermaid
@@ -173,13 +180,19 @@ flowchart TD
 
 **Risk Rationale**: `.All` scopes grant access to all resources of a type, not just the user's own data. This is "consent sprawl" - more access than typically needed.
 
-#### HAS_OFFLINE_ACCESS (+8)
+#### OFFLINE_ACCESS_PERSISTENCE (+8 to +15)
 
 **Description**: App can obtain refresh tokens for persistence
 
 **Detection**: OAuth2 scope includes `offline_access`
 
+**Risk Code**: `OFFLINE_ACCESS_PERSISTENCE` (in risk.reasons)
+
+**Edge Type**: `HAS_OFFLINE_ACCESS` (in graph edges)
+
 **Risk Rationale**: Refresh tokens allow apps to maintain access without user interaction, providing persistence. This is NOT impersonation - that's tracked separately via `CAN_IMPERSONATE`.
+
+**Note**: The risk reason shows as `OFFLINE_ACCESS_PERSISTENCE` while graph edges use type `HAS_OFFLINE_ACCESS`.
 
 ### 2. Exposure Assessment
 
@@ -236,17 +249,20 @@ elif assigned_count > 0:
 
 **Risk Rationale**: More assignments mean more potential victims if the app is compromised. Large group assignments amplify risk.
 
-#### BROAD_REACHABILITY (+15)
+#### BROAD_REACHABILITY / GOVERNANCE (+5 to +15)
 
 **Description**: App doesn't require assignment, making it broadly reachable
 
+**Risk Codes**: 
+- `GOVERNANCE` (+5): Used in current implementation when `appRoleAssignmentRequired = false`
+- `BROAD_REACHABILITY`: Legacy/conceptual name for the same risk
+
 **Triggers**:
-- `appRoleAssignmentRequired = false`
-- No explicit user/group assignments
+- `appRoleAssignmentRequired = false` (or null)
 
 **Risk Rationale**: Any user in the tenant can consent to and use the app. This is high exposure without explicit governance.
 
-**Gating**: If `ASSIGNED_TO` applies, `BROAD_REACHABILITY` does not (they're mutually exclusive).
+**Note**: If users/groups are explicitly assigned (`ASSIGNED_TO` applies), only the GOVERNANCE/BROAD_REACHABILITY base penalty applies, not cumulative with assignment scores.
 
 ### 3. Lifecycle Assessment
 
@@ -368,6 +384,8 @@ Marketing URL: https://fabrikam.com
 
 **Risk Rationale**: Mixed domains can indicate phishing attempts (identity laundering) or legitimate multi-brand companies (attribution ambiguity).
 
+**Enrichment Impact**: When enrichment is enabled, DNS/RDAP/WHOIS lookups can verify that multi-domain reply URLs belong to the same organization (via ASN/network ownership), reducing false positives for legitimate multi-domain vendors like Microsoft.
+
 #### REPLYURL_OUTLIER_DOMAIN (+10)
 
 **Description**: Reply URLs contain domains outside the main vendor domain set
@@ -375,6 +393,8 @@ Marketing URL: https://fabrikam.com
 **Detection**: Leverages the same domain analysis as `MIXED_REPLYURL_DOMAINS`, but specifically flags non-aligned domains.
 
 **Risk Rationale**: Redirect to unexpected domains may indicate compromise or misconfiguration.
+
+**Enrichment Impact**: When enrichment is enabled, ASN/network ownership verification can reduce false positives by confirming domains belong to the same organization.
 
 #### CREDENTIALS_PRESENT (+10)
 
@@ -755,6 +775,49 @@ The risk score is an **indicator**, not a verdict:
 2. **Trend Analysis**: Track score changes over time
 3. **Governance Validation**: Verify that governed apps have lower scores
 4. **Exception Handling**: Document and accept risk for legitimate high-scoring apps
+
+## Microsoft-Specific Scoring Considerations
+
+### Expected Patterns for Microsoft Apps
+
+Microsoft service principals often exhibit patterns that might appear as risk factors but are expected for first-party services:
+
+**Multi-Domain Reply URLs**:
+- Microsoft apps frequently have reply URLs across multiple Microsoft-owned domains
+- Examples: login.microsoftonline.com, login.windows.net, aadcdn.msauth.net
+- When enrichment is enabled, ASN verification confirms these belong to Microsoft infrastructure
+- Without enrichment, these may be flagged with `MIXED_REPLYURL_DOMAINS` or `REPLYURL_OUTLIER_DOMAIN`
+
+**Wildcard Reply URLs**:
+- Some Microsoft apps use wildcard domains (e.g., `*.office.com`, `*.sharepoint.com`)
+- This is expected for apps serving multiple subdomains
+- Still flagged for visibility but context indicates legitimate use
+
+**Verified Publisher Status**:
+- Microsoft first-party apps should have verified publishers
+- Apps from known Microsoft tenant IDs without verification trigger `IDENTITY_LAUNDERING` detection
+- Use Merill's Microsoft Apps list (integrated in scanner) to identify legitimate first-party apps
+
+**High Permissions**:
+- Microsoft Graph, Exchange Online, SharePoint, and other resource APIs naturally have high permissions
+- These are expected and necessary for platform functionality
+- Focus investigation on third-party apps with similar permission levels
+
+### Broker Schemes
+
+Mobile applications using broker schemes are not penalized:
+- **msauth://**, **ms-app://**, **brk-*://**: Recognized as legitimate mobile patterns
+- Tracked in `replyUrlAnalysis.schemes` for visibility
+- Do not contribute to risk scores
+
+### Enrichment Benefits for Microsoft-Heavy Tenants
+
+Tenants with many Microsoft apps benefit from enrichment:
+- ASN/network ownership verification reduces false positives for multi-domain Microsoft apps
+- RDAP data confirms infrastructure ownership patterns
+- DNS lookups verify expected domain relationships
+
+**Recommendation**: Enable enrichment for tenants with significant Microsoft app presence to improve scoring accuracy.
 
 ## Related Documentation
 
