@@ -5,6 +5,12 @@ End-to-end validation of MIXED_REPLYURL_DOMAINS heuristic integration.
 This script demonstrates the complete flow of the heuristic in a realistic scenario.
 """
 
+import sys
+import os
+
+# Add parent directory to path to import oidsee_scanner
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from oidsee_scanner import compute_risk_for_sp
 
 

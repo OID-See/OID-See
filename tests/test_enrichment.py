@@ -4,6 +4,11 @@ Test enrichment functionality including RDAP and IP WHOIS using PyPI libraries.
 """
 
 import sys
+import os
+
+# Add parent directory to path to import oidsee_scanner
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from oidsee_scanner import enrich_reply_urls
 
 

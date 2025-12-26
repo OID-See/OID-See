@@ -4,7 +4,11 @@ Tests for new scoring contributors added to oidsee_scanner.py
 """
 
 import sys
+import os
 from typing import Dict, Any, List
+
+# Add parent directory to path to import oidsee_scanner
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the functions we're testing
 from oidsee_scanner import (

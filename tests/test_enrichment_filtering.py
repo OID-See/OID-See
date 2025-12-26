@@ -11,7 +11,11 @@ Also verifies that enrichment summary is properly formatted without raw RDAP/WHO
 """
 
 import sys
+import os
 from typing import Dict, Any
+
+# Add parent directory to path to import oidsee_scanner
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the functions we're testing
 from oidsee_scanner import (
