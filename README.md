@@ -150,6 +150,12 @@ cd tests
 python3 test_integration_e2e.py
 ```
 
+## 📝 Changelog & Release Notes
+
+For detailed information about changes and releases:
+- **[CHANGELOG.md](CHANGELOG.md)** - Complete version history and changes
+- **[RELEASE_NOTES.md](RELEASE_NOTES.md)** - Detailed release documentation
+
 ## Deploy to Netlify
 1. Push to GitHub
 2. Netlify → **New site from Git**

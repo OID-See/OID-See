@@ -295,6 +295,10 @@ The web app documentation covers:
 - Mermaid diagrams for visual clarity
 - Comprehensive examples and use cases
 
+For detailed version history, see:
+- **[CHANGELOG.md](../CHANGELOG.md)** - Complete list of changes by version
+- **[RELEASE_NOTES.md](../RELEASE_NOTES.md)** - Detailed release documentation
+
 ---
 
 **Maintained by**: OID-See Project Contributors  
