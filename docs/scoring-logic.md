@@ -427,16 +427,16 @@ Evaluates the security of application credentials.
 ```mermaid
 flowchart TD
     A[Credential Hygiene] --> B{Long-lived Secrets?}
-    B -->|Yes > 180 days| C[+10 LONG_LIVED_SECRET]
+    B -->|Yes > 180 days| C[+10 CREDENTIAL_HYGIENE]
     B -->|No| D{Expired Credentials?}
     
-    D -->|Yes| E[+5 EXPIRED_CREDENTIAL]
+    D -->|Yes| E[+5 CREDENTIAL_HYGIENE]
     D -->|No| F{Multiple Secrets?}
     
-    F -->|Yes > 3| G[+5 MULTIPLE_SECRETS]
+    F -->|Yes > 3| G[+5 CREDENTIAL_HYGIENE]
     F -->|No| H{Certificate Expiring?}
     
-    H -->|Yes < 30 days| I[+8 CERT_EXPIRING]
+    H -->|Yes < 30 days| I[+8 CREDENTIAL_HYGIENE]
     H -->|No| J[No Hygiene Issues]
     
     C --> K[Add to Total Score]
@@ -445,9 +445,13 @@ flowchart TD
     I --> K
 ```
 
+**Note**: All credential hygiene issues contribute to risk using the same code `CREDENTIAL_HYGIENE`, with different weights based on the specific issue detected.
+
 #### Long-lived Secrets (+10)
 
 **Description**: Password credentials with lifetime exceeding 180 days
+
+**Risk Code**: `CREDENTIAL_HYGIENE` with message describing the specific issue
 
 **Risk Rationale**: Long-lived secrets increase the window of opportunity for compromise. Microsoft recommends shorter credential lifetimes.
 
@@ -457,6 +461,8 @@ flowchart TD
 
 **Description**: Expired credentials still present in configuration
 
+**Risk Code**: `CREDENTIAL_HYGIENE` with message describing the specific issue
+
 **Risk Rationale**: Leftover expired credentials indicate poor credential hygiene and may confuse administrators or allow accidental usage.
 
 **Best Practice**: Remove expired credentials promptly.
@@ -465,6 +471,8 @@ flowchart TD
 
 **Description**: More than 3 active credentials present
 
+**Risk Code**: `CREDENTIAL_HYGIENE` with message describing the specific issue
+
 **Risk Rationale**: Too many credentials increases the attack surface and management complexity.
 
 **Best Practice**: Maintain 2 credentials (active + rollover) at most.
@@ -472,6 +480,8 @@ flowchart TD
 #### Certificate Expiring Soon (+8)
 
 **Description**: X.509 certificates expiring within 30 days
+
+**Risk Code**: `CREDENTIAL_HYGIENE` with message describing the specific issue
 
 **Risk Rationale**: Expiring certificates can cause service outages. Advance warning allows planned rotation.
 
@@ -484,16 +494,16 @@ Evaluates security of OAuth2 redirect URIs.
 ```mermaid
 flowchart TD
     A[Reply URL Anomalies] --> B{Non-HTTPS?}
-    B -->|Yes| C[+10 HTTP_URL]
+    B -->|Yes| C[+10 REPLY_URL_ANOMALIES]
     B -->|No| D{IP Literal?}
     
-    D -->|Yes| E[+12 IP_LITERAL]
+    D -->|Yes| E[+12 REPLY_URL_ANOMALIES]
     D -->|No| F{Punycode Domain?}
     
-    F -->|Yes xn--| G[+8 PUNYCODE]
+    F -->|Yes xn--| G[+8 REPLY_URL_ANOMALIES]
     F -->|No| H{Wildcard Domain?}
     
-    H -->|Yes contains *| I[+15 WILDCARD]
+    H -->|Yes contains *| I[+15 REPLY_URL_ANOMALIES]
     H -->|No| J{Localhost?}
     
     J -->|Yes| K[Flag but no score]
@@ -505,9 +515,13 @@ flowchart TD
     I --> M
 ```
 
+**Note**: All reply URL anomalies contribute to risk using the same code `REPLY_URL_ANOMALIES`, with different weights based on the specific anomaly detected.
+
 #### Non-HTTPS URLs (+10)
 
 **Description**: Reply URLs using HTTP instead of HTTPS
+
+**Risk Code**: `REPLY_URL_ANOMALIES` with message describing the specific issue
 
 **Example**: `http://app.contoso.com/callback`
 
@@ -518,6 +532,8 @@ flowchart TD
 #### IP Literal Addresses (+12)
 
 **Description**: Reply URLs contain IP addresses
+
+**Risk Code**: `REPLY_URL_ANOMALIES` with message describing the specific issue
 
 **Examples**:
 - `https://192.168.1.100/callback`
@@ -531,6 +547,8 @@ flowchart TD
 
 **Description**: Reply URLs contain internationalized domain names (IDN)
 
+**Risk Code**: `REPLY_URL_ANOMALIES` with message describing the specific issue
+
 **Detection**: Domain contains `xn--` prefix
 
 **Example**: `https://xn--80akhbyknj4f.com/callback` (Cyrillic characters)
@@ -542,6 +560,8 @@ flowchart TD
 #### Wildcard Domains (+15)
 
 **Description**: Reply URLs contain wildcard domains
+
+**Risk Code**: `REPLY_URL_ANOMALIES` with message describing the specific issue
 
 **Example**: `https://*.contoso.com/callback`
 
@@ -618,7 +638,7 @@ Capability:
   HAS_TOO_MANY_SCOPES (.All suffix)               +15
 
 Exposure:
-  BROAD_REACHABILITY (no assignment required)     +15
+  GOVERNANCE (no assignment required)             +5
 
 Governance & Lifecycle:
   NO_OWNERS                                       +15
@@ -629,7 +649,7 @@ Governance & Lifecycle:
   PASSWORD_CREDENTIALS_PRESENT                    +12
 
 Credential Hygiene:
-  LONG_LIVED_SECRET (400 days)                    +10
+  CREDENTIAL_HYGIENE (long-lived secret)          +10
 
 Total: 158 → Clamped to 100 → CRITICAL
 ```
@@ -637,17 +657,17 @@ Total: 158 → Clamped to 100 → CRITICAL
 **Risk Reasons**:
 ```json
 [
-  {"code": "HAS_APP_ROLE", "weight": 25, "message": "Application permissions granted"},
-  {"code": "HAS_PRIVILEGED_SCOPES", "weight": 20, "message": "Privileged delegated scopes"},
-  {"code": "HAS_TOO_MANY_SCOPES", "weight": 15, "message": "Overly broad consent"},
-  {"code": "BROAD_REACHABILITY", "weight": 15, "message": "No assignment required"},
+  {"code": "HAS_APP_ROLE", "weight": 25, "message": "Application permissions granted (Directory.Read.All)"},
+  {"code": "HAS_PRIVILEGED_SCOPES", "weight": 20, "message": "Privileged delegated scopes (ReadWrite)"},
+  {"code": "HAS_TOO_MANY_SCOPES", "weight": 15, "message": "Overly broad consent (.All scopes)"},
+  {"code": "GOVERNANCE", "weight": 5, "message": "Assignments not required for app"},
   {"code": "NO_OWNERS", "weight": 15, "message": "No owners assigned"},
   {"code": "UNVERIFIED_PUBLISHER", "weight": 6, "message": "Unverified publisher"},
   {"code": "DECEPTION", "weight": 20, "message": "Name mismatch with unverified publisher"},
   {"code": "REPLYURL_OUTLIER_DOMAIN", "weight": 10, "message": "Reply URLs use non-aligned domains"},
   {"code": "CREDENTIALS_PRESENT", "weight": 10, "message": "Credentials present on SP"},
   {"code": "PASSWORD_CREDENTIALS_PRESENT", "weight": 12, "message": "Password credentials present"},
-  {"code": "LONG_LIVED_SECRET", "weight": 10, "message": "Secret lifetime exceeds 180 days"}
+  {"code": "CREDENTIAL_HYGIENE", "weight": 10, "message": "Long-lived secrets detected (>180 days)"}
 ]
 ```
 
@@ -666,7 +686,7 @@ Total: 158 → Clamped to 100 → CRITICAL
 
 ```
 Capability:
-  HAS_OFFLINE_ACCESS                              +8
+  OFFLINE_ACCESS_PERSISTENCE                      +8
 
 Exposure:
   ASSIGNED_TO (25 users)                          +15
@@ -686,8 +706,8 @@ Final Score: 23 → LOW
 **Risk Reasons**:
 ```json
 [
-  {"code": "HAS_OFFLINE_ACCESS", "weight": 8, "message": "Persistence via refresh tokens"},
-  {"code": "ASSIGNED_TO", "weight": 15, "message": "Assigned to 25 users"}
+  {"code": "OFFLINE_ACCESS_PERSISTENCE", "weight": 8, "message": "offline_access delegated grant allows refresh tokens"},
+  {"code": "ASSIGNED_TO", "weight": 15, "message": "App is assigned to principals approximating ~25 users"}
 ]
 ```
 

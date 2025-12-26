@@ -84,7 +84,7 @@ The filter panel allows you to query and filter the displayed data.
 **Full / Risk / Structure**: Three lens modes for viewing different aspects of the graph
 
 - **Full**: Shows all nodes and edges without filtering
-- **Risk**: Focuses on privilege and abuse paths (HAS_SCOPE, HAS_ROLE, HAS_APP_ROLE, CAN_IMPERSONATE, etc.)
+- **Risk**: Focuses on privilege and abuse paths (HAS_SCOPES, HAS_ROLE, HAS_APP_ROLE, CAN_IMPERSONATE, etc.)
 - **Structure**: Shows only structural relationships (INSTANCE_OF, MEMBER_OF, OWNS, ASSIGNED_TO)
 
 #### Path-aware Filtering
