@@ -6,12 +6,16 @@ Tests that the schema properly validates exports with new fields.
 
 import json
 import sys
+import os
 from jsonschema import validate, ValidationError
 
 
 def load_schema():
     """Load the JSON schema."""
-    with open("schemas/oidsee-graph-export.schema.json", "r") as f:
+    # Get path relative to this test file
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    schema_path = os.path.join(test_dir, "..", "schemas", "oidsee-graph-export.schema.json")
+    with open(schema_path, "r") as f:
         return json.load(f)
 
 

@@ -3,7 +3,13 @@
 Test that enrichment caching works correctly.
 """
 
+import sys
+import os
 import time
+
+# Add parent directory to path to import oidsee_scanner
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from oidsee_scanner import enrich_reply_urls, extract_etldplus1
 
 def test_etld_extraction():

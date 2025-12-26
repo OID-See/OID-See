@@ -4,10 +4,14 @@ Test to verify parallelism implementation is correct and thread-safe.
 """
 
 import sys
+import os
 import time
 from typing import Dict, Any, List
 from unittest.mock import Mock, MagicMock, patch
 from concurrent.futures import ThreadPoolExecutor
+
+# Add parent directory to path to import oidsee_scanner
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the OidSeeCollector
 from oidsee_scanner import OidSeeCollector, CollectOptions, GraphClient

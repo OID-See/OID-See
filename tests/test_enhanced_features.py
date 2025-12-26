@@ -8,8 +8,12 @@ Tests for enhanced scanner features:
 """
 
 import sys
+import os
 import datetime as dt
 from typing import Dict, Any, List
+
+# Add parent directory to path to import oidsee_scanner
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the functions we're testing
 from oidsee_scanner import (

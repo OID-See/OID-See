@@ -6,8 +6,8 @@ Test to verify app role node ID uniqueness fix
 import sys
 import os
 
-# Add current directory to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add parent directory to path to import oidsee_scanner
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the functions we're testing
 from oidsee_scanner import node_id, make_edge

@@ -6,7 +6,11 @@ This test suite validates the eTLD+1 extraction and mixed domain detection logic
 """
 
 import sys
+import os
 from typing import Dict, Any, List, Optional
+
+# Add parent directory to path to import oidsee_scanner
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the functions we're testing
 from oidsee_scanner import extract_etldplus1, check_mixed_replyurl_domains, SCORING_CONFIG

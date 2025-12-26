@@ -36,6 +36,22 @@ npm install
 npm run dev
 ```
 
+### Running Tests
+The test suite is located in the `tests/` directory. To run the tests:
+
+```bash
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Run individual test files
+python3 tests/test_schema_validation.py
+python3 tests/test_approle_uniqueness.py
+
+# Or run from within the tests directory
+cd tests
+python3 test_integration_e2e.py
+```
+
 ## Deploy to Netlify
 1. Push to GitHub
 2. Netlify → **New site from Git**

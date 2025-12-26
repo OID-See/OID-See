@@ -5,6 +5,11 @@ Tests the complete flow with wildcard URLs, public client indicators, and scorin
 """
 
 import sys
+import os
+
+# Add parent directory to path to import oidsee_scanner
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from oidsee_scanner import (
     compute_risk_for_sp,
     analyze_reply_urls,
