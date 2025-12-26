@@ -422,7 +422,7 @@ Marketing URL: https://fabrikam.com
 
 **Description**: Application was created before a security baseline date
 
-**Detection**: `createdDateTime` before July 2025
+**Detection**: `createdDateTime` before July 2024
 
 **Risk Rationale**: Older apps may not follow modern security practices, may lack security reviews, or may be orphaned.
 

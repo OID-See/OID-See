@@ -546,5 +546,5 @@ For issues, questions, or feedback:
 ---
 
 **Version**: 1.x  
-**Last Updated**: December 2024  
+**Last Updated**: December 26, 2024  
 **Compatibility**: OID-See Graph Export Schema v1.x

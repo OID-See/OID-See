@@ -300,4 +300,4 @@ The web app documentation covers:
 
 **Maintained by**: OID-See Project Contributors  
 **License**: See repository LICENSE file  
-**Last Updated**: December 2024
+**Last Updated**: December 26, 2024

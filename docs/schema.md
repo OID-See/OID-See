@@ -1080,9 +1080,9 @@ The schema uses `additionalProperties: false` at the top level but allows extens
 
 ### 1. Invalid GUIDs
 
-**Problem**: GUIDs not matching the pattern `^[0-9a-fA-F-]{36}$`
+**Problem**: GUIDs not matching the standard format
 
-**Solution**: Ensure all GUIDs are properly formatted with hyphens
+**Solution**: Ensure all GUIDs are properly formatted as `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` (8-4-4-4-12 hexadecimal digits with hyphens)
 
 ### 2. Missing Required Fields
 

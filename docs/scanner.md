@@ -261,14 +261,14 @@ flowchart TD
 
 ```python
 # Device Code (Interactive)
-python oidsee_scanner.py --tenant-id "<TENANT_ID>" --out export.json
+python oidsee_scanner.py --tenant-id "<TENANT_ID>" --out oidsee-export.json
 
 # Client Secret (Application)
 python oidsee_scanner.py \
   --tenant-id "<TENANT_ID>" \
   --client-id "<APP_ID>" \
   --client-secret "<SECRET>" \
-  --out export.json
+  --out oidsee-export.json
 ```
 
 ### Phase 2: Service Principal Discovery
