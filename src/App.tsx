@@ -97,9 +97,15 @@ function lensEdgeAllowed(lens: Lens, edgeType: string): boolean {
   if (lens === 'full') return true
 
   if (lens === 'risk') {
+    // Risk lens: show edges that represent security risks
     const allow = new Set([
       'HAS_SCOPE',
+      'HAS_SCOPES',
+      'HAS_TOO_MANY_SCOPES',
+      'HAS_PRIVILEGED_SCOPES',
+      'HAS_OFFLINE_ACCESS',
       'HAS_ROLE',
+      'HAS_APP_ROLE',
       'CAN_IMPERSONATE',
       'EFFECTIVE_IMPERSONATION_PATH',
       'PERSISTENCE_PATH',
@@ -108,6 +114,7 @@ function lensEdgeAllowed(lens: Lens, edgeType: string): boolean {
     return allow.has(edgeType)
   }
 
+  // Structure lens: show edges that represent organizational structure
   const allow = new Set(['INSTANCE_OF', 'MEMBER_OF', 'OWNS', 'GOVERNS', 'ASSIGNED_TO'])
   return allow.has(edgeType)
 }
@@ -164,32 +171,6 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
     }
   }
 
-  // Apply lens-based node filtering by risk score
-  // Risk lens: only show nodes WITH risk.score
-  // Structure lens: only show nodes WITHOUT risk.score
-  const DEBUG = false  // Set to true to enable diagnostic logging
-  if (lens !== 'full' && nodeClauses.length === 0) {
-    const beforeCount = nodePass.size
-    const lensFiltered = new Set<string>()
-    for (const n of data.nodes) {
-      if (!nodePass.has(n.id)) continue
-      const raw = n.__oidsee ?? n
-      const hasRiskScore = raw.risk?.score != null
-      
-      if (lens === 'risk' && hasRiskScore) {
-        lensFiltered.add(n.id)
-      } else if (lens === 'structure' && !hasRiskScore) {
-        lensFiltered.add(n.id)
-      }
-    }
-    // Replace nodePass with lens-filtered set
-    nodePass.clear()
-    lensFiltered.forEach(id => nodePass.add(id))
-    if (DEBUG) {
-      console.log(`[Lens Filter] ${lens} lens: ${beforeCount} → ${nodePass.size} nodes`)
-    }
-  }
-
   const edgeById = new Map<string, any>()
   for (const e of data.edges) edgeById.set(e.id, e)
 
@@ -238,19 +219,13 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
     nodesWithEdges.add(e.to)
   }
 
-  // If there are explicit node filters OR lens-based filtering, show all nodes that match (even if isolated)
-  // Otherwise, only show nodes that have edges
+  // Show nodes that have at least one visible edge
+  // If there are explicit node filters, show all nodes that match (even if isolated)
   const nodesOut = data.nodes.filter((n) => {
     if (!nodePass.has(n.id)) return false
-    if (nodeClauses.length > 0 || lens !== 'full') return true  // Show all filtered nodes
+    if (nodeClauses.length > 0) return true  // Show all filtered nodes
     return nodesWithEdges.has(n.id)  // Only show nodes with edges if no node filter
   })
-  
-  if (DEBUG) {
-    console.log(`[Final Output] ${nodesOut.length} nodes, ${edgesOut.length} edges`)
-    console.log(`  - Nodes with edges: ${nodesWithEdges.size}`)
-    console.log(`  - Nodes without edges: ${nodesOut.length - nodesWithEdges.size}`)
-  }
   
   const edgesFinal = edgesOut
 
