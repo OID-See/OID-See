@@ -283,8 +283,8 @@ Represents enterprise applications and service principals.
 - **trustSignals**: Identity laundering and attribution signals - computed by scanner
 - **publicClientIndicators**: Public client and implicit flow detection - computed by scanner
 
-**Enrichment Fields** (optional, requires enrichment enabled):
-- **replyUrlEnrichment**: Summary of DNS/RDAP/IP WHOIS lookups (null when enrichment disabled or no enrichable URLs)
+**Enrichment Fields** (enabled by default, can be disabled):
+- **replyUrlEnrichment**: Summary of DNS/RDAP/IP WHOIS lookups (null when enrichment disabled via `--disable-all-enrichment` or when no enrichable URLs exist)
   - When present, includes:
     - `domains_analyzed`: List of eTLD+1 domains queried
     - `same_organization_likely`: Boolean indicating if domains appear to belong to same org
@@ -445,7 +445,7 @@ Optional enrichment data from DNS/RDAP/IP WHOIS lookups (null when enrichment di
 - `enrichment_timestamp`: ISO 8601 timestamp when enrichment was performed
 - `enrichment_enabled`: Object indicating which enrichment methods were enabled
 
-**When null**: Enrichment was disabled (`--disable-all-enrichment`) or there were no enrichable URLs (e.g., all wildcards or IP literals).
+**When null**: Enrichment was disabled (`--disable-all-enrichment`), enrichment dependencies not installed (dnspython/ipwhois), or there were no enrichable URLs (e.g., all wildcards or IP literals).
 
 ### publicClientIndicators Structure
 
@@ -810,6 +810,8 @@ Persistence via refresh tokens.
 **Detection**: Scope includes "offline_access".
 
 **Note**: This represents persistence (refresh tokens), NOT impersonation.
+
+**Risk Scoring**: In risk.reasons, this appears as code `OFFLINE_ACCESS_PERSISTENCE` (see [Scoring Logic Documentation](scoring-logic.md#offline_access_persistence-8-to-15)).
 
 ### Assignment Edges
 

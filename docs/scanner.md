@@ -7,7 +7,7 @@ The OID-See Scanner is a comprehensive Microsoft Graph scanner that analyzes you
 **Data Collection Approach**:
 - **Primary Source**: Microsoft Graph is the single source of truth for identity and permissions data (service principals, applications, OAuth grants, role assignments, users, groups, owners, etc.)
 - **Optional Enrichment**: External lookups (DNS, RDAP, IP WHOIS) provide additional context to reduce false positives and identify outlier domains in reply URLs
-- **Graph-Only Mode**: By default, the scanner uses only Microsoft Graph. Enable enrichment with CLI flags when additional domain analysis is needed.
+- **Graph-Only Mode**: By default, the scanner uses Microsoft Graph AND enables optional enrichment. Use `--disable-all-enrichment` flag for pure Graph-only mode (no external lookups).
 
 ## Scanner Flow
 
@@ -362,11 +362,11 @@ See [Scoring Logic Documentation](scoring-logic.md) for detailed risk calculatio
 
 ### Enrichment Options
 
-**Note**: Enrichment is disabled by default. Enable enrichment to perform external lookups that help identify outlier domains and reduce false positives in reply URL analysis.
+**Note**: Enrichment is **enabled by default** (requires `dnspython` and `ipwhois` packages). Use disable flags to run in Graph-only mode.
 
-**Enable enrichment** (requires `dnspython` and `ipwhois` packages):
+**Default behavior** (enrichment enabled):
 ```bash
-# DNS, RDAP, and IP WHOIS all enabled by default when no disable flags are used
+# DNS, RDAP, and IP WHOIS enrichment enabled by default
 python oidsee_scanner.py --tenant-id "TENANT_ID" --out scan.json
 
 # Install enrichment dependencies if not already installed
