@@ -205,7 +205,10 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
         const inp = edgeById.get(id)
         if (inp && !edgesKept.has(inp.id)) {
           // Only include input edge if both its endpoints are in nodePass
-          if (nodePass.has(inp.from) && nodePass.has(inp.to)) {
+          // AND if the input edge type is allowed in the current lens
+          const inpRaw = inp.__oidsee ?? inp
+          const inpType = inpRaw.type ?? inp.label ?? ''
+          if (nodePass.has(inp.from) && nodePass.has(inp.to) && lensEdgeAllowed(lens, inpType)) {
             edgesOut.push(inp)
             edgesKept.add(inp.id)
           }
