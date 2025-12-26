@@ -172,7 +172,7 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
     for (const n of data.nodes) {
       if (!nodePass.has(n.id)) continue
       const raw = n.__oidsee ?? n
-      const hasRiskScore = raw.risk?.score !== undefined && raw.risk?.score !== null
+      const hasRiskScore = raw.risk?.score != null
       
       if (lens === 'risk' && hasRiskScore) {
         lensFiltered.add(n.id)
