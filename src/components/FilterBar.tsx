@@ -278,7 +278,7 @@ export function FilterBar({
             </li>
           </ul>
           <div className="help__text muted">
-            Lenses: <b>Risk</b> hides structural edges, <b>Structure</b> hides derived/privilege edges. Path-aware keeps the inputs for derived
+            Lenses: <b>Risk</b> shows only nodes with Risk scores and their relationships. <b>Structure</b> shows only nodes without Risk scores and their structural relationships. Path-aware keeps the inputs for derived
             edges (via <span className="mono">derived.inputs</span>).
           </div>
         </div>

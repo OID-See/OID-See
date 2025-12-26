@@ -206,26 +206,21 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
   }
 
   // Step 3: Determine final nodes and edges
-  // Show all nodes that pass the filter
-  // - If there are explicit node filters, show all nodes that match (even if isolated)
-  // - If there are NO node filters, show ALL nodes (don't hide nodes just because edges are filtered)
+  const nodesWithEdges = new Set<string>()
+  for (const e of edgesOut) {
+    nodesWithEdges.add(e.from)
+    nodesWithEdges.add(e.to)
+  }
+
+  // If there are explicit node filters, show all nodes that match (even if isolated)
+  // Otherwise, only show nodes that have edges
   const nodesOut = data.nodes.filter((n) => {
-    return nodePass.has(n.id)
+    if (!nodePass.has(n.id)) return false
+    if (nodeClauses.length > 0) return true  // Show all filtered nodes
+    return nodesWithEdges.has(n.id)  // Only show nodes with edges if no node filter
   })
   
   const edgesFinal = edgesOut
-
-  // Diagnostic logging for filtering behavior (enable for debugging)
-  if (false && process.env.NODE_ENV === 'development') {
-    console.log('[applyQuery] Filter results:', {
-      totalNodes: data.nodes.length,
-      filteredNodes: nodesOut.length,
-      totalEdges: data.edges.length,
-      filteredEdges: edgesFinal.length,
-      lens,
-      hasNodeFilters: parsed.clauses.some(c => c.object === 'n')
-    })
-  }
 
   return { nodes: nodesOut, edges: edgesFinal, parsed }
 }
