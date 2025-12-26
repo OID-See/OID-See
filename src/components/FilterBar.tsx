@@ -9,10 +9,108 @@ const AUTOCOMPLETE_SUGGESTIONS = {
   targets: ['n.', 'e.'],
   operators: ['=', '!=', '~', '!~', '>=', '<=', '>', '<', '?'],
   commonPaths: {
-    node: ['type', 'displayName', 'risk.score', 'risk.level', 'properties.appId', 'properties.scopes', 'id'],
-    edge: ['type', 'properties.scopes', 'properties.strength', 'label', 'derived.isDerived'],
+    node: [
+      'type',
+      'displayName',
+      'risk.score',
+      'risk.level',
+      'risk.reasons',
+      'properties.appId',
+      'properties.servicePrincipalId',
+      'properties.appDisplayName',
+      'properties.publisherName',
+      'properties.requiresAssignment',
+      'properties.signInAudience',
+      'properties.createdDateTime',
+      'properties.homepage',
+      'properties.replyUrls',
+      'properties.verifiedPublisher.displayName',
+      'properties.verifiedPublisher.verifiedPublisherId',
+      'properties.tags',
+      'properties.keyCredentials',
+      'properties.passwordCredentials',
+      'properties.credentialInsights.total_password_credentials',
+      'properties.credentialInsights.total_key_credentials',
+      'properties.credentialInsights.active_password_credentials',
+      'properties.credentialInsights.active_key_credentials',
+      'properties.credentialInsights.expired_password_credentials',
+      'properties.credentialInsights.expired_key_credentials',
+      'properties.credentialInsights.long_lived_secrets',
+      'properties.credentialInsights.expired_but_present',
+      'properties.replyUrlAnalysis.total_urls',
+      'properties.replyUrlAnalysis.non_https_urls',
+      'properties.replyUrlAnalysis.ip_literal_urls',
+      'properties.replyUrlAnalysis.localhost_urls',
+      'properties.trustSignals.identityLaunderingSuspected',
+      'properties.trustSignals.mixedReplyUrlDomains',
+      'properties.web.redirectUris',
+      'properties.spa.redirectUris',
+      'properties.publicClient.redirectUris',
+      'properties.isMultiTenant',
+      'properties.requiredResourceAccess',
+      'properties.userType',
+      'properties.membershipRule',
+      'properties.isAssignableToRole',
+      'properties.oauth2PermissionScopes',
+      'id',
+    ],
+    edge: [
+      'type',
+      'from',
+      'to',
+      'properties.scopes',
+      'properties.resourceAppId',
+      'properties.resourceDisplayName',
+      'properties.classification',
+      'properties.permissionType',
+      'properties.resolvedScopes',
+      'properties.appRoleIds',
+      'properties.resolvedAppRoles',
+      'properties.resourceId',
+      'properties.markers',
+      'properties.privilegedScopes',
+      'properties.tooBroadScopes',
+      'properties.count',
+      'properties.directoryScopeId',
+      'properties.servicePrincipalId',
+      'id',
+    ],
   },
-  commonValues: ['User', 'Application', 'Group', 'Role', 'offline_access', 'true', 'false'],
+  commonValues: [
+    'ServicePrincipal',
+    'Application',
+    'User',
+    'Group',
+    'Role',
+    'ResourceApi',
+    'HAS_SCOPE',
+    'HAS_SCOPES',
+    'HAS_PRIVILEGED_SCOPES',
+    'HAS_TOO_MANY_SCOPES',
+    'HAS_OFFLINE_ACCESS',
+    'HAS_APP_ROLE',
+    'CAN_IMPERSONATE',
+    'HAS_ROLE',
+    'ASSIGNED_TO',
+    'INSTANCE_OF',
+    'OWNS',
+    'MEMBER_OF',
+    'GOVERNS',
+    'delegated',
+    'application',
+    'regular',
+    'privileged',
+    'too_broad',
+    'offline_access',
+    'user_impersonation',
+    'true',
+    'false',
+    'null',
+    'critical',
+    'high',
+    'medium',
+    'low',
+  ],
 }
 
 function getAutocompleteOptions(input: string, userHasInteracted: boolean): string[] {
@@ -150,6 +248,7 @@ export function FilterBar({
   onSave,
   onDelete,
   onLoad,
+  onReset,
 }: {
   query: string
   onChange: (q: string) => void
@@ -163,6 +262,7 @@ export function FilterBar({
   onSave: () => void
   onDelete: () => void
   onLoad: (name: string) => void
+  onReset: () => void
 }) {
   const [open, setOpen] = useState(false)
   const parsed = useMemo(() => parseQuery(query), [query])
@@ -204,13 +304,19 @@ export function FilterBar({
               </option>
             ))}
           </select>
-          <button className="btn btn--ghost" onClick={onSave} title="Save current query">
-            Save
-          </button>
-          <button className="btn btn--ghost" onClick={onDelete} title="Delete a saved query">
-            Delete
-          </button>
         </div>
+      </div>
+
+      <div className="filterbar__row3">
+        <button className="btn btn--ghost" onClick={onSave} title="Save current query">
+          Save
+        </button>
+        <button className="btn btn--ghost" onClick={onDelete} title="Delete a saved query">
+          Delete
+        </button>
+        <button className="btn btn--ghost" onClick={onReset} title="Reset preset queries to defaults (keeps user-added queries)">
+          Reset Presets
+        </button>
       </div>
 
       <div className="filterbar__row">

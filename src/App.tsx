@@ -33,14 +33,49 @@ const SCROLL_DELAY_OFFSET = 50 // ms additional delay to ensure panel has expand
 const GRAPH_RESTABILIZE_DELAY = 100 // ms delay before triggering graph restabilization
 
 const PRESET_QUERIES: SavedQuery[] = [
-  { name: 'High Risk Apps', query: 'n.risk.score>=70' },
-  { name: 'Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
-  { name: 'Can Impersonate', query: 'e.type=CAN_IMPERSONATE' },
-  { name: 'Too Many Scopes', query: 'e.type=HAS_TOO_MANY_SCOPES' },
-  { name: 'Privileged Scopes', query: 'e.type=HAS_PRIVILEGED_SCOPES' },
-  { name: 'Persistence Paths', query: 'e.type=PERSISTENCE_PATH' },
-  { name: 'Users Only', query: 'n.type=User' },
+  // Node type queries
+  { name: 'Service Principals', query: 'n.type=ServicePrincipal' },
   { name: 'Applications', query: 'n.type=Application' },
+  { name: 'Users', query: 'n.type=User' },
+  { name: 'Groups', query: 'n.type=Group' },
+  { name: 'Roles', query: 'n.type=Role' },
+  { name: 'Resource APIs', query: 'n.type=ResourceApi' },
+  
+  // Risk level queries
+  { name: 'High Risk', query: 'n.risk.score>=70' },
+  { name: 'Medium Risk', query: 'n.risk.score>=40 n.risk.score<70' },
+  { name: 'Low Risk', query: 'n.risk.score<40' },
+  
+  // Risk-focused edge queries
+  { name: 'Can Impersonate', query: 'e.type=CAN_IMPERSONATE' },
+  { name: 'Has App Roles', query: 'e.type=HAS_APP_ROLE' },
+  { name: 'Has Directory Roles', query: 'e.type=HAS_ROLE' },
+  { name: 'Privileged Scopes', query: 'e.type=HAS_PRIVILEGED_SCOPES' },
+  { name: 'Too Many Scopes', query: 'e.type=HAS_TOO_MANY_SCOPES' },
+  { name: 'Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
+  
+  // Specific risk queries
+  { name: 'Service Principals with Password Credentials', query: 'n.type=ServicePrincipal n.properties.credentialInsights.active_password_credentials>0' },
+  { name: 'Service Principals with Key Credentials', query: 'n.type=ServicePrincipal n.properties.credentialInsights.active_key_credentials>0' },
+  { name: 'Unverified Publishers', query: 'n.type=ServicePrincipal n.properties.verifiedPublisher.displayName=null' },
+  { name: 'Service Principals Without Owners', query: 'n.risk.reasons~NO_OWNERS' },
+  { name: 'Broad Reachability Service Principals', query: 'n.risk.reasons~BROAD_REACHABILITY' },
+  { name: 'Identity Laundering Suspected', query: 'n.properties.trustSignals.identityLaunderingSuspected=true' },
+  { name: 'Service Principals Not Requiring Assignment', query: 'n.type=ServicePrincipal n.properties.requiresAssignment=false' },
+  { name: 'Service Principals with Reply URLs', query: 'n.properties.replyUrlAnalysis.total_urls>0' },
+  { name: 'Service Principals with Non-HTTPS URLs', query: 'n.properties.replyUrlAnalysis.non_https_urls.length>0' },
+  { name: 'Expired Credentials Present', query: 'n.properties.credentialInsights.expired_but_present.length>0' },
+  { name: 'Long Lived Secrets', query: 'n.properties.credentialInsights.long_lived_secrets.length>0' },
+  
+  // Structure queries
+  { name: 'App Ownership', query: 'e.type=OWNS' },
+  { name: 'App Instances', query: 'e.type=INSTANCE_OF' },
+  { name: 'App Assignments', query: 'e.type=ASSIGNED_TO' },
+  
+  // Complex multi-condition queries
+  { name: 'High Risk with Credentials', query: 'n.risk.score>=70 n.properties.credentialInsights.active_password_credentials>0' },
+  { name: 'Unverified with Offline Access', query: 'n.properties.verifiedPublisher.displayName=null e.type=HAS_OFFLINE_ACCESS' },
+  { name: 'Impersonation Capable Service Principals', query: 'e.type=CAN_IMPERSONATE e.properties.markers~user_impersonation' },
 ]
 
 function loadPhysicsConfig(): PhysicsConfig {
@@ -445,6 +480,20 @@ export default function App() {
     if (found) setQuery(found.query)
   }
 
+  function resetPresetQueries() {
+    // Get all preset query names
+    const presetNames = new Set(PRESET_QUERIES.map(q => q.name))
+    
+    // Keep only user-added queries (those not in PRESET_QUERIES)
+    const userQueries = saved.filter(q => !presetNames.has(q.name))
+    
+    // Combine preset queries with user queries
+    const next = [...PRESET_QUERIES, ...userQueries]
+    
+    setSaved(next)
+    saveSaved(next)
+  }
+
   function formatJSON() {
     try {
       const parsed = JSON.parse(raw)
@@ -614,6 +663,7 @@ export default function App() {
             onSave={saveCurrentQuery}
             onDelete={deleteSavedQuery}
             onLoad={loadSavedQuery}
+            onReset={resetPresetQueries}
           />
         )}
       </section>
