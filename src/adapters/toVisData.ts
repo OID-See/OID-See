@@ -143,7 +143,7 @@ export async function toVisDataAsync(input: any): Promise<VisData> {
       const batch = exp.nodes.slice(i, Math.min(i + BATCH_SIZE, exp.nodes.length))
       const batchNum = Math.floor(i / BATCH_SIZE) + 1
       const totalBatches = Math.ceil(exp.nodes.length / BATCH_SIZE)
-      console.log(`[toVisData] 📦 Processing node batch ${batchNum}/${totalBatches} (${i}-${i + batch.length})`)
+      console.log(`[toVisData] 📦 Processing node batch ${batchNum}/${totalBatches} (${i + 1}-${i + batch.length})`)
       
       for (const n of batch) {
         try {
@@ -194,7 +194,7 @@ export async function toVisDataAsync(input: any): Promise<VisData> {
       const batch = exp.edges.slice(i, Math.min(i + BATCH_SIZE, exp.edges.length))
       const batchNum = Math.floor(i / BATCH_SIZE) + 1
       const totalBatches = Math.ceil(exp.edges.length / BATCH_SIZE)
-      console.log(`[toVisData] 🔗 Processing edge batch ${batchNum}/${totalBatches} (${i}-${i + batch.length})`)
+      console.log(`[toVisData] 🔗 Processing edge batch ${batchNum}/${totalBatches} (${i + 1}-${i + batch.length})`)
       
       for (const e of batch) {
         const label = e.type

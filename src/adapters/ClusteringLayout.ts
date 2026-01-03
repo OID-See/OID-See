@@ -105,7 +105,7 @@ export class ClusteringLayoutEngine {
     for (let i = 0; i < nodes.length; i += BATCH_SIZE) {
       const batch = nodes.slice(i, Math.min(i + BATCH_SIZE, nodes.length))
       const batchNum = Math.floor(i / BATCH_SIZE) + 1
-      console.log(`[ClusteringLayout] 📦 Processing batch ${batchNum}/${totalBatches} (${i}-${i + batch.length})`)
+      console.log(`[ClusteringLayout] 📦 Processing batch ${batchNum}/${totalBatches} (${i + 1}-${i + batch.length})`)
       
       for (const node of batch) {
         const type = node.type || 'Unknown'

@@ -205,7 +205,7 @@ export class VirtualGraphRenderer {
     for (let i = 0; i < entries.length; i += BATCH_SIZE) {
       const batch = entries.slice(i, Math.min(i + BATCH_SIZE, entries.length))
       const batchNum = Math.floor(i / BATCH_SIZE) + 1
-      console.log(`[VirtualGraphRenderer] 📦 Inserting batch ${batchNum}/${totalBatches} (${i}-${i + batch.length})`)
+      console.log(`[VirtualGraphRenderer] 📦 Inserting batch ${batchNum}/${totalBatches} (${i + 1}-${i + batch.length})`)
       
       for (const [nodeId, pos] of batch) {
         this.spatialIndex.insert(pos, nodeId)
