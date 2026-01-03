@@ -295,32 +295,70 @@ export const GraphCanvas = forwardRef<
         // Update visibility: hide/show nodes and edges based on filter
         console.log('[GraphCanvas] 👁️  Updating visibility...')
         const visStartTime = performance.now()
-        const nodeUpdates = allNodes.map(n => ({
-          id: n.id,
-          hidden: !visibleNodeIds.has(n.id)
-        }))
         
-        const edgeUpdates = allEdges.map(e => ({
-          id: e.id,
-          hidden: !visibleEdgeIds.has(e.id)
-        }))
-
-        // Batch visibility updates for large datasets
-        if (nodeUpdates.length > 0) {
-          if (nodeUpdates.length > BATCH_SIZE) {
-            console.log('[GraphCanvas] 📦 Updating node visibility in batches:', nodeUpdates.length)
-            await processBatched(nodeUpdates, BATCH_SIZE, batch => allNodesDs.update(batch))
-          } else {
-            allNodesDs.update(nodeUpdates)
+        // For very large datasets, create updates in batches to avoid blocking
+        const isVeryLarge = allNodes.length > 10000 || allEdges.length > 10000
+        
+        if (isVeryLarge) {
+          console.log('[GraphCanvas] 🐌 Using batched visibility updates for large dataset')
+          
+          // Process nodes in batches
+          for (let i = 0; i < allNodes.length; i += BATCH_SIZE) {
+            const batch = allNodes.slice(i, i + BATCH_SIZE)
+            const updates = batch.map(n => ({
+              id: n.id,
+              hidden: !visibleNodeIds.has(n.id)
+            }))
+            allNodesDs.update(updates)
+            
+            // Yield every batch to prevent blocking
+            if (i + BATCH_SIZE < allNodes.length) {
+              await new Promise(resolve => setTimeout(resolve, 0))
+            }
           }
-        }
-        
-        if (edgeUpdates.length > 0) {
-          if (edgeUpdates.length > BATCH_SIZE) {
-            console.log('[GraphCanvas] 📦 Updating edge visibility in batches:', edgeUpdates.length)
-            await processBatched(edgeUpdates, BATCH_SIZE, batch => allEdgesDs.update(batch))
-          } else {
-            allEdgesDs.update(edgeUpdates)
+          
+          // Process edges in batches
+          for (let i = 0; i < allEdges.length; i += BATCH_SIZE) {
+            const batch = allEdges.slice(i, i + BATCH_SIZE)
+            const updates = batch.map(e => ({
+              id: e.id,
+              hidden: !visibleEdgeIds.has(e.id)
+            }))
+            allEdgesDs.update(updates)
+            
+            // Yield every batch to prevent blocking
+            if (i + BATCH_SIZE < allEdges.length) {
+              await new Promise(resolve => setTimeout(resolve, 0))
+            }
+          }
+        } else {
+          // For smaller datasets, use the original approach
+          const nodeUpdates = allNodes.map(n => ({
+            id: n.id,
+            hidden: !visibleNodeIds.has(n.id)
+          }))
+          
+          const edgeUpdates = allEdges.map(e => ({
+            id: e.id,
+            hidden: !visibleEdgeIds.has(e.id)
+          }))
+          
+          if (nodeUpdates.length > 0) {
+            if (nodeUpdates.length > BATCH_SIZE) {
+              console.log('[GraphCanvas] 📦 Updating node visibility in batches:', nodeUpdates.length)
+              await processBatched(nodeUpdates, BATCH_SIZE, batch => allNodesDs.update(batch))
+            } else {
+              allNodesDs.update(nodeUpdates)
+            }
+          }
+          
+          if (edgeUpdates.length > 0) {
+            if (edgeUpdates.length > BATCH_SIZE) {
+              console.log('[GraphCanvas] 📦 Updating edge visibility in batches:', edgeUpdates.length)
+              await processBatched(edgeUpdates, BATCH_SIZE, batch => allEdgesDs.update(batch))
+            } else {
+              allEdgesDs.update(edgeUpdates)
+            }
           }
         }
         

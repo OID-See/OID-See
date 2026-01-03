@@ -628,7 +628,13 @@ export default function App() {
       
       console.log('[OID-See] 🎬 Setting data to trigger graph render...')
       setLoadingProgress('Rendering graph...')
+      // Yield before setting data to allow progress message to render
+      await yieldToEventLoop()
+      
       setData(vis)
+      
+      // Yield after setting data to allow React to schedule the update
+      await new Promise(resolve => setTimeout(resolve, 100))
       
       const totalTime = performance.now() - renderStartTime
       console.log('[OID-See] 🎉 Render process complete:', `${totalTime.toFixed(0)}ms total`)
