@@ -208,6 +208,9 @@ function computeWarnings(data: VisData, clauses: Clause[]): string[] {
 }
 
 function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean) {
+  console.log('[OID-See] 🔍 Applying filter/lens:', { query, lens, pathAware, nodeCount: data.nodes.length, edgeCount: data.edges.length })
+  const filterStartTime = performance.now()
+  
   const parsed = parseQuery(query)
   const clauses = parsed.clauses
 
@@ -215,6 +218,8 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
   const edgeClauses = clauses.filter((c) => c.target === 'edge' || c.target === 'both')
 
   // Step 1: Determine which nodes pass the node filter
+  console.log('[OID-See] 📝 Step 1: Filtering nodes...')
+  const step1StartTime = performance.now()
   const nodePass = new Set<string>()
   if (nodeClauses.length > 0) {
     // If there are node filters, only include nodes that match
@@ -229,11 +234,14 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
       nodePass.add(n.id)
     }
   }
+  console.log('[OID-See] ✅ Node filtering complete:', { duration: `${(performance.now() - step1StartTime).toFixed(0)}ms`, passedNodes: nodePass.size })
 
   const edgeById = new Map<string, any>()
   for (const e of data.edges) edgeById.set(e.id, e)
 
   // Step 2: Filter edges based on edge clauses and lens
+  console.log('[OID-See] 📝 Step 2: Filtering edges...')
+  const step2StartTime = performance.now()
   const edgesOut: any[] = []
   const edgesKept = new Set<string>()
 
@@ -273,8 +281,11 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
       }
     }
   }
+  console.log('[OID-See] ✅ Edge filtering complete:', { duration: `${(performance.now() - step2StartTime).toFixed(0)}ms`, keptEdges: edgesOut.length })
 
   // Step 3: Determine final nodes based on visible edges and lens settings
+  console.log('[OID-See] 📝 Step 3: Finalizing nodes...')
+  const step3StartTime = performance.now()
   const nodesWithEdges = new Set<string>()
   for (const e of edgesOut) {
     nodesWithEdges.add(e.from)
@@ -296,8 +307,15 @@ function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean
     // This applies even when there are explicit node filters
     return nodesWithEdges.has(n.id)
   })
+  console.log('[OID-See] ✅ Final nodes determined:', { duration: `${(performance.now() - step3StartTime).toFixed(0)}ms`, finalNodes: nodesOut.length })
   
   const edgesFinal = edgesOut
+  
+  const totalFilterTime = performance.now() - filterStartTime
+  console.log('[OID-See] 🎉 Filter/lens application complete:', {
+    totalDuration: `${totalFilterTime.toFixed(0)}ms`,
+    result: { nodes: nodesOut.length, edges: edgesFinal.length }
+  })
 
   return { nodes: nodesOut, edges: edgesFinal, parsed }
 }
@@ -417,21 +435,39 @@ export default function App() {
   }, [maximizedPanel, inputCollapsed, detailsCollapsed, inputWidth, detailsWidth, viewportWidth, isPortrait])
 
   async function readFile(file: File) {
+    console.log('[OID-See] 📁 File upload started:', {
+      name: file.name,
+      size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
+      type: file.type
+    })
+    const startTime = performance.now()
+    
     // Show loading overlay immediately
     setLoading(true)
     setError(null)
     
     try {
+      console.log('[OID-See] 📖 Reading file content...')
       const text = await file.text()
+      const readTime = performance.now() - startTime
+      console.log('[OID-See] ✅ File read complete:', {
+        duration: `${readTime.toFixed(0)}ms`,
+        contentSize: `${(text.length / 1024 / 1024).toFixed(2)} MB`
+      })
+      
       setRaw(text)
       await render(text)
     } catch (e: any) {
+      console.error('[OID-See] ❌ File read error:', e)
       setError(e?.message || 'Failed to read file')
       setLoading(false)
     }
   }
 
   async function render(input: string) {
+    console.log('[OID-See] 🔄 Starting render process...')
+    const renderStartTime = performance.now()
+    
     setLoading(true)
     setError(null)
     setSelection(null)
@@ -439,41 +475,76 @@ export default function App() {
     
     try {
       // Use setTimeout to allow the loading overlay to render before heavy processing
+      console.log('[OID-See] ⏱️  Waiting ${RENDER_DELAY_MS}ms for UI to update...')
       await new Promise(resolve => setTimeout(resolve, RENDER_DELAY_MS))
       
+      console.log('[OID-See] 🔍 Parsing JSON...')
+      const parseStartTime = performance.now()
       const parsed = JSON.parse(input)
+      const parseTime = performance.now() - parseStartTime
+      console.log('[OID-See] ✅ JSON parse complete:', `${parseTime.toFixed(0)}ms`)
       
       // Check if this is a large graph
       const nodeCount = parsed?.nodes?.length || 0
       const edgeCount = parsed?.edges?.length || 0
+      console.log('[OID-See] 📊 Graph size:', {
+        nodes: nodeCount.toLocaleString(),
+        edges: edgeCount.toLocaleString()
+      })
+      
       const isLargeGraph = nodeCount >= LARGE_GRAPH_THRESHOLD || edgeCount >= LARGE_GRAPH_THRESHOLD
+      console.log('[OID-See] 🎯 Large graph detection:', {
+        isLarge: isLargeGraph,
+        threshold: LARGE_GRAPH_THRESHOLD
+      })
       
       // Check if graph exceeds renderable limits
       const exceedsLimits = nodeCount > MAX_RENDERABLE_NODES || edgeCount > MAX_RENDERABLE_EDGES
+      console.log('[OID-See] 🚧 Render limit check:', {
+        exceedsLimits,
+        maxNodes: MAX_RENDERABLE_NODES,
+        maxEdges: MAX_RENDERABLE_EDGES
+      })
       
       if (exceedsLimits) {
+        console.log('[OID-See] ✂️  Graph exceeds limits - truncating to top risk nodes...')
+        const truncateStartTime = performance.now()
+        
         // Truncate to only high-risk nodes for massive graphs
         const originalNodeCount = nodeCount
         const originalEdgeCount = edgeCount
         
         // Sort nodes by risk score (highest first)
+        console.log('[OID-See] 📋 Sorting nodes by risk score...')
         const sortedNodes = [...(parsed.nodes || [])].sort((a: OidSeeNode, b: OidSeeNode) => {
           const scoreA = a?.risk?.score ?? 0
           const scoreB = b?.risk?.score ?? 0
           return scoreB - scoreA
         })
+        const sortTime = performance.now() - truncateStartTime
+        console.log('[OID-See] ✅ Sort complete:', `${sortTime.toFixed(0)}ms`)
         
         // Take top N highest-risk nodes
         const truncatedNodes = sortedNodes.slice(0, MAX_RENDERABLE_NODES)
         const nodeIds = new Set(truncatedNodes.map((n: OidSeeNode) => n.id))
         
         // Filter edges to only those connecting truncated nodes
+        console.log('[OID-See] 🔗 Filtering edges...')
         const truncatedEdges = (parsed.edges || [])
           .filter((e: OidSeeEdge) => nodeIds.has(e.from) && nodeIds.has(e.to))
           .slice(0, MAX_RENDERABLE_EDGES)
         
         parsed.nodes = truncatedNodes
         parsed.edges = truncatedEdges
+        
+        const truncateTime = performance.now() - truncateStartTime
+        console.log('[OID-See] ✅ Truncation complete:', {
+          duration: `${truncateTime.toFixed(0)}ms`,
+          originalNodes: originalNodeCount.toLocaleString(),
+          originalEdges: originalEdgeCount.toLocaleString(),
+          finalNodes: truncatedNodes.length.toLocaleString(),
+          finalEdges: truncatedEdges.length.toLocaleString()
+        })
         
         // Warn user about truncation
         setLargeGraphWarning(
@@ -483,10 +554,12 @@ export default function App() {
         )
         
         // Disable physics for truncated graphs
+        console.log('[OID-See] ⚙️  Disabling physics for truncated graph...')
         const physicsDisabled = createDisabledPhysicsConfig()
         setPhysicsConfig(physicsDisabled)
         savePhysicsConfig(physicsDisabled)
       } else if (isLargeGraph) {
+        console.log('[OID-See] ⚙️  Disabling physics for large graph...')
         // For large graphs, disable physics by default to prevent UI blocking
         const physicsDisabled = createDisabledPhysicsConfig()
         setPhysicsConfig(physicsDisabled)
@@ -498,9 +571,22 @@ export default function App() {
       }
       
       // Process the data
+      console.log('[OID-See] 🎨 Converting to vis-network format...')
+      const visStartTime = performance.now()
       const vis = toVisData(parsed)
+      const visTime = performance.now() - visStartTime
+      console.log('[OID-See] ✅ Vis-network conversion complete:', {
+        duration: `${visTime.toFixed(0)}ms`,
+        nodes: vis.nodes.length.toLocaleString(),
+        edges: vis.edges.length.toLocaleString()
+      })
+      
       setData(vis)
+      
+      const totalTime = performance.now() - renderStartTime
+      console.log('[OID-See] 🎉 Render process complete:', `${totalTime.toFixed(0)}ms total`)
     } catch (e: any) {
+      console.error('[OID-See] ❌ Render error:', e)
       setData(null)
       setSelection(null)
       setError(e?.message ?? String(e))

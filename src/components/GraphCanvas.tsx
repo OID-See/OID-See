@@ -199,8 +199,19 @@ export const GraphCanvas = forwardRef<
 
     async function updateDataSets() {
       // Skip if an update is already in progress
-      if (updateInProgressRef.current) return
+      if (updateInProgressRef.current) {
+        console.log('[GraphCanvas] ⏭️  Update skipped - already in progress')
+        return
+      }
       updateInProgressRef.current = true
+      
+      console.log('[GraphCanvas] 🔄 Updating DataSets...', {
+        allNodes: allNodes.length,
+        allEdges: allEdges.length,
+        visibleNodes: visibleNodes.length,
+        visibleEdges: visibleEdges.length
+      })
+      const updateStartTime = performance.now()
       
       try {
         // Create sets of visible IDs for quick lookup
@@ -221,9 +232,17 @@ export const GraphCanvas = forwardRef<
         const nodeIdsToRemove = Array.from(currentNodeIds).filter(id => !allNodeIds.has(id))
         const edgeIdsToRemove = Array.from(currentEdgeIds).filter(id => !allEdgeIds.has(id))
 
+        console.log('[GraphCanvas] 📝 DataSet changes:', {
+          nodesToAdd: nodesToAdd.length,
+          edgesToAdd: edgesToAdd.length,
+          nodeIdsToRemove: nodeIdsToRemove.length,
+          edgeIdsToRemove: edgeIdsToRemove.length
+        })
+
         // Update dataset: add new nodes/edges in batches
         if (nodesToAdd.length > 0) {
           if (nodesToAdd.length > BATCH_SIZE) {
+            console.log('[GraphCanvas] 📦 Adding nodes in batches...')
             await processBatched(nodesToAdd, BATCH_SIZE, batch => allNodesDs.add(batch))
           } else {
             allNodesDs.add(nodesToAdd)
@@ -232,6 +251,7 @@ export const GraphCanvas = forwardRef<
         
         if (edgesToAdd.length > 0) {
           if (edgesToAdd.length > BATCH_SIZE) {
+            console.log('[GraphCanvas] 📦 Adding edges in batches...')
             await processBatched(edgesToAdd, BATCH_SIZE, batch => allEdgesDs.add(batch))
           } else {
             allEdgesDs.add(edgesToAdd)
@@ -239,10 +259,18 @@ export const GraphCanvas = forwardRef<
         }
 
         // Update dataset: remove nodes/edges that are no longer in allNodes/allEdges
-        if (nodeIdsToRemove.length > 0) allNodesDs.remove(nodeIdsToRemove)
-        if (edgeIdsToRemove.length > 0) allEdgesDs.remove(edgeIdsToRemove)
+        if (nodeIdsToRemove.length > 0) {
+          console.log('[GraphCanvas] 🗑️  Removing nodes:', nodeIdsToRemove.length)
+          allNodesDs.remove(nodeIdsToRemove)
+        }
+        if (edgeIdsToRemove.length > 0) {
+          console.log('[GraphCanvas] 🗑️  Removing edges:', edgeIdsToRemove.length)
+          allEdgesDs.remove(edgeIdsToRemove)
+        }
 
         // Update visibility: hide/show nodes and edges based on filter
+        console.log('[GraphCanvas] 👁️  Updating visibility...')
+        const visStartTime = performance.now()
         const nodeUpdates = allNodes.map(n => ({
           id: n.id,
           hidden: !visibleNodeIds.has(n.id)
@@ -256,6 +284,7 @@ export const GraphCanvas = forwardRef<
         // Batch visibility updates for large datasets
         if (nodeUpdates.length > 0) {
           if (nodeUpdates.length > BATCH_SIZE) {
+            console.log('[GraphCanvas] 📦 Updating node visibility in batches:', nodeUpdates.length)
             await processBatched(nodeUpdates, BATCH_SIZE, batch => allNodesDs.update(batch))
           } else {
             allNodesDs.update(nodeUpdates)
@@ -264,11 +293,19 @@ export const GraphCanvas = forwardRef<
         
         if (edgeUpdates.length > 0) {
           if (edgeUpdates.length > BATCH_SIZE) {
+            console.log('[GraphCanvas] 📦 Updating edge visibility in batches:', edgeUpdates.length)
             await processBatched(edgeUpdates, BATCH_SIZE, batch => allEdgesDs.update(batch))
           } else {
             allEdgesDs.update(edgeUpdates)
           }
         }
+        
+        const visTime = performance.now() - visStartTime
+        const totalTime = performance.now() - updateStartTime
+        console.log('[GraphCanvas] ✅ DataSet update complete:', {
+          visibilityUpdateTime: `${visTime.toFixed(0)}ms`,
+          totalTime: `${totalTime.toFixed(0)}ms`
+        })
 
       } catch (e: any) {
         // Catch errors from vis-network DataSet (e.g., duplicate IDs)
@@ -283,7 +320,7 @@ export const GraphCanvas = forwardRef<
           errorMessage = e.toString()
         }
         
-        console.error('Error updating graph data:', errorMessage, e)
+        console.error('[GraphCanvas] ❌ Error updating graph data:', errorMessage, e)
         if (onError) {
           onError(errorMessage)
         }
@@ -303,6 +340,9 @@ export const GraphCanvas = forwardRef<
     if (!containerRef.current.style.height) containerRef.current.style.height = '70vh'
     if (!containerRef.current.style.minHeight) containerRef.current.style.minHeight = '420px'
 
+    console.log('[GraphCanvas] 🎨 Initializing vis-network...')
+    const networkStartTime = performance.now()
+    
     networkRef.current?.destroy()
     fittedRef.current = false
 
@@ -311,6 +351,11 @@ export const GraphCanvas = forwardRef<
 
     // Check if physics should be disabled (for large graphs)
     const physicsDisabled = isPhysicsDisabled(physics)
+    console.log('[GraphCanvas] ⚙️  Physics configuration:', { 
+      physicsDisabled,
+      gravitationalConstant: physics.gravitationalConstant,
+      springConstant: physics.springConstant
+    })
 
     const network = new Network(
       containerRef.current,
@@ -376,6 +421,9 @@ export const GraphCanvas = forwardRef<
         },
       }
     )
+    
+    const networkInitTime = performance.now() - networkStartTime
+    console.log('[GraphCanvas] ✅ vis-network initialized:', `${networkInitTime.toFixed(0)}ms`)
 
     networkRef.current = network
 
@@ -408,24 +456,35 @@ export const GraphCanvas = forwardRef<
     let stabilizationTimeout: NodeJS.Timeout | null = null
     
     if (physicsDisabled) {
+      console.log('[GraphCanvas] 🚀 Physics disabled - fitting viewport immediately')
       setTimeout(() => {
         try {
           network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } })
           fittedRef.current = true
+          console.log('[GraphCanvas] ✅ Viewport fitted')
         } catch {}
       }, 100)
     } else {
+      console.log('[GraphCanvas] ⚡ Physics enabled - waiting for stabilization')
+      const stabilizationStart = performance.now()
+      
       // Multiple events to ensure we catch stabilization when physics is enabled
       network.on('stabilizationIterationsDone', () => {
+        const stabilizationTime = performance.now() - stabilizationStart
+        console.log('[GraphCanvas] ✅ Stabilization iterations done:', `${stabilizationTime.toFixed(0)}ms`)
         fitOnce()
       })
       
       network.on('stabilized', () => {
+        const stabilizationTime = performance.now() - stabilizationStart
+        console.log('[GraphCanvas] ✅ Stabilization complete:', `${stabilizationTime.toFixed(0)}ms`)
         fitOnce()
       })
 
       // Fallback timeout to ensure physics is disabled even if events don't fire
       stabilizationTimeout = setTimeout(() => {
+        const fallbackTime = performance.now() - stabilizationStart
+        console.log('[GraphCanvas] ⏱️  Stabilization fallback timeout reached:', `${fallbackTime.toFixed(0)}ms`)
         if (!fittedRef.current) {
           fitOnce()
         } else {
