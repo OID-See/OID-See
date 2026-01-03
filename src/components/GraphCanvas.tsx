@@ -68,6 +68,7 @@ export const GraphCanvas = forwardRef<
   
   // Batching constants for large datasets
   const BATCH_SIZE = 1000 // Process nodes/edges in batches to prevent UI blocking
+  const VERY_LARGE_DATASET_THRESHOLD = 10000 // Threshold for using optimized batched processing
   
   // Viewport update debounce delay
   const VIEWPORT_UPDATE_DELAY = 200 // ms delay before updating viewport-based visibility
@@ -297,40 +298,36 @@ export const GraphCanvas = forwardRef<
         const visStartTime = performance.now()
         
         // For very large datasets, create updates in batches to avoid blocking
-        const isVeryLarge = allNodes.length > 10000 || allEdges.length > 10000
+        const isVeryLarge = allNodes.length > VERY_LARGE_DATASET_THRESHOLD || allEdges.length > VERY_LARGE_DATASET_THRESHOLD
+        
+        // Helper function to process visibility updates in batches with yields
+        async function processBatchedVisibility<T extends { id: string }>(
+          items: T[],
+          visibleIds: Set<string>,
+          dataSet: DataSet<any>,
+          itemType: string
+        ) {
+          for (let i = 0; i < items.length; i += BATCH_SIZE) {
+            const batch = items.slice(i, i + BATCH_SIZE)
+            const updates = batch.map(item => ({
+              id: item.id,
+              hidden: !visibleIds.has(item.id)
+            }))
+            dataSet.update(updates)
+            
+            // Yield every batch to prevent blocking
+            if (i + BATCH_SIZE < items.length) {
+              await new Promise(resolve => setTimeout(resolve, 0))
+            }
+          }
+        }
         
         if (isVeryLarge) {
           console.log('[GraphCanvas] 🐌 Using batched visibility updates for large dataset')
           
-          // Process nodes in batches
-          for (let i = 0; i < allNodes.length; i += BATCH_SIZE) {
-            const batch = allNodes.slice(i, i + BATCH_SIZE)
-            const updates = batch.map(n => ({
-              id: n.id,
-              hidden: !visibleNodeIds.has(n.id)
-            }))
-            allNodesDs.update(updates)
-            
-            // Yield every batch to prevent blocking
-            if (i + BATCH_SIZE < allNodes.length) {
-              await new Promise(resolve => setTimeout(resolve, 0))
-            }
-          }
-          
-          // Process edges in batches
-          for (let i = 0; i < allEdges.length; i += BATCH_SIZE) {
-            const batch = allEdges.slice(i, i + BATCH_SIZE)
-            const updates = batch.map(e => ({
-              id: e.id,
-              hidden: !visibleEdgeIds.has(e.id)
-            }))
-            allEdgesDs.update(updates)
-            
-            // Yield every batch to prevent blocking
-            if (i + BATCH_SIZE < allEdges.length) {
-              await new Promise(resolve => setTimeout(resolve, 0))
-            }
-          }
+          // Process nodes and edges in batches with yields
+          await processBatchedVisibility(allNodes, visibleNodeIds, allNodesDs, 'nodes')
+          await processBatchedVisibility(allEdges, visibleEdgeIds, allEdgesDs, 'edges')
         } else {
           // For smaller datasets, use the original approach
           const nodeUpdates = allNodes.map(n => ({
