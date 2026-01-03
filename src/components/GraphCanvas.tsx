@@ -67,6 +67,7 @@ export const GraphCanvas = forwardRef<
   const allNodesRef = useRef<DataSet<VisNode>>(new DataSet([]))
   const allEdgesRef = useRef<DataSet<VisEdge>>(new DataSet([]))
   const fittedRef = useRef(false)
+  const updateInProgressRef = useRef(false)
 
   const physics = useMemo(() => physicsConfig ?? DEFAULT_PHYSICS, [physicsConfig])
 
@@ -189,14 +190,18 @@ export const GraphCanvas = forwardRef<
       for (let i = 0; i < items.length; i += batchSize) {
         const batch = items.slice(i, i + batchSize)
         processor(batch)
-        // Yield to main thread every batch
+        // Yield to main thread every batch (1ms for more predictable behavior)
         if (i + batchSize < items.length) {
-          await new Promise(resolve => setTimeout(resolve, 0))
+          await new Promise(resolve => setTimeout(resolve, 1))
         }
       }
     }
 
     async function updateDataSets() {
+      // Skip if an update is already in progress
+      if (updateInProgressRef.current) return
+      updateInProgressRef.current = true
+      
       try {
         // Create sets of visible IDs for quick lookup
         const visibleNodeIds = new Set(visibleNodes.map(n => n.id))
@@ -282,6 +287,8 @@ export const GraphCanvas = forwardRef<
         if (onError) {
           onError(errorMessage)
         }
+      } finally {
+        updateInProgressRef.current = false
       }
     }
 
@@ -311,7 +318,7 @@ export const GraphCanvas = forwardRef<
       {
         autoResize: true,
         layout: { 
-          improvedLayout: physicsDisabled ? false : true, // Disable improvedLayout for large graphs
+          improvedLayout: !physicsDisabled, // Disable improvedLayout for large graphs
           randomSeed: undefined
         },
         interaction: {
