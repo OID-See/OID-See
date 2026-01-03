@@ -10,8 +10,12 @@ import { ErrorDialog } from './components/ErrorDialog'
 import { PhysicsControls } from './components/PhysicsControls'
 import { ResizeHandle } from './components/ResizeHandle'
 import { Legend } from './components/Legend'
+import { LoadingOverlay } from './components/LoadingOverlay'
 
 type SavedQuery = { name: string; query: string }
+
+// Large graph detection threshold
+const LARGE_GRAPH_THRESHOLD = 10000 // nodes or edges
 
 // Emoji regex for cross-browser compatibility validation
 const EMOJI_REGEX = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{FE00}-\u{FE0F}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F251}]/u
@@ -302,6 +306,8 @@ export default function App() {
   const [maximizedPanel, setMaximizedPanel] = useState<'input' | 'graph' | 'details' | 'filter' | null>(null)
   const [viewportWidth, setViewportWidth] = useState<number>(1280)
   const [legendVisible, setLegendVisible] = useState<boolean>(false)
+  const [loading, setLoading] = useState<boolean>(false)
+  const [largeGraphWarning, setLargeGraphWarning] = useState<string | null>(null)
   const graphRef = useRef<GraphCanvasHandle>(null)
   const detailsPanelRef = useRef<HTMLElement>(null)
 
@@ -395,20 +401,50 @@ export default function App() {
   async function readFile(file: File) {
     const text = await file.text()
     setRaw(text)
-    render(text)
+    await render(text)
   }
 
-  function render(input: string) {
+  async function render(input: string) {
+    setLoading(true)
+    setError(null)
+    setSelection(null)
+    setLargeGraphWarning(null)
+    
     try {
-      setError(null)
-      setSelection(null)
+      // Use setTimeout to allow the loading overlay to render before heavy processing
+      await new Promise(resolve => setTimeout(resolve, 50))
+      
       const parsed = JSON.parse(input)
+      
+      // Check if this is a large graph
+      const nodeCount = parsed?.nodes?.length || 0
+      const edgeCount = parsed?.edges?.length || 0
+      const isLargeGraph = nodeCount >= LARGE_GRAPH_THRESHOLD || edgeCount >= LARGE_GRAPH_THRESHOLD
+      
+      if (isLargeGraph) {
+        // For large graphs, disable physics by default to prevent UI blocking
+        const physicsDisabled: PhysicsConfig = {
+          ...DEFAULT_PHYSICS,
+          gravitationalConstant: 0,
+          springConstant: 0,
+        }
+        setPhysicsConfig(physicsDisabled)
+        savePhysicsConfig(physicsDisabled)
+        setLargeGraphWarning(
+          `Large graph detected (${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges). ` +
+          `Physics disabled by default for better performance. You can enable physics in the graph controls if needed.`
+        )
+      }
+      
+      // Process the data
       const vis = toVisData(parsed)
       setData(vis)
     } catch (e: any) {
       setData(null)
       setSelection(null)
       setError(e?.message ?? String(e))
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -595,12 +631,12 @@ export default function App() {
             onClick={() => {
               const pretty = JSON.stringify(sampleObj, null, 2)
               setRaw(pretty)
-              render(pretty)
+              void render(pretty)
             }}
           >
             Load sample
           </button>
-          <button className="btn file" onClick={() => render(raw)}>
+          <button className="btn file" onClick={() => void render(raw)}>
             Render
           </button>
 
@@ -838,10 +874,19 @@ export default function App() {
         />
       )}
       
+      {largeGraphWarning && (
+        <ErrorDialog 
+          message={largeGraphWarning} 
+          onDismiss={() => setLargeGraphWarning(null)} 
+        />
+      )}
+      
       <Legend 
         visible={legendVisible}
         onClose={() => setLegendVisible(false)}
       />
+      
+      <LoadingOverlay visible={loading} message="Loading graph" />
     </div>
   )
 }
