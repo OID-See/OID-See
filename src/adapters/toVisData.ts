@@ -122,3 +122,118 @@ export function toVisData(input: any): VisData {
 
   throw new Error('Unsupported JSON format. Expected an OID-See export (format.name="oidsee-graph") or a {nodes, edges} object.')
 }
+
+/**
+ * Async version of toVisData that processes nodes/edges in batches to avoid blocking UI
+ */
+export async function toVisDataAsync(input: any): Promise<VisData> {
+  if (isOidSeeExport(input)) {
+    const exp = input as OidSeeExport
+    const BATCH_SIZE = 5000
+
+    console.log('[toVisData] 🔄 Processing nodes in batches...')
+    const visNodes: any[] = []
+    
+    // Process nodes in batches
+    for (let i = 0; i < exp.nodes.length; i += BATCH_SIZE) {
+      const batch = exp.nodes.slice(i, Math.min(i + BATCH_SIZE, exp.nodes.length))
+      
+      for (const n of batch) {
+        try {
+          const riskBoost = typeof n.risk?.score === 'number' ? Math.min(30, Math.max(0, n.risk.score)) : 0
+          const value = 10 + riskBoost / 2
+
+          const isHigh = (n.risk?.level === 'high' || n.risk?.level === 'critical') && (n.risk?.score ?? 0) >= 70
+          const isGroup = n.type === 'Group'
+
+          visNodes.push({
+            id: n.id,
+            label: n.displayName || n.id,
+            group: n.type,
+            value,
+            __oidsee: n,
+            borderWidth: isHigh ? 3 : 2,
+            shape: isGroup ? 'custom' : 'dot',
+            ctxRenderer: isGroup ? doubleCircleRenderer : undefined,
+            color: isHigh ? {
+              border: 'rgba(255,107,107,0.95)',
+              background: 'rgba(255,107,107,0.20)',
+              highlight: { background: 'rgba(255,107,107,0.30)', border: 'rgba(255,107,107,1.0)' },
+            } : undefined,
+          })
+        } catch (e) {
+          console.warn('Error mapping node:', n.id, e)
+          visNodes.push({
+            id: n.id,
+            label: n.displayName || n.id,
+            group: n.type || 'Unknown',
+            value: 10,
+            __oidsee: n,
+          })
+        }
+      }
+      
+      // Yield to event loop every batch
+      if (i + BATCH_SIZE < exp.nodes.length) {
+        await new Promise(resolve => setTimeout(resolve, 0))
+      }
+    }
+
+    console.log('[toVisData] 🔗 Processing edges in batches...')
+    const visEdges: any[] = []
+    
+    // Process edges in batches
+    for (let i = 0; i < exp.edges.length; i += BATCH_SIZE) {
+      const batch = exp.edges.slice(i, Math.min(i + BATCH_SIZE, exp.edges.length))
+      
+      for (const e of batch) {
+        const label = e.type
+        const isDerived = !!e.derived?.isDerived
+        const isInstance = e.type === 'INSTANCE_OF'
+        const isTooManyScopes = e.type === 'HAS_TOO_MANY_SCOPES'
+
+        const color = isDerived
+          ? { color: 'rgba(66,232,224,0.90)', highlight: 'rgba(66,232,224,1.0)' }
+          : isInstance
+            ? { color: 'rgba(234,242,255,0.35)', highlight: 'rgba(234,242,255,0.65)' }
+            : isTooManyScopes
+              ? { color: 'rgba(255,100,100,0.70)', highlight: 'rgba(255,100,100,1.0)' }
+              : undefined
+
+        visEdges.push({
+          id: e.id,
+          from: e.from,
+          to: e.to,
+          label,
+          arrows: 'to',
+          dashes: isDerived || isInstance,
+          width: isDerived ? 3 : isTooManyScopes ? 2.5 : 1.5,
+          color,
+          __oidsee: e,
+          ...(isInstance && { 
+            selectionWidth: 0,
+            hoverWidth: 0,
+          }),
+        })
+      }
+      
+      // Yield to event loop every batch
+      if (i + BATCH_SIZE < exp.edges.length) {
+        await new Promise(resolve => setTimeout(resolve, 0))
+      }
+    }
+
+    console.log('[toVisData] ✅ Conversion complete:', {
+      nodes: visNodes.length,
+      edges: visEdges.length
+    })
+
+    return { nodes: visNodes, edges: visEdges }
+  }
+
+  if (input && typeof input === 'object' && Array.isArray((input as any).nodes) && Array.isArray((input as any).edges)) {
+    return { nodes: (input as any).nodes, edges: (input as any).edges }
+  }
+
+  throw new Error('Unsupported JSON format. Expected an OID-See export (format.name="oidsee-graph") or a {nodes, edges} object.')
+}

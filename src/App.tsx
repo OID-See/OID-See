@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { GraphCanvas, Selection, GraphCanvasHandle, PhysicsConfig, DEFAULT_PHYSICS } from './components/GraphCanvas'
-import { toVisData, VisData } from './adapters/toVisData'
+import { toVisData, toVisDataAsync, VisData } from './adapters/toVisData'
 import sampleObj from './samples/sample-oidsee-graph.json'
 import { DetailsPanel } from './components/DetailsPanel'
 import { FilterBar, Lens } from './components/FilterBar'
@@ -475,7 +475,7 @@ export default function App() {
     
     try {
       // Use setTimeout to allow the loading overlay to render before heavy processing
-      console.log('[OID-See] ⏱️  Waiting ${RENDER_DELAY_MS}ms for UI to update...')
+      console.log(`[OID-See] ⏱️  Waiting ${RENDER_DELAY_MS}ms for UI to update...`)
       await new Promise(resolve => setTimeout(resolve, RENDER_DELAY_MS))
       
       console.log('[OID-See] 🔍 Parsing JSON...')
@@ -573,7 +573,8 @@ export default function App() {
       // Process the data
       console.log('[OID-See] 🎨 Converting to vis-network format...')
       const visStartTime = performance.now()
-      const vis = toVisData(parsed)
+      // Use async version for large graphs to prevent UI blocking
+      const vis = isLargeGraph ? await toVisDataAsync(parsed) : toVisData(parsed)
       const visTime = performance.now() - visStartTime
       console.log('[OID-See] ✅ Vis-network conversion complete:', {
         duration: `${visTime.toFixed(0)}ms`,
