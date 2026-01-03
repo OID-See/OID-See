@@ -484,6 +484,9 @@ export default function App() {
       const parseTime = performance.now() - parseStartTime
       console.log('[OID-See] ✅ JSON parse complete:', `${parseTime.toFixed(0)}ms`)
       
+      // Yield to event loop after parsing large JSON
+      await new Promise(resolve => setTimeout(resolve, 0))
+      
       // Check if this is a large graph
       const nodeCount = parsed?.nodes?.length || 0
       const edgeCount = parsed?.edges?.length || 0
@@ -523,6 +526,9 @@ export default function App() {
         })
         const sortTime = performance.now() - truncateStartTime
         console.log('[OID-See] ✅ Sort complete:', `${sortTime.toFixed(0)}ms`)
+        
+        // Yield to event loop after sort
+        await new Promise(resolve => setTimeout(resolve, 0))
         
         // Take top N highest-risk nodes
         const truncatedNodes = sortedNodes.slice(0, MAX_RENDERABLE_NODES)
