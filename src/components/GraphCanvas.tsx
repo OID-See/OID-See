@@ -325,8 +325,11 @@ export const GraphCanvas = forwardRef<
           hover: true,
           tooltipDelay: 120,
           multiselect: true,
-          navigationButtons: true,
+          navigationButtons: false, // Disable navigation buttons to prevent interaction conflicts
           keyboard: false, // Disable to prevent interference with filter text field
+          dragNodes: true,
+          dragView: true,
+          zoomView: true,
         },
         nodes: {
           shape: 'dot',
