@@ -17,12 +17,12 @@ import { OidSeeNode, OidSeeEdge } from './adapters/types'
 type SavedQuery = { name: string; query: string }
 
 // Large graph detection threshold - reduced to catch more cases
-const LARGE_GRAPH_THRESHOLD = 4000 // nodes or edges
+const LARGE_GRAPH_THRESHOLD = 3000 // nodes or edges
 
 // Maximum nodes/edges to render - beyond this, graph will be truncated
-// Very conservative limits (20% lower than previous) for maximum stability
-const MAX_RENDERABLE_NODES = 4000
-const MAX_RENDERABLE_EDGES = 6000
+// Ultra-conservative limits (25% lower again) for guaranteed stability
+const MAX_RENDERABLE_NODES = 3000
+const MAX_RENDERABLE_EDGES = 4500
 
 // Delay before processing to allow loading overlay to render
 const RENDER_DELAY_MS = 100 // ms delay to ensure UI updates before heavy processing
@@ -517,7 +517,13 @@ export default function App() {
 
   const filtered = useMemo(() => {
     if (!data) return null
-    return applyQuery(data, query.trim(), lens, pathAware)
+    try {
+      return applyQuery(data, query.trim(), lens, pathAware)
+    } catch (e) {
+      console.error('Error applying query/lens filter:', e)
+      // Return unfiltered data on error to prevent complete failure
+      return data
+    }
   }, [data, query, lens, pathAware])
 
   const counts = useMemo(() => {
