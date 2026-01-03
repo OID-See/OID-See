@@ -486,6 +486,9 @@ export default function App() {
       
       setLoadingProgress('Parsing JSON data...')
       console.log('[OID-See] 🔍 Parsing JSON...')
+      // Yield to allow progress message to render
+      await new Promise(resolve => setTimeout(resolve, YIELD_DELAY_MS))
+      
       const parseStartTime = performance.now()
       const parsed = JSON.parse(input)
       const parseTime = performance.now() - parseStartTime
@@ -607,6 +610,9 @@ export default function App() {
       // Process the data
       console.log('[OID-See] 🎨 Converting to vis-network format...')
       setLoadingProgress(`Converting ${parsed.nodes.length.toLocaleString()} nodes to graph format...`)
+      // Yield to allow progress message to render
+      await new Promise(resolve => setTimeout(resolve, YIELD_DELAY_MS))
+      
       const visStartTime = performance.now()
       // Use async version for large graphs to prevent UI blocking
       const vis = isLargeGraph ? await toVisDataAsync(parsed) : toVisData(parsed)
