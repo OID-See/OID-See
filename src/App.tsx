@@ -20,8 +20,9 @@ type SavedQuery = { name: string; query: string }
 const LARGE_GRAPH_THRESHOLD = 5000 // nodes or edges
 
 // Maximum nodes/edges to render - beyond this, graph will be truncated
-const MAX_RENDERABLE_NODES = 10000
-const MAX_RENDERABLE_EDGES = 15000
+// Conservative limits to ensure smooth rendering on all browsers/machines
+const MAX_RENDERABLE_NODES = 5000
+const MAX_RENDERABLE_EDGES = 7500
 
 // Delay before processing to allow loading overlay to render
 const RENDER_DELAY_MS = 100 // ms delay to ensure UI updates before heavy processing
