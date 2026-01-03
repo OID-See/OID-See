@@ -1,5 +1,7 @@
-import { useEffect, useRef, useImperativeHandle, forwardRef, useMemo } from 'react'
+import { useEffect, useRef, useImperativeHandle, forwardRef, useMemo, useState, useCallback } from 'react'
 import { DataSet, Network } from 'vis-network/standalone'
+import { VirtualGraphRenderer, Viewport, DEFAULT_VIRTUAL_CONFIG } from '../adapters/VirtualGraphRenderer'
+import { Point } from '../adapters/QuadTree'
 
 export type Selection =
   | { kind: 'node'; id: string; oidsee?: any }
@@ -27,6 +29,9 @@ export const DEFAULT_PHYSICS: PhysicsConfig = {
 const DISABLED_PHYSICS_GRAVITATIONAL_CONSTANT = 0
 const DISABLED_PHYSICS_SPRING_CONSTANT = 0
 
+// Virtual rendering threshold - use virtual rendering for graphs larger than this
+const VIRTUAL_RENDERING_THRESHOLD = 5000 // nodes
+
 // Helper function to check if physics is disabled
 function isPhysicsDisabled(config: PhysicsConfig): boolean {
   return config.gravitationalConstant === DISABLED_PHYSICS_GRAVITATIONAL_CONSTANT 
@@ -37,6 +42,7 @@ export interface GraphCanvasHandle {
   focusNode: (nodeId: string) => void
   focusEdge: (edgeId: string) => void
   restabilize: () => void
+  getViewport: () => Viewport | null
 }
 
 export const GraphCanvas = forwardRef<
@@ -49,8 +55,9 @@ export const GraphCanvas = forwardRef<
     physicsConfig?: PhysicsConfig
     onSelection?: (s: Selection | null) => void
     onError?: (error: string) => void
+    enableVirtualRendering?: boolean
   }
->(({ allNodes, allEdges, visibleNodes, visibleEdges, physicsConfig, onSelection, onError }, ref) => {
+>(({ allNodes, allEdges, visibleNodes, visibleEdges, physicsConfig, onSelection, onError, enableVirtualRendering }, ref) => {
   // Constants for physics stabilization
   const PHYSICS_DISABLE_DELAY = 100 // ms delay before disabling physics after fit
   const STABILIZATION_FALLBACK_TIMEOUT = 5000 // ms fallback timeout for large graphs
@@ -62,14 +69,28 @@ export const GraphCanvas = forwardRef<
   // Batching constants for large datasets
   const BATCH_SIZE = 1000 // Process nodes/edges in batches to prevent UI blocking
   
+  // Viewport update debounce delay
+  const VIEWPORT_UPDATE_DELAY = 200 // ms delay before updating viewport-based visibility
+  
   const containerRef = useRef<HTMLDivElement>(null)
   const networkRef = useRef<Network | null>(null)
   const allNodesRef = useRef<DataSet<VisNode>>(new DataSet([]))
   const allEdgesRef = useRef<DataSet<VisEdge>>(new DataSet([]))
   const fittedRef = useRef(false)
   const updateInProgressRef = useRef(false)
+  const virtualRendererRef = useRef<VirtualGraphRenderer | null>(null)
+  const viewportUpdateTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const [currentViewport, setCurrentViewport] = useState<Viewport | null>(null)
 
   const physics = useMemo(() => physicsConfig ?? DEFAULT_PHYSICS, [physicsConfig])
+  
+  // Determine if we should use virtual rendering
+  const shouldUseVirtualRendering = useMemo(() => {
+    if (enableVirtualRendering === false) return false
+    if (enableVirtualRendering === true) return true
+    // Auto-detect: use virtual rendering for large graphs
+    return allNodes.length >= VIRTUAL_RENDERING_THRESHOLD
+  }, [enableVirtualRendering, allNodes.length])
 
   // Expose focus methods to parent component
   useImperativeHandle(ref, () => ({
@@ -171,6 +192,9 @@ export const GraphCanvas = forwardRef<
       } catch (e) {
         console.warn('Failed to restabilize graph:', e)
       }
+    },
+    getViewport: () => {
+      return currentViewport
     },
   }))
 
@@ -333,6 +357,52 @@ export const GraphCanvas = forwardRef<
     updateDataSets()
   }, [allNodes, allEdges, visibleNodes, visibleEdges, onError])
 
+  // Initialize virtual renderer for large graphs
+  useEffect(() => {
+    if (!shouldUseVirtualRendering) {
+      // Clear virtual renderer if not needed
+      if (virtualRendererRef.current) {
+        virtualRendererRef.current.clear()
+        virtualRendererRef.current = null
+      }
+      return
+    }
+
+    console.log('[GraphCanvas] 🌐 Initializing virtual renderer...')
+    const initStartTime = performance.now()
+
+    async function initVirtualRenderer() {
+      try {
+        const renderer = new VirtualGraphRenderer({
+          ...DEFAULT_VIRTUAL_CONFIG,
+          canvasWidth: 3000,
+          canvasHeight: 3000,
+        })
+
+        // Extract raw OidSee nodes and edges from vis nodes/edges
+        const oidseeNodes = allNodes.map(n => n.__oidsee ?? n)
+        const oidseeEdges = allEdges.map(e => e.__oidsee ?? e)
+
+        await renderer.initialize(oidseeNodes, oidseeEdges)
+        
+        virtualRendererRef.current = renderer
+        
+        const initTime = performance.now() - initStartTime
+        console.log('[GraphCanvas] ✅ Virtual renderer initialized:', {
+          duration: `${initTime.toFixed(0)}ms`,
+          nodes: oidseeNodes.length
+        })
+      } catch (e) {
+        console.error('[GraphCanvas] ❌ Failed to initialize virtual renderer:', e)
+        if (onError) {
+          onError('Failed to initialize virtual rendering')
+        }
+      }
+    }
+
+    initVirtualRenderer()
+  }, [shouldUseVirtualRendering, allNodes, allEdges, onError])
+
   // Initialize network once on mount
   useEffect(() => {
     if (!containerRef.current) return
@@ -426,6 +496,27 @@ export const GraphCanvas = forwardRef<
     console.log('[GraphCanvas] ✅ vis-network initialized:', `${networkInitTime.toFixed(0)}ms`)
 
     networkRef.current = network
+
+    // Apply positions from virtual renderer if available
+    if (shouldUseVirtualRendering && virtualRendererRef.current?.isReady()) {
+      console.log('[GraphCanvas] 📍 Applying positions from virtual renderer...')
+      const positions = virtualRendererRef.current.getAllPositions()
+      const nodeUpdates: any[] = []
+      
+      for (const [nodeId, pos] of positions) {
+        nodeUpdates.push({
+          id: nodeId,
+          x: pos.x,
+          y: pos.y,
+          fixed: { x: true, y: true } // Fix positions since we're managing them
+        })
+      }
+      
+      if (nodeUpdates.length > 0) {
+        nodeDs.update(nodeUpdates)
+        console.log('[GraphCanvas] ✅ Applied positions to', nodeUpdates.length, 'nodes')
+      }
+    }
 
     // Track if physics has been disabled
     let physicsAlreadyDisabled = physicsDisabled
@@ -530,6 +621,46 @@ export const GraphCanvas = forwardRef<
     network.on('deselectNode', () => onSelection?.(null))
     network.on('deselectEdge', () => onSelection?.(null))
 
+    // Track viewport changes for virtual rendering
+    if (shouldUseVirtualRendering) {
+      console.log('[GraphCanvas] 👁️  Enabling viewport tracking for virtual rendering')
+      
+      const updateViewportDebounced = () => {
+        if (viewportUpdateTimerRef.current) {
+          clearTimeout(viewportUpdateTimerRef.current)
+        }
+        
+        viewportUpdateTimerRef.current = setTimeout(() => {
+          try {
+            const scale = network.getScale()
+            const position = network.getViewPosition()
+            const canvas = network.canvas.frame.canvas
+            const width = canvas.clientWidth / scale
+            const height = canvas.clientHeight / scale
+            
+            const viewport: Viewport = {
+              x: position.x - width / 2,
+              y: position.y - height / 2,
+              width,
+              height,
+              scale
+            }
+            
+            setCurrentViewport(viewport)
+            console.log('[GraphCanvas] 📍 Viewport updated:', viewport)
+          } catch (e) {
+            console.warn('Failed to get viewport:', e)
+          }
+        }, VIEWPORT_UPDATE_DELAY)
+      }
+      
+      network.on('zoom', updateViewportDebounced)
+      network.on('dragEnd', updateViewportDebounced)
+      
+      // Initial viewport update
+      setTimeout(updateViewportDebounced, 500)
+    }
+
     // Subtle "glow" for derived edges by pulsing alpha (lightweight).
     const derivedIds = edgeDs
       .get()
@@ -562,10 +693,11 @@ export const GraphCanvas = forwardRef<
     return () => {
       if (stabilizationTimeout) clearTimeout(stabilizationTimeout)
       if (timer) window.clearInterval(timer)
+      if (viewportUpdateTimerRef.current) clearTimeout(viewportUpdateTimerRef.current)
       ro.disconnect()
       network.destroy()
     }
-  }, [onSelection, physics])
+  }, [onSelection, physics, shouldUseVirtualRendering])
 
   // Update physics configuration without recreating the network
   useEffect(() => {
