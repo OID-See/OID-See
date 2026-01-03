@@ -414,8 +414,13 @@ export const GraphCanvas = forwardRef<
 
     async function updateVisibility() {
       try {
+        // Double-check ref is still valid (could have changed during async operation)
+        if (!virtualRendererRef.current || !currentViewport) {
+          return
+        }
+        
         // Get updated visible nodes/edges from virtual renderer
-        const virtualGraph = await virtualRendererRef.current!.updateViewport(currentViewport!)
+        const virtualGraph = await virtualRendererRef.current.updateViewport(currentViewport)
         
         // Update the network's visible datasets
         const nodeDs = allNodesRef.current
