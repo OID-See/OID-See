@@ -18,6 +18,10 @@ type SavedQuery = { name: string; query: string }
 // Large graph detection threshold - reduced to catch more cases
 const LARGE_GRAPH_THRESHOLD = 5000 // nodes or edges
 
+// Maximum nodes/edges to render - beyond this, graph will be truncated
+const MAX_RENDERABLE_NODES = 10000
+const MAX_RENDERABLE_EDGES = 15000
+
 // Delay before processing to allow loading overlay to render
 const RENDER_DELAY_MS = 100 // ms delay to ensure UI updates before heavy processing
 
@@ -425,7 +429,49 @@ export default function App() {
       const edgeCount = parsed?.edges?.length || 0
       const isLargeGraph = nodeCount >= LARGE_GRAPH_THRESHOLD || edgeCount >= LARGE_GRAPH_THRESHOLD
       
-      if (isLargeGraph) {
+      // Check if graph exceeds renderable limits
+      const exceedsLimits = nodeCount > MAX_RENDERABLE_NODES || edgeCount > MAX_RENDERABLE_EDGES
+      
+      if (exceedsLimits) {
+        // Truncate to only high-risk nodes for massive graphs
+        const originalNodeCount = nodeCount
+        const originalEdgeCount = edgeCount
+        
+        // Sort nodes by risk score (highest first)
+        const sortedNodes = [...(parsed.nodes || [])].sort((a, b) => {
+          const scoreA = a?.risk?.score ?? 0
+          const scoreB = b?.risk?.score ?? 0
+          return scoreB - scoreA
+        })
+        
+        // Take top N highest-risk nodes
+        const truncatedNodes = sortedNodes.slice(0, MAX_RENDERABLE_NODES)
+        const nodeIds = new Set(truncatedNodes.map((n: any) => n.id))
+        
+        // Filter edges to only those connecting truncated nodes
+        const truncatedEdges = (parsed.edges || [])
+          .filter((e: any) => nodeIds.has(e.from) && nodeIds.has(e.to))
+          .slice(0, MAX_RENDERABLE_EDGES)
+        
+        parsed.nodes = truncatedNodes
+        parsed.edges = truncatedEdges
+        
+        // Warn user about truncation
+        setLargeGraphWarning(
+          `⚠️ Graph too large to render (${originalNodeCount.toLocaleString()} nodes, ${originalEdgeCount.toLocaleString()} edges). ` +
+          `Showing top ${truncatedNodes.length.toLocaleString()} highest-risk nodes and ${truncatedEdges.length.toLocaleString()} edges. ` +
+          `Apply filters or use the Risk lens to focus on specific areas. Physics disabled for performance.`
+        )
+        
+        // Disable physics for truncated graphs
+        const physicsDisabled: PhysicsConfig = {
+          ...DEFAULT_PHYSICS,
+          gravitationalConstant: 0,
+          springConstant: 0,
+        }
+        setPhysicsConfig(physicsDisabled)
+        savePhysicsConfig(physicsDisabled)
+      } else if (isLargeGraph) {
         // For large graphs, disable physics by default to prevent UI blocking
         const physicsDisabled: PhysicsConfig = {
           ...DEFAULT_PHYSICS,
