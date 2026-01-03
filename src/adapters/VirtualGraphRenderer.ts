@@ -33,6 +33,8 @@ export interface VirtualGraphConfig {
   enableProgressiveRendering: boolean // Use detail levels based on zoom
   detailLevelThresholds: number[] // Zoom scale thresholds for detail levels
   enableViewportCache: boolean // Cache viewport states
+  cacheMaxSize: number // Maximum number of viewport cache entries
+  cacheEvictionCount: number // Number of entries to remove when cache is full
 }
 
 export const DEFAULT_VIRTUAL_CONFIG: VirtualGraphConfig = {
@@ -44,6 +46,8 @@ export const DEFAULT_VIRTUAL_CONFIG: VirtualGraphConfig = {
   enableProgressiveRendering: true,
   detailLevelThresholds: [0.5, 1.0, 2.0], // Low, medium, high detail zoom levels
   enableViewportCache: true,
+  cacheMaxSize: 50, // Maximum viewport cache entries
+  cacheEvictionCount: 10, // Remove 10 oldest entries when cache is full
 }
 
 export enum DetailLevel {
@@ -74,6 +78,7 @@ export class VirtualGraphRenderer {
   private isInitialized: boolean = false
   private viewportCache: Map<string, ViewportCacheEntry> = new Map()
   private lastViewport: Viewport | null = null
+  private spatialIndexDirty: boolean = false
 
   constructor(config: Partial<VirtualGraphConfig> = {}) {
     this.config = { ...DEFAULT_VIRTUAL_CONFIG, ...config }
@@ -212,6 +217,13 @@ export class VirtualGraphRenderer {
     const startTime = performance.now()
 
     // Check cache first
+    // Rebuild spatial index if it's dirty (positions have changed)
+    if (this.spatialIndexDirty) {
+      console.log('[VirtualGraphRenderer] 🔄 Rebuilding spatial index due to position changes')
+      this.buildSpatialIndex()
+      this.spatialIndexDirty = false
+    }
+
     if (this.config.enableViewportCache) {
       const cached = this.getFromCache(viewport)
       if (cached) {
@@ -392,11 +404,11 @@ export class VirtualGraphRenderer {
     const key = this.getCacheKey(viewport)
     
     // Limit cache size to prevent memory issues
-    if (this.viewportCache.size > 50) {
+    if (this.viewportCache.size > this.config.cacheMaxSize) {
       // Remove oldest entries
       const entries = Array.from(this.viewportCache.entries())
       entries.sort((a, b) => a[1].timestamp - b[1].timestamp)
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < this.config.cacheEvictionCount; i++) {
         this.viewportCache.delete(entries[i][0])
       }
     }
@@ -457,11 +469,10 @@ export class VirtualGraphRenderer {
     const oldPos = this.nodePositions.get(nodeId)
     this.nodePositions.set(nodeId, position)
 
-    // Update spatial index if needed
+    // Mark spatial index as dirty instead of rebuilding immediately
+    // This allows batching multiple updates before rebuilding
     if (this.spatialIndex && oldPos) {
-      // For simplicity, rebuild the index
-      // In production, we'd want incremental updates
-      this.buildSpatialIndex()
+      this.spatialIndexDirty = true
     }
   }
 

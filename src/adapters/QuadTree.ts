@@ -43,9 +43,9 @@ export class QuadTree<T> {
   private contains(point: Point): boolean {
     return (
       point.x >= this.boundary.x &&
-      point.x < this.boundary.x + this.boundary.width &&
+      point.x <= this.boundary.x + this.boundary.width &&
       point.y >= this.boundary.y &&
-      point.y < this.boundary.y + this.boundary.height
+      point.y <= this.boundary.y + this.boundary.height
     )
   }
 
@@ -140,9 +140,9 @@ export class QuadTree<T> {
   private pointInRange(point: Point, range: Bounds): boolean {
     return (
       point.x >= range.x &&
-      point.x < range.x + range.width &&
+      point.x <= range.x + range.width &&
       point.y >= range.y &&
-      point.y < range.y + range.height
+      point.y <= range.y + range.height
     )
   }
 
