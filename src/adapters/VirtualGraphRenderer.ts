@@ -121,7 +121,7 @@ export class VirtualGraphRenderer {
 
     // Build spatial index
     console.log('[VirtualGraphRenderer] 🗂️  Building spatial index...')
-    this.buildSpatialIndex()
+    await this.buildSpatialIndex()
 
     this.isInitialized = true
     const totalTime = performance.now() - startTime
@@ -163,7 +163,7 @@ export class VirtualGraphRenderer {
   /**
    * Build spatial index from node positions
    */
-  private buildSpatialIndex(): void {
+  private async buildSpatialIndex(): Promise<void> {
     // Calculate bounds that encompass all nodes
     let minX = Infinity
     let minY = Infinity
@@ -194,9 +194,21 @@ export class VirtualGraphRenderer {
 
     this.spatialIndex = new QuadTree<string>(boundary, 4)
 
-    // Insert all nodes
-    for (const [nodeId, pos] of this.nodePositions) {
-      this.spatialIndex.insert(pos, nodeId)
+    // Insert nodes in batches to avoid blocking the UI
+    const entries = Array.from(this.nodePositions.entries())
+    const BATCH_SIZE = 5000
+    
+    for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+      const batch = entries.slice(i, Math.min(i + BATCH_SIZE, entries.length))
+      
+      for (const [nodeId, pos] of batch) {
+        this.spatialIndex.insert(pos, nodeId)
+      }
+      
+      // Yield to event loop every batch
+      if (i + BATCH_SIZE < entries.length) {
+        await new Promise(resolve => setTimeout(resolve, 0))
+      }
     }
 
     console.log('[VirtualGraphRenderer] 📊 Spatial index built:', {
@@ -208,7 +220,7 @@ export class VirtualGraphRenderer {
   /**
    * Update visible nodes based on viewport
    */
-  updateViewport(viewport: Viewport): VirtualGraph {
+  async updateViewport(viewport: Viewport): Promise<VirtualGraph> {
     if (!this.isInitialized || !this.spatialIndex) {
       throw new Error('VirtualGraphRenderer not initialized')
     }
@@ -220,7 +232,7 @@ export class VirtualGraphRenderer {
     // Rebuild spatial index if it's dirty (positions have changed)
     if (this.spatialIndexDirty) {
       console.log('[VirtualGraphRenderer] 🔄 Rebuilding spatial index due to position changes')
-      this.buildSpatialIndex()
+      await this.buildSpatialIndex()
       this.spatialIndexDirty = false
     }
 

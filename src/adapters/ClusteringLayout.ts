@@ -58,7 +58,7 @@ export class ClusteringLayoutEngine {
 
     // Step 1: Create clusters
     console.log('[ClusteringLayout] 📦 Creating clusters...')
-    const clusters = this.createClusters(nodes, options)
+    const clusters = await this.createClusters(nodes, options)
     console.log('[ClusteringLayout] ✅ Clusters created:', clusters.length)
 
     // Step 2: Position clusters
@@ -68,8 +68,8 @@ export class ClusteringLayoutEngine {
 
     // Step 3: Distribute nodes within clusters
     console.log('[ClusteringLayout] 🔀 Distributing nodes within clusters...')
-    const nodePositions = this.distributeNodesInClusters(
-      nodes,
+    const nodePositions = await this.distributeNodesInClusters(
+      clusters,
       clusterPositions,
       options
     )
@@ -88,25 +88,36 @@ export class ClusteringLayoutEngine {
   /**
    * Create clusters by grouping nodes
    */
-  private createClusters(
+  private async createClusters(
     nodes: OidSeeNode[],
     options: ClusterOptions
-  ): Cluster[] {
+  ): Promise<Cluster[]> {
     const clusters: Cluster[] = []
     
     // Group nodes by type and risk level
     const groups = new Map<string, OidSeeNode[]>()
     
-    for (const node of nodes) {
-      const type = node.type || 'Unknown'
-      const riskScore = node.risk?.score ?? 0
-      const riskLevel = getRiskLevel(riskScore)
-      const groupKey = `${type}-${riskLevel}`
+    // Process nodes in batches to avoid blocking the UI
+    const BATCH_SIZE = 5000
+    for (let i = 0; i < nodes.length; i += BATCH_SIZE) {
+      const batch = nodes.slice(i, Math.min(i + BATCH_SIZE, nodes.length))
       
-      if (!groups.has(groupKey)) {
-        groups.set(groupKey, [])
+      for (const node of batch) {
+        const type = node.type || 'Unknown'
+        const riskScore = node.risk?.score ?? 0
+        const riskLevel = getRiskLevel(riskScore)
+        const groupKey = `${type}-${riskLevel}`
+        
+        if (!groups.has(groupKey)) {
+          groups.set(groupKey, [])
+        }
+        groups.get(groupKey)!.push(node)
       }
-      groups.get(groupKey)!.push(node)
+      
+      // Yield to event loop every batch
+      if (i + BATCH_SIZE < nodes.length) {
+        await new Promise(resolve => setTimeout(resolve, 0))
+      }
     }
     
     // Create clusters from groups
@@ -137,6 +148,9 @@ export class ClusteringLayoutEngine {
           type: groupKey
         })
       }
+      
+      // Yield to event loop after each group
+      await new Promise(resolve => setTimeout(resolve, 0))
     }
     
     return clusters
@@ -198,56 +212,50 @@ export class ClusteringLayoutEngine {
   /**
    * Distribute nodes within their clusters
    */
-  private distributeNodesInClusters(
-    nodes: OidSeeNode[],
+  private async distributeNodesInClusters(
+    clusters: Cluster[],
     clusterPositions: Map<string, { x: number; y: number }>,
     options: ClusterOptions
-  ): NodePosition[] {
+  ): Promise<NodePosition[]> {
     const nodePositions: NodePosition[] = []
-    const nodeToCluster = new Map<string, string>()
-    
-    // Build node-to-cluster mapping
-    for (const [clusterId, clusterPos] of clusterPositions) {
-      // Find cluster by ID (we need to rebuild this from nodes)
-      // For now, we'll use a simple approach
-    }
-    
-    // Create clusters again to get node memberships
-    const clusters = this.createClusters(nodes, options)
-    const clusterNodeMap = new Map<string, string[]>()
-    for (const cluster of clusters) {
-      clusterNodeMap.set(cluster.id, cluster.nodeIds)
-      for (const nodeId of cluster.nodeIds) {
-        nodeToCluster.set(nodeId, cluster.id)
-      }
-    }
     
     // Distribute nodes within each cluster using circular layout
-    for (const cluster of clusters) {
-      const clusterPos = clusterPositions.get(cluster.id)
-      if (!clusterPos) continue
+    // Process clusters in batches to avoid blocking the UI
+    const BATCH_SIZE = 50
+    for (let i = 0; i < clusters.length; i += BATCH_SIZE) {
+      const batchClusters = clusters.slice(i, Math.min(i + BATCH_SIZE, clusters.length))
       
-      const nodeIds = cluster.nodeIds
-      const numNodes = nodeIds.length
-      
-      if (numNodes === 1) {
-        // Single node at cluster center
-        nodePositions.push({
-          id: nodeIds[0],
-          x: clusterPos.x,
-          y: clusterPos.y
-        })
-      } else {
-        // Multiple nodes arranged in a circle or grid
-        const radius = cluster.radius * 0.5
-        const angleStep = (2 * Math.PI) / numNodes
+      for (const cluster of batchClusters) {
+        const clusterPos = clusterPositions.get(cluster.id)
+        if (!clusterPos) continue
         
-        nodeIds.forEach((nodeId, index) => {
-          const angle = index * angleStep
-          const x = clusterPos.x + radius * Math.cos(angle)
-          const y = clusterPos.y + radius * Math.sin(angle)
-          nodePositions.push({ id: nodeId, x, y })
-        })
+        const nodeIds = cluster.nodeIds
+        const numNodes = nodeIds.length
+        
+        if (numNodes === 1) {
+          // Single node at cluster center
+          nodePositions.push({
+            id: nodeIds[0],
+            x: clusterPos.x,
+            y: clusterPos.y
+          })
+        } else {
+          // Multiple nodes arranged in a circle or grid
+          const radius = cluster.radius * 0.5
+          const angleStep = (2 * Math.PI) / numNodes
+          
+          nodeIds.forEach((nodeId, index) => {
+            const angle = index * angleStep
+            const x = clusterPos.x + radius * Math.cos(angle)
+            const y = clusterPos.y + radius * Math.sin(angle)
+            nodePositions.push({ id: nodeId, x, y })
+          })
+        }
+      }
+      
+      // Yield to event loop every batch
+      if (i + BATCH_SIZE < clusters.length) {
+        await new Promise(resolve => setTimeout(resolve, 0))
       }
     }
     

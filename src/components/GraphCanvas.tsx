@@ -412,79 +412,84 @@ export const GraphCanvas = forwardRef<
     console.log('[GraphCanvas] 🔄 Updating visible nodes based on viewport...')
     const startTime = performance.now()
 
-    try {
-      // Get updated visible nodes/edges from virtual renderer
-      const virtualGraph = virtualRendererRef.current.updateViewport(currentViewport)
-      
-      // Update the network's visible datasets
-      const nodeDs = allNodesRef.current
-      const edgeDs = allEdgesRef.current
-      
-      // Get current node IDs
-      const allNodeIds = new Set(nodeDs.get().map((n: any) => n.id))
-      const visibleNodeIds = new Set(virtualGraph.visibleNodes.map(n => n.id))
-      
-      // Show nodes that should be visible
-      const nodesToShow: string[] = []
-      for (const nodeId of visibleNodeIds) {
-        if (allNodeIds.has(nodeId)) {
-          nodesToShow.push(nodeId)
+    async function updateVisibility() {
+      try {
+        // Get updated visible nodes/edges from virtual renderer
+        const virtualGraph = await virtualRendererRef.current!.updateViewport(currentViewport!)
+        
+        // Update the network's visible datasets
+        const nodeDs = allNodesRef.current
+        const edgeDs = allEdgesRef.current
+        
+        // Get current node IDs
+        const allNodeIds = new Set(nodeDs.get().map((n: any) => n.id))
+        const visibleNodeIds = new Set(virtualGraph.visibleNodes.map(n => n.id))
+        
+        // Show nodes that should be visible
+        const nodesToShow: string[] = []
+        for (const nodeId of visibleNodeIds) {
+          if (allNodeIds.has(nodeId)) {
+            nodesToShow.push(nodeId)
+          }
         }
-      }
-      
-      // Hide nodes that should not be visible
-      const nodesToHide: string[] = []
-      for (const nodeId of allNodeIds) {
-        if (!visibleNodeIds.has(nodeId)) {
-          nodesToHide.push(nodeId)
+        
+        // Hide nodes that should not be visible
+        const nodesToHide: string[] = []
+        for (const nodeId of allNodeIds) {
+          if (!visibleNodeIds.has(nodeId)) {
+            nodesToHide.push(nodeId)
+          }
         }
-      }
-      
-      // Apply visibility changes by updating node properties
-      if (nodesToShow.length > 0) {
-        nodeDs.update(nodesToShow.map(id => ({ id, hidden: false })))
-      }
-      if (nodesToHide.length > 0) {
-        nodeDs.update(nodesToHide.map(id => ({ id, hidden: true })))
-      }
-      
-      // Update edge visibility
-      const visibleEdgeIds = new Set(virtualGraph.visibleEdges.map(e => e.id))
-      const allEdgeIds = new Set(edgeDs.get().map((e: any) => e.id))
-      
-      const edgesToShow: string[] = []
-      for (const edgeId of visibleEdgeIds) {
-        if (allEdgeIds.has(edgeId)) {
-          edgesToShow.push(edgeId)
+        
+        // Apply visibility changes by updating node properties
+        if (nodesToShow.length > 0) {
+          nodeDs.update(nodesToShow.map(id => ({ id, hidden: false })))
         }
-      }
-      
-      const edgesToHide: string[] = []
-      for (const edgeId of allEdgeIds) {
-        if (!visibleEdgeIds.has(edgeId)) {
-          edgesToHide.push(edgeId)
+        if (nodesToHide.length > 0) {
+          nodeDs.update(nodesToHide.map(id => ({ id, hidden: true })))
         }
+        
+        // Update edge visibility
+        const visibleEdgeIds = new Set(virtualGraph.visibleEdges.map(e => e.id))
+        const allEdgeIds = new Set(edgeDs.get().map((e: any) => e.id))
+        
+        const edgesToShow: string[] = []
+        for (const edgeId of visibleEdgeIds) {
+          if (allEdgeIds.has(edgeId)) {
+            edgesToShow.push(edgeId)
+          }
+        }
+        
+        const edgesToHide: string[] = []
+        for (const edgeId of allEdgeIds) {
+          if (!visibleEdgeIds.has(edgeId)) {
+            edgesToHide.push(edgeId)
+          }
+        }
+        
+        if (edgesToShow.length > 0) {
+          edgeDs.update(edgesToShow.map(id => ({ id, hidden: false })))
+        }
+        if (edgesToHide.length > 0) {
+          edgeDs.update(edgesToHide.map(id => ({ id, hidden: true })))
+        }
+        
+        const totalTime = performance.now() - startTime
+        console.log('[GraphCanvas] ✅ Visible nodes updated:', {
+          duration: `${totalTime.toFixed(0)}ms`,
+          shown: nodesToShow.length,
+          hidden: nodesToHide.length,
+          visibleNodes: visibleNodeIds.size,
+          visibleEdges: visibleEdgeIds.size
+        })
+      } catch (e) {
+        console.error('[GraphCanvas] ❌ Failed to update visible nodes:', e)
       }
-      
-      if (edgesToShow.length > 0) {
-        edgeDs.update(edgesToShow.map(id => ({ id, hidden: false })))
-      }
-      if (edgesToHide.length > 0) {
-        edgeDs.update(edgesToHide.map(id => ({ id, hidden: true })))
-      }
-      
-      const totalTime = performance.now() - startTime
-      console.log('[GraphCanvas] ✅ Visible nodes updated:', {
-        duration: `${totalTime.toFixed(0)}ms`,
-        shown: nodesToShow.length,
-        hidden: nodesToHide.length,
-        visibleNodes: visibleNodeIds.size,
-        visibleEdges: visibleEdgeIds.size
-      })
-    } catch (e) {
-      console.error('[GraphCanvas] ❌ Failed to update visible nodes:', e)
     }
+
+    updateVisibility()
   }, [currentViewport, shouldUseVirtualRendering])
+
 
   // Initialize network once on mount
   useEffect(() => {
