@@ -25,7 +25,7 @@ const MAX_RENDERABLE_NODES = 3000
 const MAX_RENDERABLE_EDGES = 4500
 
 // Delay before processing to allow loading overlay to render
-const RENDER_DELAY_MS = 100 // ms delay to ensure UI updates before heavy processing
+const RENDER_DELAY_MS = 200 // ms delay to ensure UI updates before heavy processing
 
 // Emoji regex for cross-browser compatibility validation
 const EMOJI_REGEX = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{FE00}-\u{FE0F}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F251}]/u
@@ -521,10 +521,23 @@ export default function App() {
         const originalNodeCount = nodeCount
         const originalEdgeCount = edgeCount
         
-        // Sort nodes by risk score (highest first)
+        // Create indices array instead of copying nodes
+        console.log('[OID-See] 📋 Creating index array for sorting...')
+        setLoadingProgress(`Preparing to sort ${nodeCount.toLocaleString()} nodes...`)
+        const indices = Array.from({ length: parsed.nodes.length }, (_, i) => i)
+        
+        // Yield to event loop to allow progress update to render
+        await new Promise(resolve => setTimeout(resolve, 50))
+        
+        // Sort indices by risk score (highest first)
         console.log('[OID-See] 📋 Sorting nodes by risk score...')
         setLoadingProgress(`Sorting ${nodeCount.toLocaleString()} nodes by risk...`)
-        const sortedNodes = [...(parsed.nodes || [])].sort((a: OidSeeNode, b: OidSeeNode) => {
+        // Yield again before the blocking sort operation
+        await new Promise(resolve => setTimeout(resolve, 50))
+        
+        indices.sort((aIdx, bIdx) => {
+          const a = parsed.nodes[aIdx]
+          const b = parsed.nodes[bIdx]
           const scoreA = a?.risk?.score ?? 0
           const scoreB = b?.risk?.score ?? 0
           return scoreB - scoreA
@@ -535,15 +548,18 @@ export default function App() {
         // Yield to event loop after sort
         await new Promise(resolve => setTimeout(resolve, 0))
         
-        // Take top N highest-risk nodes
+        // Take top N highest-risk nodes using sorted indices
         console.log('[OID-See] ✂️  Selecting top risk nodes...')
         setLoadingProgress(`Selecting top ${MAX_RENDERABLE_NODES.toLocaleString()} risk nodes...`)
-        const truncatedNodes = sortedNodes.slice(0, MAX_RENDERABLE_NODES)
+        const truncatedNodes = indices.slice(0, MAX_RENDERABLE_NODES).map(i => parsed.nodes[i])
         const nodeIds = new Set(truncatedNodes.map((n: OidSeeNode) => n.id))
         
         // Filter edges to only those connecting truncated nodes
         console.log('[OID-See] 🔗 Filtering edges...')
         setLoadingProgress('Filtering edges...')
+        // Yield before filtering edges
+        await new Promise(resolve => setTimeout(resolve, 50))
+        
         const truncatedEdges = (parsed.edges || [])
           .filter((e: OidSeeEdge) => nodeIds.has(e.from) && nodeIds.has(e.to))
           .slice(0, MAX_RENDERABLE_EDGES)

@@ -6,10 +6,16 @@ export type VisData = { nodes: any[]; edges: any[] }
 // Custom double-circle renderer for group nodes
 function doubleCircleRenderer({ ctx, x, y, state, style }: any) {
   try {
-    const { selected } = state
-    const radius = style.size || 10
+    // Validate required parameters
+    if (!ctx || x === undefined || y === undefined) {
+      console.warn('Custom renderer called with missing parameters:', { ctx: !!ctx, x, y })
+      return false
+    }
+    
+    const { selected } = state || {}
+    const radius = style?.size || 10
     const borderWidth = selected ? 3 : 2
-    const color = style.color || { border: 'rgba(234,242,255,0.75)', background: 'rgba(234,242,255,0.08)' }
+    const color = style?.color || { border: 'rgba(234,242,255,0.75)', background: 'rgba(234,242,255,0.08)' }
     
     // Draw outer circle
     ctx.beginPath()
@@ -27,6 +33,8 @@ function doubleCircleRenderer({ ctx, x, y, state, style }: any) {
     ctx.strokeStyle = color.border || 'rgba(234,242,255,0.75)'
     ctx.lineWidth = borderWidth
     ctx.stroke()
+    
+    return true // Return true to indicate successful custom rendering
   } catch (e) {
     // Fallback to default rendering if custom renderer fails
     console.warn('Custom renderer failed, using default:', e)
