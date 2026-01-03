@@ -12,6 +12,7 @@ import { PhysicsControls } from './components/PhysicsControls'
 import { ResizeHandle } from './components/ResizeHandle'
 import { Legend } from './components/Legend'
 import { LoadingOverlay } from './components/LoadingOverlay'
+import { OidSeeNode, OidSeeEdge } from './adapters/types'
 
 type SavedQuery = { name: string; query: string }
 
@@ -108,6 +109,14 @@ function savePhysicsConfig(config: PhysicsConfig) {
     localStorage.setItem('oidsee.physicsConfig', JSON.stringify(config))
   } catch {
     // ignore
+  }
+}
+
+function createDisabledPhysicsConfig(): PhysicsConfig {
+  return {
+    ...DEFAULT_PHYSICS,
+    gravitationalConstant: 0,
+    springConstant: 0,
   }
 }
 
@@ -438,7 +447,7 @@ export default function App() {
         const originalEdgeCount = edgeCount
         
         // Sort nodes by risk score (highest first)
-        const sortedNodes = [...(parsed.nodes || [])].sort((a, b) => {
+        const sortedNodes = [...(parsed.nodes || [])].sort((a: OidSeeNode, b: OidSeeNode) => {
           const scoreA = a?.risk?.score ?? 0
           const scoreB = b?.risk?.score ?? 0
           return scoreB - scoreA
@@ -446,11 +455,11 @@ export default function App() {
         
         // Take top N highest-risk nodes
         const truncatedNodes = sortedNodes.slice(0, MAX_RENDERABLE_NODES)
-        const nodeIds = new Set(truncatedNodes.map((n: any) => n.id))
+        const nodeIds = new Set(truncatedNodes.map((n: OidSeeNode) => n.id))
         
         // Filter edges to only those connecting truncated nodes
         const truncatedEdges = (parsed.edges || [])
-          .filter((e: any) => nodeIds.has(e.from) && nodeIds.has(e.to))
+          .filter((e: OidSeeEdge) => nodeIds.has(e.from) && nodeIds.has(e.to))
           .slice(0, MAX_RENDERABLE_EDGES)
         
         parsed.nodes = truncatedNodes
@@ -464,20 +473,12 @@ export default function App() {
         )
         
         // Disable physics for truncated graphs
-        const physicsDisabled: PhysicsConfig = {
-          ...DEFAULT_PHYSICS,
-          gravitationalConstant: 0,
-          springConstant: 0,
-        }
+        const physicsDisabled = createDisabledPhysicsConfig()
         setPhysicsConfig(physicsDisabled)
         savePhysicsConfig(physicsDisabled)
       } else if (isLargeGraph) {
         // For large graphs, disable physics by default to prevent UI blocking
-        const physicsDisabled: PhysicsConfig = {
-          ...DEFAULT_PHYSICS,
-          gravitationalConstant: 0,
-          springConstant: 0,
-        }
+        const physicsDisabled = createDisabledPhysicsConfig()
         setPhysicsConfig(physicsDisabled)
         savePhysicsConfig(physicsDisabled)
         setLargeGraphWarning(
