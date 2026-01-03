@@ -469,6 +469,9 @@ export default function App() {
     }
   }
 
+  // Helper function to yield control to the event loop
+  const yieldToEventLoop = () => new Promise(resolve => setTimeout(resolve, YIELD_DELAY_MS))
+
   async function render(input: string) {
     console.log('[OID-See] 🔄 Starting render process...')
     const renderStartTime = performance.now()
@@ -487,7 +490,7 @@ export default function App() {
       setLoadingProgress('Parsing JSON data...')
       console.log('[OID-See] 🔍 Parsing JSON...')
       // Yield to allow progress message to render
-      await new Promise(resolve => setTimeout(resolve, YIELD_DELAY_MS))
+      await yieldToEventLoop()
       
       const parseStartTime = performance.now()
       const parsed = JSON.parse(input)
@@ -534,13 +537,13 @@ export default function App() {
         const indices = Array.from({ length: parsed.nodes.length }, (_, i) => i)
         
         // Yield to event loop to allow progress update to render
-        await new Promise(resolve => setTimeout(resolve, YIELD_DELAY_MS))
+        await yieldToEventLoop()
         
         // Sort indices by risk score (highest first)
         console.log('[OID-See] 📋 Sorting nodes by risk score...')
         setLoadingProgress(`Sorting ${nodeCount.toLocaleString()} nodes by risk...`)
         // Yield again before the blocking sort operation
-        await new Promise(resolve => setTimeout(resolve, YIELD_DELAY_MS))
+        await yieldToEventLoop()
         
         indices.sort((aIdx, bIdx) => {
           const a = parsed.nodes[aIdx]
@@ -565,7 +568,7 @@ export default function App() {
         console.log('[OID-See] 🔗 Filtering edges...')
         setLoadingProgress('Filtering edges...')
         // Yield before filtering edges
-        await new Promise(resolve => setTimeout(resolve, YIELD_DELAY_MS))
+        await yieldToEventLoop()
         
         const truncatedEdges = (parsed.edges || [])
           .filter((e: OidSeeEdge) => nodeIds.has(e.from) && nodeIds.has(e.to))
@@ -611,7 +614,7 @@ export default function App() {
       console.log('[OID-See] 🎨 Converting to vis-network format...')
       setLoadingProgress(`Converting ${parsed.nodes.length.toLocaleString()} nodes to graph format...`)
       // Yield to allow progress message to render
-      await new Promise(resolve => setTimeout(resolve, YIELD_DELAY_MS))
+      await yieldToEventLoop()
       
       const visStartTime = performance.now()
       // Use async version for large graphs to prevent UI blocking
