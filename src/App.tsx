@@ -7,6 +7,7 @@ import { FilterBar, Lens } from './components/FilterBar'
 import { parseQuery, evalClause, getPath, isNumericOp, Clause } from './filters/query'
 import { JSONEditor } from './components/JSONEditor'
 import { ErrorDialog } from './components/ErrorDialog'
+import { InfoDialog } from './components/InfoDialog'
 import { PhysicsControls } from './components/PhysicsControls'
 import { ResizeHandle } from './components/ResizeHandle'
 import { Legend } from './components/Legend'
@@ -16,6 +17,9 @@ type SavedQuery = { name: string; query: string }
 
 // Large graph detection threshold
 const LARGE_GRAPH_THRESHOLD = 10000 // nodes or edges
+
+// Delay before processing to allow loading overlay to render
+const RENDER_DELAY_MS = 50 // ms delay to ensure UI updates before heavy processing
 
 // Emoji regex for cross-browser compatibility validation
 const EMOJI_REGEX = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{FE00}-\u{FE0F}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F251}]/u
@@ -412,7 +416,7 @@ export default function App() {
     
     try {
       // Use setTimeout to allow the loading overlay to render before heavy processing
-      await new Promise(resolve => setTimeout(resolve, 50))
+      await new Promise(resolve => setTimeout(resolve, RENDER_DELAY_MS))
       
       const parsed = JSON.parse(input)
       
@@ -875,7 +879,7 @@ export default function App() {
       )}
       
       {largeGraphWarning && (
-        <ErrorDialog 
+        <InfoDialog 
           message={largeGraphWarning} 
           onDismiss={() => setLargeGraphWarning(null)} 
         />

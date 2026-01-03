@@ -23,6 +23,16 @@ export const DEFAULT_PHYSICS: PhysicsConfig = {
   avoidOverlap: 0.95,
 }
 
+// Constants for disabled physics (used for large graphs)
+const DISABLED_PHYSICS_GRAVITATIONAL_CONSTANT = 0
+const DISABLED_PHYSICS_SPRING_CONSTANT = 0
+
+// Helper function to check if physics is disabled
+function isPhysicsDisabled(config: PhysicsConfig): boolean {
+  return config.gravitationalConstant === DISABLED_PHYSICS_GRAVITATIONAL_CONSTANT 
+    && config.springConstant === DISABLED_PHYSICS_SPRING_CONSTANT
+}
+
 export interface GraphCanvasHandle {
   focusNode: (nodeId: string) => void
   focusEdge: (edgeId: string) => void
@@ -241,7 +251,7 @@ export const GraphCanvas = forwardRef<
     const edgeDs = allEdgesRef.current
 
     // Check if physics should be disabled (for large graphs)
-    const physicsDisabled = physics.gravitationalConstant === 0 && physics.springConstant === 0
+    const physicsDisabled = isPhysicsDisabled(physics)
 
     const network = new Network(
       containerRef.current,

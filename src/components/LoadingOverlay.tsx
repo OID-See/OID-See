@@ -55,7 +55,7 @@ export function LoadingOverlay({ visible, message = 'Loading...' }: LoadingOverl
           }}
         >
           {message}
-          {dots}
+          <span aria-hidden="true">{dots}</span>
         </div>
         <div
           style={{
