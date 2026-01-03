@@ -325,7 +325,7 @@ export const GraphCanvas = forwardRef<
           hover: true,
           tooltipDelay: 120,
           multiselect: true,
-          navigationButtons: false, // Disable navigation buttons to prevent interaction conflicts
+          navigationButtons: true, // Re-enable navigation buttons as requested
           keyboard: false, // Disable to prevent interference with filter text field
           dragNodes: true,
           dragView: true,

@@ -17,12 +17,12 @@ import { OidSeeNode, OidSeeEdge } from './adapters/types'
 type SavedQuery = { name: string; query: string }
 
 // Large graph detection threshold - reduced to catch more cases
-const LARGE_GRAPH_THRESHOLD = 5000 // nodes or edges
+const LARGE_GRAPH_THRESHOLD = 4000 // nodes or edges
 
 // Maximum nodes/edges to render - beyond this, graph will be truncated
-// Conservative limits to ensure smooth rendering on all browsers/machines
-const MAX_RENDERABLE_NODES = 5000
-const MAX_RENDERABLE_EDGES = 7500
+// Very conservative limits (20% lower than previous) for maximum stability
+const MAX_RENDERABLE_NODES = 4000
+const MAX_RENDERABLE_EDGES = 6000
 
 // Delay before processing to allow loading overlay to render
 const RENDER_DELAY_MS = 100 // ms delay to ensure UI updates before heavy processing
@@ -417,9 +417,18 @@ export default function App() {
   }, [maximizedPanel, inputCollapsed, detailsCollapsed, inputWidth, detailsWidth, viewportWidth, isPortrait])
 
   async function readFile(file: File) {
-    const text = await file.text()
-    setRaw(text)
-    await render(text)
+    // Show loading overlay immediately
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const text = await file.text()
+      setRaw(text)
+      await render(text)
+    } catch (e: any) {
+      setError(e?.message || 'Failed to read file')
+      setLoading(false)
+    }
   }
 
   async function render(input: string) {
