@@ -635,12 +635,16 @@ export default function App() {
             onClick={() => {
               const pretty = JSON.stringify(sampleObj, null, 2)
               setRaw(pretty)
-              void render(pretty)
+              render(pretty).catch(err => {
+                console.error('Failed to render sample:', err)
+              })
             }}
           >
             Load sample
           </button>
-          <button className="btn file" onClick={() => void render(raw)}>
+          <button className="btn file" onClick={() => render(raw).catch(err => {
+            console.error('Failed to render:', err)
+          })}>
             Render
           </button>
 
@@ -651,7 +655,9 @@ export default function App() {
               accept="application/json,.json"
               onChange={(e) => {
                 const file = e.target.files?.[0]
-                if (file) void readFile(file)
+                if (file) readFile(file).catch(err => {
+                  console.error('Failed to read file:', err)
+                })
               }}
             />
             Upload JSON
