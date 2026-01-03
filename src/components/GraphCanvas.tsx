@@ -59,6 +59,9 @@ export const GraphCanvas = forwardRef<
   const RESTABILIZE_AVOID_OVERLAP_LOW = 0.95 // Lower avoidOverlap value for restabilization
   const RESTABILIZE_AVOID_OVERLAP_HIGH = 1.0 // Higher avoidOverlap value for restabilization
   
+  // Batching constants for large datasets
+  const BATCH_SIZE = 1000 // Process nodes/edges in batches to prevent UI blocking
+  
   const containerRef = useRef<HTMLDivElement>(null)
   const networkRef = useRef<Network | null>(null)
   const allNodesRef = useRef<DataSet<VisNode>>(new DataSet([]))
@@ -172,69 +175,118 @@ export const GraphCanvas = forwardRef<
 
   // Update all and visible datasets when nodes/edges change
   // Use hide/unhide approach for better performance with large datasets
+  // Batch operations for very large datasets to prevent UI blocking
   useEffect(() => {
     const allNodesDs = allNodesRef.current
     const allEdgesDs = allEdgesRef.current
 
-    try {
-      // Create sets of visible IDs for quick lookup
-      const visibleNodeIds = new Set(visibleNodes.map(n => n.id))
-      const visibleEdgeIds = new Set(visibleEdges.map(e => e.id))
-
-      // Get current nodes and edges
-      const currentNodeIds = new Set(allNodesDs.getIds())
-      const currentEdgeIds = new Set(allEdgesDs.getIds())
-
-      // Find nodes/edges to add (in allNodes/allEdges but not in dataset)
-      const nodesToAdd = allNodes.filter(n => !currentNodeIds.has(n.id))
-      const edgesToAdd = allEdges.filter(e => !currentEdgeIds.has(e.id))
-
-      // Find nodes/edges to remove (in dataset but not in allNodes/allEdges)
-      const allNodeIds = new Set(allNodes.map(n => n.id))
-      const allEdgeIds = new Set(allEdges.map(e => e.id))
-      const nodeIdsToRemove = Array.from(currentNodeIds).filter(id => !allNodeIds.has(id))
-      const edgeIdsToRemove = Array.from(currentEdgeIds).filter(id => !allEdgeIds.has(id))
-
-      // Update dataset: add new nodes/edges
-      if (nodesToAdd.length > 0) allNodesDs.add(nodesToAdd)
-      if (edgesToAdd.length > 0) allEdgesDs.add(edgesToAdd)
-
-      // Update dataset: remove nodes/edges that are no longer in allNodes/allEdges
-      if (nodeIdsToRemove.length > 0) allNodesDs.remove(nodeIdsToRemove)
-      if (edgeIdsToRemove.length > 0) allEdgesDs.remove(edgeIdsToRemove)
-
-      // Update visibility: hide/show nodes and edges based on filter
-      const nodeUpdates = allNodes.map(n => ({
-        id: n.id,
-        hidden: !visibleNodeIds.has(n.id)
-      }))
-      
-      const edgeUpdates = allEdges.map(e => ({
-        id: e.id,
-        hidden: !visibleEdgeIds.has(e.id)
-      }))
-
-      if (nodeUpdates.length > 0) allNodesDs.update(nodeUpdates)
-      if (edgeUpdates.length > 0) allEdgesDs.update(edgeUpdates)
-
-    } catch (e: any) {
-      // Catch errors from vis-network DataSet (e.g., duplicate IDs)
-      let errorMessage = 'Unknown error occurred'
-      
-      // Extract error message from various error formats
-      if (typeof e === 'string') {
-        errorMessage = e
-      } else if (e?.message) {
-        errorMessage = e.message
-      } else if (e?.toString) {
-        errorMessage = e.toString()
-      }
-      
-      console.error('Error updating graph data:', errorMessage, e)
-      if (onError) {
-        onError(errorMessage)
+    // Helper function to process items in batches with delays
+    async function processBatched<T>(
+      items: T[],
+      batchSize: number,
+      processor: (batch: T[]) => void
+    ) {
+      for (let i = 0; i < items.length; i += batchSize) {
+        const batch = items.slice(i, i + batchSize)
+        processor(batch)
+        // Yield to main thread every batch
+        if (i + batchSize < items.length) {
+          await new Promise(resolve => setTimeout(resolve, 0))
+        }
       }
     }
+
+    async function updateDataSets() {
+      try {
+        // Create sets of visible IDs for quick lookup
+        const visibleNodeIds = new Set(visibleNodes.map(n => n.id))
+        const visibleEdgeIds = new Set(visibleEdges.map(e => e.id))
+
+        // Get current nodes and edges
+        const currentNodeIds = new Set(allNodesDs.getIds())
+        const currentEdgeIds = new Set(allEdgesDs.getIds())
+
+        // Find nodes/edges to add (in allNodes/allEdges but not in dataset)
+        const nodesToAdd = allNodes.filter(n => !currentNodeIds.has(n.id))
+        const edgesToAdd = allEdges.filter(e => !currentEdgeIds.has(e.id))
+
+        // Find nodes/edges to remove (in dataset but not in allNodes/allEdges)
+        const allNodeIds = new Set(allNodes.map(n => n.id))
+        const allEdgeIds = new Set(allEdges.map(e => e.id))
+        const nodeIdsToRemove = Array.from(currentNodeIds).filter(id => !allNodeIds.has(id))
+        const edgeIdsToRemove = Array.from(currentEdgeIds).filter(id => !allEdgeIds.has(id))
+
+        // Update dataset: add new nodes/edges in batches
+        if (nodesToAdd.length > 0) {
+          if (nodesToAdd.length > BATCH_SIZE) {
+            await processBatched(nodesToAdd, BATCH_SIZE, batch => allNodesDs.add(batch))
+          } else {
+            allNodesDs.add(nodesToAdd)
+          }
+        }
+        
+        if (edgesToAdd.length > 0) {
+          if (edgesToAdd.length > BATCH_SIZE) {
+            await processBatched(edgesToAdd, BATCH_SIZE, batch => allEdgesDs.add(batch))
+          } else {
+            allEdgesDs.add(edgesToAdd)
+          }
+        }
+
+        // Update dataset: remove nodes/edges that are no longer in allNodes/allEdges
+        if (nodeIdsToRemove.length > 0) allNodesDs.remove(nodeIdsToRemove)
+        if (edgeIdsToRemove.length > 0) allEdgesDs.remove(edgeIdsToRemove)
+
+        // Update visibility: hide/show nodes and edges based on filter
+        const nodeUpdates = allNodes.map(n => ({
+          id: n.id,
+          hidden: !visibleNodeIds.has(n.id)
+        }))
+        
+        const edgeUpdates = allEdges.map(e => ({
+          id: e.id,
+          hidden: !visibleEdgeIds.has(e.id)
+        }))
+
+        // Batch visibility updates for large datasets
+        if (nodeUpdates.length > 0) {
+          if (nodeUpdates.length > BATCH_SIZE) {
+            await processBatched(nodeUpdates, BATCH_SIZE, batch => allNodesDs.update(batch))
+          } else {
+            allNodesDs.update(nodeUpdates)
+          }
+        }
+        
+        if (edgeUpdates.length > 0) {
+          if (edgeUpdates.length > BATCH_SIZE) {
+            await processBatched(edgeUpdates, BATCH_SIZE, batch => allEdgesDs.update(batch))
+          } else {
+            allEdgesDs.update(edgeUpdates)
+          }
+        }
+
+      } catch (e: any) {
+        // Catch errors from vis-network DataSet (e.g., duplicate IDs)
+        let errorMessage = 'Unknown error occurred'
+        
+        // Extract error message from various error formats
+        if (typeof e === 'string') {
+          errorMessage = e
+        } else if (e?.message) {
+          errorMessage = e.message
+        } else if (e?.toString) {
+          errorMessage = e.toString()
+        }
+        
+        console.error('Error updating graph data:', errorMessage, e)
+        if (onError) {
+          onError(errorMessage)
+        }
+      }
+    }
+
+    // Run the async update
+    updateDataSets()
   }, [allNodes, allEdges, visibleNodes, visibleEdges, onError])
 
   // Initialize network once on mount
@@ -258,14 +310,16 @@ export const GraphCanvas = forwardRef<
       { nodes: nodeDs, edges: edgeDs },
       {
         autoResize: true,
-        layout: { improvedLayout: true },
+        layout: { 
+          improvedLayout: physicsDisabled ? false : true, // Disable improvedLayout for large graphs
+          randomSeed: undefined
+        },
         interaction: {
           hover: true,
           tooltipDelay: 120,
           multiselect: true,
           navigationButtons: true,
           keyboard: false, // Disable to prevent interference with filter text field
-          selectOnClick: false, // Disable automatic selection to prevent label clicks from selecting elements
         },
         nodes: {
           shape: 'dot',
