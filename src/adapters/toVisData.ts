@@ -8,7 +8,7 @@ function doubleCircleRenderer({ ctx, x, y, state, style }: any) {
   try {
     // Validate required parameters
     if (!ctx || x === undefined || y === undefined) {
-      console.warn('Custom renderer called with missing parameters:', { ctx: !!ctx, x, y })
+      console.warn('Custom renderer called with missing parameters')
       return false
     }
     

@@ -25,7 +25,11 @@ const MAX_RENDERABLE_NODES = 3000
 const MAX_RENDERABLE_EDGES = 4500
 
 // Delay before processing to allow loading overlay to render
+// Increased to 200ms for large graphs to ensure overlay is visible before blocking operations
 const RENDER_DELAY_MS = 200 // ms delay to ensure UI updates before heavy processing
+
+// Yield delay between blocking operations to keep UI responsive
+const YIELD_DELAY_MS = 50 // ms delay to yield control to event loop
 
 // Emoji regex for cross-browser compatibility validation
 const EMOJI_REGEX = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{FE00}-\u{FE0F}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F251}]/u
@@ -527,13 +531,13 @@ export default function App() {
         const indices = Array.from({ length: parsed.nodes.length }, (_, i) => i)
         
         // Yield to event loop to allow progress update to render
-        await new Promise(resolve => setTimeout(resolve, 50))
+        await new Promise(resolve => setTimeout(resolve, YIELD_DELAY_MS))
         
         // Sort indices by risk score (highest first)
         console.log('[OID-See] 📋 Sorting nodes by risk score...')
         setLoadingProgress(`Sorting ${nodeCount.toLocaleString()} nodes by risk...`)
         // Yield again before the blocking sort operation
-        await new Promise(resolve => setTimeout(resolve, 50))
+        await new Promise(resolve => setTimeout(resolve, YIELD_DELAY_MS))
         
         indices.sort((aIdx, bIdx) => {
           const a = parsed.nodes[aIdx]
@@ -558,7 +562,7 @@ export default function App() {
         console.log('[OID-See] 🔗 Filtering edges...')
         setLoadingProgress('Filtering edges...')
         // Yield before filtering edges
-        await new Promise(resolve => setTimeout(resolve, 50))
+        await new Promise(resolve => setTimeout(resolve, YIELD_DELAY_MS))
         
         const truncatedEdges = (parsed.edges || [])
           .filter((e: OidSeeEdge) => nodeIds.has(e.from) && nodeIds.has(e.to))
