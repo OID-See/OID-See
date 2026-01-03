@@ -343,6 +343,7 @@ export default function App() {
   const [viewportWidth, setViewportWidth] = useState<number>(1280)
   const [legendVisible, setLegendVisible] = useState<boolean>(false)
   const [loading, setLoading] = useState<boolean>(false)
+  const [loadingProgress, setLoadingProgress] = useState<string>('')
   const [largeGraphWarning, setLargeGraphWarning] = useState<string | null>(null)
   const graphRef = useRef<GraphCanvasHandle>(null)
   const detailsPanelRef = useRef<HTMLElement>(null)
@@ -469,6 +470,7 @@ export default function App() {
     const renderStartTime = performance.now()
     
     setLoading(true)
+    setLoadingProgress('Initializing...')
     setError(null)
     setSelection(null)
     setLargeGraphWarning(null)
@@ -478,6 +480,7 @@ export default function App() {
       console.log(`[OID-See] ⏱️  Waiting ${RENDER_DELAY_MS}ms for UI to update...`)
       await new Promise(resolve => setTimeout(resolve, RENDER_DELAY_MS))
       
+      setLoadingProgress('Parsing JSON data...')
       console.log('[OID-See] 🔍 Parsing JSON...')
       const parseStartTime = performance.now()
       const parsed = JSON.parse(input)
@@ -511,6 +514,7 @@ export default function App() {
       
       if (exceedsLimits) {
         console.log('[OID-See] ✂️  Graph exceeds limits - truncating to top risk nodes...')
+        setLoadingProgress(`Analyzing ${nodeCount.toLocaleString()} nodes...`)
         const truncateStartTime = performance.now()
         
         // Truncate to only high-risk nodes for massive graphs
@@ -519,6 +523,7 @@ export default function App() {
         
         // Sort nodes by risk score (highest first)
         console.log('[OID-See] 📋 Sorting nodes by risk score...')
+        setLoadingProgress(`Sorting ${nodeCount.toLocaleString()} nodes by risk...`)
         const sortedNodes = [...(parsed.nodes || [])].sort((a: OidSeeNode, b: OidSeeNode) => {
           const scoreA = a?.risk?.score ?? 0
           const scoreB = b?.risk?.score ?? 0
@@ -531,11 +536,14 @@ export default function App() {
         await new Promise(resolve => setTimeout(resolve, 0))
         
         // Take top N highest-risk nodes
+        console.log('[OID-See] ✂️  Selecting top risk nodes...')
+        setLoadingProgress(`Selecting top ${MAX_RENDERABLE_NODES.toLocaleString()} risk nodes...`)
         const truncatedNodes = sortedNodes.slice(0, MAX_RENDERABLE_NODES)
         const nodeIds = new Set(truncatedNodes.map((n: OidSeeNode) => n.id))
         
         // Filter edges to only those connecting truncated nodes
         console.log('[OID-See] 🔗 Filtering edges...')
+        setLoadingProgress('Filtering edges...')
         const truncatedEdges = (parsed.edges || [])
           .filter((e: OidSeeEdge) => nodeIds.has(e.from) && nodeIds.has(e.to))
           .slice(0, MAX_RENDERABLE_EDGES)
@@ -578,6 +586,7 @@ export default function App() {
       
       // Process the data
       console.log('[OID-See] 🎨 Converting to vis-network format...')
+      setLoadingProgress(`Converting ${parsed.nodes.length.toLocaleString()} nodes to graph format...`)
       const visStartTime = performance.now()
       // Use async version for large graphs to prevent UI blocking
       const vis = isLargeGraph ? await toVisDataAsync(parsed) : toVisData(parsed)
@@ -588,10 +597,13 @@ export default function App() {
         edges: vis.edges.length.toLocaleString()
       })
       
+      console.log('[OID-See] 🎬 Setting data to trigger graph render...')
+      setLoadingProgress('Rendering graph...')
       setData(vis)
       
       const totalTime = performance.now() - renderStartTime
       console.log('[OID-See] 🎉 Render process complete:', `${totalTime.toFixed(0)}ms total`)
+      console.log('[OID-See] ⚠️  Note: Graph initialization (clustering, spatial indexing) will continue in background')
     } catch (e: any) {
       console.error('[OID-See] ❌ Render error:', e)
       setData(null)
@@ -599,6 +611,7 @@ export default function App() {
       setError(e?.message ?? String(e))
     } finally {
       setLoading(false)
+      setLoadingProgress('')
     }
   }
 
@@ -1052,7 +1065,7 @@ export default function App() {
         onClose={() => setLegendVisible(false)}
       />
       
-      <LoadingOverlay visible={loading} message="Loading graph" />
+      <LoadingOverlay visible={loading} message="Loading graph" progress={loadingProgress} />
     </div>
   )
 }

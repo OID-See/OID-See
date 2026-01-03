@@ -131,12 +131,19 @@ export async function toVisDataAsync(input: any): Promise<VisData> {
     const exp = input as OidSeeExport
     const BATCH_SIZE = 5000
 
-    console.log('[toVisData] 🔄 Processing nodes in batches...')
+    console.log('[toVisData] 🔄 Processing nodes in batches...', {
+      totalNodes: exp.nodes.length,
+      totalEdges: exp.edges.length,
+      batchSize: BATCH_SIZE
+    })
     const visNodes: any[] = []
     
     // Process nodes in batches
     for (let i = 0; i < exp.nodes.length; i += BATCH_SIZE) {
       const batch = exp.nodes.slice(i, Math.min(i + BATCH_SIZE, exp.nodes.length))
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1
+      const totalBatches = Math.ceil(exp.nodes.length / BATCH_SIZE)
+      console.log(`[toVisData] 📦 Processing node batch ${batchNum}/${totalBatches} (${i}-${i + batch.length})`)
       
       for (const n of batch) {
         try {
@@ -185,6 +192,9 @@ export async function toVisDataAsync(input: any): Promise<VisData> {
     // Process edges in batches
     for (let i = 0; i < exp.edges.length; i += BATCH_SIZE) {
       const batch = exp.edges.slice(i, Math.min(i + BATCH_SIZE, exp.edges.length))
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1
+      const totalBatches = Math.ceil(exp.edges.length / BATCH_SIZE)
+      console.log(`[toVisData] 🔗 Processing edge batch ${batchNum}/${totalBatches} (${i}-${i + batch.length})`)
       
       for (const e of batch) {
         const label = e.type

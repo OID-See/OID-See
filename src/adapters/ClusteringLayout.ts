@@ -99,8 +99,13 @@ export class ClusteringLayoutEngine {
     
     // Process nodes in batches to avoid blocking the UI
     const BATCH_SIZE = 5000
+    const totalBatches = Math.ceil(nodes.length / BATCH_SIZE)
+    console.log(`[ClusteringLayout] 🔍 Grouping ${nodes.length} nodes into clusters (${totalBatches} batches)...`)
+    
     for (let i = 0; i < nodes.length; i += BATCH_SIZE) {
       const batch = nodes.slice(i, Math.min(i + BATCH_SIZE, nodes.length))
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1
+      console.log(`[ClusteringLayout] 📦 Processing batch ${batchNum}/${totalBatches} (${i}-${i + batch.length})`)
       
       for (const node of batch) {
         const type = node.type || 'Unknown'
@@ -120,12 +125,22 @@ export class ClusteringLayoutEngine {
       }
     }
     
+    console.log(`[ClusteringLayout] ✅ Grouped into ${groups.size} type-risk groups`)
+    
     // Create clusters from groups
     let clusterId = 0
+    let groupsProcessed = 0
+    console.log(`[ClusteringLayout] 🎯 Creating clusters from ${groups.size} groups...`)
+    
     for (const [groupKey, groupNodes] of groups) {
+      groupsProcessed++
       // Split large groups into multiple clusters
       const numClusters = Math.ceil(groupNodes.length / options.maxClusterSize)
       const nodesPerCluster = Math.ceil(groupNodes.length / numClusters)
+      
+      if (groupsProcessed % 10 === 0 || groupsProcessed === groups.size) {
+        console.log(`[ClusteringLayout] 📊 Progress: ${groupsProcessed}/${groups.size} groups processed`)
+      }
       
       for (let i = 0; i < numClusters; i++) {
         const start = i * nodesPerCluster
@@ -153,6 +168,7 @@ export class ClusteringLayoutEngine {
       await new Promise(resolve => setTimeout(resolve, 0))
     }
     
+    console.log(`[ClusteringLayout] ✅ Created ${clusters.length} clusters`)
     return clusters
   }
 

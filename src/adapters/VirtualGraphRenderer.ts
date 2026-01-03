@@ -164,6 +164,7 @@ export class VirtualGraphRenderer {
    * Build spatial index from node positions
    */
   private async buildSpatialIndex(): Promise<void> {
+    console.log('[VirtualGraphRenderer] 📐 Calculating bounds...')
     // Calculate bounds that encompass all nodes
     let minX = Infinity
     let minY = Infinity
@@ -192,14 +193,19 @@ export class VirtualGraphRenderer {
       height: maxY - minY
     }
 
+    console.log('[VirtualGraphRenderer] 🌳 Creating QuadTree with boundary:', boundary)
     this.spatialIndex = new QuadTree<string>(boundary, 4)
 
     // Insert nodes in batches to avoid blocking the UI
     const entries = Array.from(this.nodePositions.entries())
     const BATCH_SIZE = 5000
+    const totalBatches = Math.ceil(entries.length / BATCH_SIZE)
+    console.log(`[VirtualGraphRenderer] 📥 Inserting ${entries.length} nodes in ${totalBatches} batches...`)
     
     for (let i = 0; i < entries.length; i += BATCH_SIZE) {
       const batch = entries.slice(i, Math.min(i + BATCH_SIZE, entries.length))
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1
+      console.log(`[VirtualGraphRenderer] 📦 Inserting batch ${batchNum}/${totalBatches} (${i}-${i + batch.length})`)
       
       for (const [nodeId, pos] of batch) {
         this.spatialIndex.insert(pos, nodeId)
