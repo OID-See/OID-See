@@ -1,5 +1,7 @@
-import { useEffect, useRef, useImperativeHandle, forwardRef, useMemo } from 'react'
+import { useEffect, useRef, useImperativeHandle, forwardRef, useMemo, useState, useCallback } from 'react'
 import { DataSet, Network } from 'vis-network/standalone'
+import { VirtualGraphRenderer, Viewport, DEFAULT_VIRTUAL_CONFIG } from '../adapters/VirtualGraphRenderer'
+import { Point } from '../adapters/QuadTree'
 
 export type Selection =
   | { kind: 'node'; id: string; oidsee?: any }
@@ -27,6 +29,9 @@ export const DEFAULT_PHYSICS: PhysicsConfig = {
 const DISABLED_PHYSICS_GRAVITATIONAL_CONSTANT = 0
 const DISABLED_PHYSICS_SPRING_CONSTANT = 0
 
+// Virtual rendering threshold - use virtual rendering for graphs larger than this
+const VIRTUAL_RENDERING_THRESHOLD = 5000 // nodes
+
 // Helper function to check if physics is disabled
 function isPhysicsDisabled(config: PhysicsConfig): boolean {
   return config.gravitationalConstant === DISABLED_PHYSICS_GRAVITATIONAL_CONSTANT 
@@ -37,6 +42,7 @@ export interface GraphCanvasHandle {
   focusNode: (nodeId: string) => void
   focusEdge: (edgeId: string) => void
   restabilize: () => void
+  getViewport: () => Viewport | null
 }
 
 export const GraphCanvas = forwardRef<
@@ -49,8 +55,9 @@ export const GraphCanvas = forwardRef<
     physicsConfig?: PhysicsConfig
     onSelection?: (s: Selection | null) => void
     onError?: (error: string) => void
+    enableVirtualRendering?: boolean
   }
->(({ allNodes, allEdges, visibleNodes, visibleEdges, physicsConfig, onSelection, onError }, ref) => {
+>(({ allNodes, allEdges, visibleNodes, visibleEdges, physicsConfig, onSelection, onError, enableVirtualRendering }, ref) => {
   // Constants for physics stabilization
   const PHYSICS_DISABLE_DELAY = 100 // ms delay before disabling physics after fit
   const STABILIZATION_FALLBACK_TIMEOUT = 5000 // ms fallback timeout for large graphs
@@ -61,6 +68,10 @@ export const GraphCanvas = forwardRef<
   
   // Batching constants for large datasets
   const BATCH_SIZE = 1000 // Process nodes/edges in batches to prevent UI blocking
+  const VERY_LARGE_DATASET_THRESHOLD = 10000 // Threshold for using optimized batched processing
+  
+  // Viewport update debounce delay
+  const VIEWPORT_UPDATE_DELAY = 200 // ms delay before updating viewport-based visibility
   
   const containerRef = useRef<HTMLDivElement>(null)
   const networkRef = useRef<Network | null>(null)
@@ -68,8 +79,19 @@ export const GraphCanvas = forwardRef<
   const allEdgesRef = useRef<DataSet<VisEdge>>(new DataSet([]))
   const fittedRef = useRef(false)
   const updateInProgressRef = useRef(false)
+  const virtualRendererRef = useRef<VirtualGraphRenderer | null>(null)
+  const viewportUpdateTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const [currentViewport, setCurrentViewport] = useState<Viewport | null>(null)
 
   const physics = useMemo(() => physicsConfig ?? DEFAULT_PHYSICS, [physicsConfig])
+  
+  // Determine if we should use virtual rendering
+  const shouldUseVirtualRendering = useMemo(() => {
+    if (enableVirtualRendering === false) return false
+    if (enableVirtualRendering === true) return true
+    // Auto-detect: use virtual rendering for large graphs
+    return allNodes.length >= VIRTUAL_RENDERING_THRESHOLD
+  }, [enableVirtualRendering, allNodes.length])
 
   // Expose focus methods to parent component
   useImperativeHandle(ref, () => ({
@@ -172,6 +194,9 @@ export const GraphCanvas = forwardRef<
         console.warn('Failed to restabilize graph:', e)
       }
     },
+    getViewport: () => {
+      return currentViewport
+    },
   }))
 
   // Update all and visible datasets when nodes/edges change
@@ -271,32 +296,66 @@ export const GraphCanvas = forwardRef<
         // Update visibility: hide/show nodes and edges based on filter
         console.log('[GraphCanvas] 👁️  Updating visibility...')
         const visStartTime = performance.now()
-        const nodeUpdates = allNodes.map(n => ({
-          id: n.id,
-          hidden: !visibleNodeIds.has(n.id)
-        }))
         
-        const edgeUpdates = allEdges.map(e => ({
-          id: e.id,
-          hidden: !visibleEdgeIds.has(e.id)
-        }))
-
-        // Batch visibility updates for large datasets
-        if (nodeUpdates.length > 0) {
-          if (nodeUpdates.length > BATCH_SIZE) {
-            console.log('[GraphCanvas] 📦 Updating node visibility in batches:', nodeUpdates.length)
-            await processBatched(nodeUpdates, BATCH_SIZE, batch => allNodesDs.update(batch))
-          } else {
-            allNodesDs.update(nodeUpdates)
+        // For very large datasets, create updates in batches to avoid blocking
+        const isVeryLarge = allNodes.length > VERY_LARGE_DATASET_THRESHOLD || allEdges.length > VERY_LARGE_DATASET_THRESHOLD
+        
+        // Helper function to process visibility updates in batches with yields
+        async function processBatchedVisibility<T extends { id: string }>(
+          items: T[],
+          visibleIds: Set<string>,
+          dataSet: DataSet<any>,
+          itemType: string
+        ) {
+          for (let i = 0; i < items.length; i += BATCH_SIZE) {
+            const batch = items.slice(i, i + BATCH_SIZE)
+            const updates = batch.map(item => ({
+              id: item.id,
+              hidden: !visibleIds.has(item.id)
+            }))
+            dataSet.update(updates)
+            
+            // Yield every batch to prevent blocking
+            if (i + BATCH_SIZE < items.length) {
+              await new Promise(resolve => setTimeout(resolve, 0))
+            }
           }
         }
         
-        if (edgeUpdates.length > 0) {
-          if (edgeUpdates.length > BATCH_SIZE) {
-            console.log('[GraphCanvas] 📦 Updating edge visibility in batches:', edgeUpdates.length)
-            await processBatched(edgeUpdates, BATCH_SIZE, batch => allEdgesDs.update(batch))
-          } else {
-            allEdgesDs.update(edgeUpdates)
+        if (isVeryLarge) {
+          console.log('[GraphCanvas] 🐌 Using batched visibility updates for large dataset')
+          
+          // Process nodes and edges in batches with yields
+          await processBatchedVisibility(allNodes, visibleNodeIds, allNodesDs, 'nodes')
+          await processBatchedVisibility(allEdges, visibleEdgeIds, allEdgesDs, 'edges')
+        } else {
+          // For smaller datasets, use the original approach
+          const nodeUpdates = allNodes.map(n => ({
+            id: n.id,
+            hidden: !visibleNodeIds.has(n.id)
+          }))
+          
+          const edgeUpdates = allEdges.map(e => ({
+            id: e.id,
+            hidden: !visibleEdgeIds.has(e.id)
+          }))
+          
+          if (nodeUpdates.length > 0) {
+            if (nodeUpdates.length > BATCH_SIZE) {
+              console.log('[GraphCanvas] 📦 Updating node visibility in batches:', nodeUpdates.length)
+              await processBatched(nodeUpdates, BATCH_SIZE, batch => allNodesDs.update(batch))
+            } else {
+              allNodesDs.update(nodeUpdates)
+            }
+          }
+          
+          if (edgeUpdates.length > 0) {
+            if (edgeUpdates.length > BATCH_SIZE) {
+              console.log('[GraphCanvas] 📦 Updating edge visibility in batches:', edgeUpdates.length)
+              await processBatched(edgeUpdates, BATCH_SIZE, batch => allEdgesDs.update(batch))
+            } else {
+              allEdgesDs.update(edgeUpdates)
+            }
           }
         }
         
@@ -332,6 +391,145 @@ export const GraphCanvas = forwardRef<
     // Run the async update
     updateDataSets()
   }, [allNodes, allEdges, visibleNodes, visibleEdges, onError])
+
+  // Initialize virtual renderer for large graphs
+  useEffect(() => {
+    if (!shouldUseVirtualRendering) {
+      // Clear virtual renderer if not needed
+      if (virtualRendererRef.current) {
+        virtualRendererRef.current.clear()
+        virtualRendererRef.current = null
+      }
+      return
+    }
+
+    console.log('[GraphCanvas] 🌐 Initializing virtual renderer...')
+    const initStartTime = performance.now()
+
+    async function initVirtualRenderer() {
+      try {
+        const renderer = new VirtualGraphRenderer({
+          ...DEFAULT_VIRTUAL_CONFIG,
+          canvasWidth: 3000,
+          canvasHeight: 3000,
+        })
+
+        // Extract raw OidSee nodes and edges from vis nodes/edges
+        const oidseeNodes = allNodes.map(n => n.__oidsee ?? n)
+        const oidseeEdges = allEdges.map(e => e.__oidsee ?? e)
+
+        await renderer.initialize(oidseeNodes, oidseeEdges)
+        
+        virtualRendererRef.current = renderer
+        
+        const initTime = performance.now() - initStartTime
+        console.log('[GraphCanvas] ✅ Virtual renderer initialized:', {
+          duration: `${initTime.toFixed(0)}ms`,
+          nodes: oidseeNodes.length
+        })
+      } catch (e) {
+        console.error('[GraphCanvas] ❌ Failed to initialize virtual renderer:', e)
+        if (onError) {
+          onError('Failed to initialize virtual rendering')
+        }
+      }
+    }
+
+    initVirtualRenderer()
+  }, [shouldUseVirtualRendering, allNodes, allEdges, onError])
+
+  // Update visible nodes dynamically based on viewport changes
+  useEffect(() => {
+    if (!shouldUseVirtualRendering || !currentViewport || !virtualRendererRef.current?.isReady()) {
+      return
+    }
+
+    console.log('[GraphCanvas] 🔄 Updating visible nodes based on viewport...')
+    const startTime = performance.now()
+
+    async function updateVisibility() {
+      try {
+        // Double-check ref is still valid (could have changed during async operation)
+        if (!virtualRendererRef.current || !currentViewport) {
+          return
+        }
+        
+        // Get updated visible nodes/edges from virtual renderer
+        const virtualGraph = await virtualRendererRef.current.updateViewport(currentViewport)
+        
+        // Update the network's visible datasets
+        const nodeDs = allNodesRef.current
+        const edgeDs = allEdgesRef.current
+        
+        // Get current node IDs
+        const allNodeIds = new Set(nodeDs.get().map((n: any) => n.id))
+        const visibleNodeIds = new Set(virtualGraph.visibleNodes.map(n => n.id))
+        
+        // Show nodes that should be visible
+        const nodesToShow: string[] = []
+        for (const nodeId of visibleNodeIds) {
+          if (allNodeIds.has(nodeId)) {
+            nodesToShow.push(nodeId)
+          }
+        }
+        
+        // Hide nodes that should not be visible
+        const nodesToHide: string[] = []
+        for (const nodeId of allNodeIds) {
+          if (!visibleNodeIds.has(nodeId)) {
+            nodesToHide.push(nodeId)
+          }
+        }
+        
+        // Apply visibility changes by updating node properties
+        if (nodesToShow.length > 0) {
+          nodeDs.update(nodesToShow.map(id => ({ id, hidden: false })))
+        }
+        if (nodesToHide.length > 0) {
+          nodeDs.update(nodesToHide.map(id => ({ id, hidden: true })))
+        }
+        
+        // Update edge visibility
+        const visibleEdgeIds = new Set(virtualGraph.visibleEdges.map(e => e.id))
+        const allEdgeIds = new Set(edgeDs.get().map((e: any) => e.id))
+        
+        const edgesToShow: string[] = []
+        for (const edgeId of visibleEdgeIds) {
+          if (allEdgeIds.has(edgeId)) {
+            edgesToShow.push(edgeId)
+          }
+        }
+        
+        const edgesToHide: string[] = []
+        for (const edgeId of allEdgeIds) {
+          if (!visibleEdgeIds.has(edgeId)) {
+            edgesToHide.push(edgeId)
+          }
+        }
+        
+        if (edgesToShow.length > 0) {
+          edgeDs.update(edgesToShow.map(id => ({ id, hidden: false })))
+        }
+        if (edgesToHide.length > 0) {
+          edgeDs.update(edgesToHide.map(id => ({ id, hidden: true })))
+        }
+        
+        const totalTime = performance.now() - startTime
+        console.log('[GraphCanvas] ✅ Visible nodes updated:', {
+          duration: `${totalTime.toFixed(0)}ms`,
+          shown: nodesToShow.length,
+          hidden: nodesToHide.length,
+          visibleNodes: visibleNodeIds.size,
+          visibleEdges: visibleEdgeIds.size
+        })
+      } catch (e) {
+        console.error('[GraphCanvas] ❌ Failed to update visible nodes:', e)
+      }
+    }
+
+    updateVisibility()
+  }, [currentViewport, shouldUseVirtualRendering])
+
 
   // Initialize network once on mount
   useEffect(() => {
@@ -426,6 +624,27 @@ export const GraphCanvas = forwardRef<
     console.log('[GraphCanvas] ✅ vis-network initialized:', `${networkInitTime.toFixed(0)}ms`)
 
     networkRef.current = network
+
+    // Apply positions from virtual renderer if available
+    if (shouldUseVirtualRendering && virtualRendererRef.current?.isReady()) {
+      console.log('[GraphCanvas] 📍 Applying positions from virtual renderer...')
+      const positions = virtualRendererRef.current.getAllPositions()
+      const nodeUpdates: any[] = []
+      
+      for (const [nodeId, pos] of positions) {
+        nodeUpdates.push({
+          id: nodeId,
+          x: pos.x,
+          y: pos.y,
+          fixed: { x: true, y: true } // Fix positions since we're managing them
+        })
+      }
+      
+      if (nodeUpdates.length > 0) {
+        nodeDs.update(nodeUpdates)
+        console.log('[GraphCanvas] ✅ Applied positions to', nodeUpdates.length, 'nodes')
+      }
+    }
 
     // Track if physics has been disabled
     let physicsAlreadyDisabled = physicsDisabled
@@ -530,6 +749,46 @@ export const GraphCanvas = forwardRef<
     network.on('deselectNode', () => onSelection?.(null))
     network.on('deselectEdge', () => onSelection?.(null))
 
+    // Track viewport changes for virtual rendering
+    if (shouldUseVirtualRendering) {
+      console.log('[GraphCanvas] 👁️  Enabling viewport tracking for virtual rendering')
+      
+      const updateViewportDebounced = () => {
+        if (viewportUpdateTimerRef.current) {
+          clearTimeout(viewportUpdateTimerRef.current)
+        }
+        
+        viewportUpdateTimerRef.current = setTimeout(() => {
+          try {
+            const scale = network.getScale()
+            const position = network.getViewPosition()
+            const canvas = network.canvas.frame.canvas
+            const width = canvas.clientWidth / scale
+            const height = canvas.clientHeight / scale
+            
+            const viewport: Viewport = {
+              x: position.x - width / 2,
+              y: position.y - height / 2,
+              width,
+              height,
+              scale
+            }
+            
+            setCurrentViewport(viewport)
+            console.log('[GraphCanvas] 📍 Viewport updated:', viewport)
+          } catch (e) {
+            console.warn('Failed to get viewport:', e)
+          }
+        }, VIEWPORT_UPDATE_DELAY)
+      }
+      
+      network.on('zoom', updateViewportDebounced)
+      network.on('dragEnd', updateViewportDebounced)
+      
+      // Initial viewport update
+      setTimeout(updateViewportDebounced, 500)
+    }
+
     // Subtle "glow" for derived edges by pulsing alpha (lightweight).
     const derivedIds = edgeDs
       .get()
@@ -562,10 +821,11 @@ export const GraphCanvas = forwardRef<
     return () => {
       if (stabilizationTimeout) clearTimeout(stabilizationTimeout)
       if (timer) window.clearInterval(timer)
+      if (viewportUpdateTimerRef.current) clearTimeout(viewportUpdateTimerRef.current)
       ro.disconnect()
       network.destroy()
     }
-  }, [onSelection, physics])
+  }, [onSelection, physics, shouldUseVirtualRendering])
 
   // Update physics configuration without recreating the network
   useEffect(() => {

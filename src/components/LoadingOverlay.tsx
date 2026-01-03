@@ -3,9 +3,10 @@ import { useEffect, useState } from 'react'
 interface LoadingOverlayProps {
   visible: boolean
   message?: string
+  progress?: string // Progress status message
 }
 
-export function LoadingOverlay({ visible, message = 'Loading...' }: LoadingOverlayProps) {
+export function LoadingOverlay({ visible, message = 'Loading...', progress }: LoadingOverlayProps) {
   const [dots, setDots] = useState('')
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export function LoadingOverlay({ visible, message = 'Loading...' }: LoadingOverl
           border: '1px solid rgba(155, 92, 255, 0.3)',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
           textAlign: 'center',
+          minWidth: '320px',
         }}
       >
         <div
@@ -61,9 +63,10 @@ export function LoadingOverlay({ visible, message = 'Loading...' }: LoadingOverl
           style={{
             fontSize: '0.9rem',
             color: 'rgba(234, 242, 255, 0.7)',
+            minHeight: '1.5rem',
           }}
         >
-          Processing large dataset...
+          {progress || 'Processing large dataset...'}
         </div>
       </div>
     </div>

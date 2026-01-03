@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { GraphCanvas, Selection, GraphCanvasHandle, PhysicsConfig, DEFAULT_PHYSICS } from './components/GraphCanvas'
-import { toVisData, VisData } from './adapters/toVisData'
+import { toVisData, toVisDataAsync, VisData } from './adapters/toVisData'
 import sampleObj from './samples/sample-oidsee-graph.json'
 import { DetailsPanel } from './components/DetailsPanel'
 import { FilterBar, Lens } from './components/FilterBar'
@@ -25,7 +25,11 @@ const MAX_RENDERABLE_NODES = 3000
 const MAX_RENDERABLE_EDGES = 4500
 
 // Delay before processing to allow loading overlay to render
-const RENDER_DELAY_MS = 100 // ms delay to ensure UI updates before heavy processing
+// Increased to 200ms for large graphs to ensure overlay is visible before blocking operations
+const RENDER_DELAY_MS = 200 // ms delay to ensure UI updates before heavy processing
+
+// Yield delay between blocking operations to keep UI responsive
+const YIELD_DELAY_MS = 50 // ms delay to yield control to event loop
 
 // Emoji regex for cross-browser compatibility validation
 const EMOJI_REGEX = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{FE00}-\u{FE0F}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F251}]/u
@@ -343,6 +347,7 @@ export default function App() {
   const [viewportWidth, setViewportWidth] = useState<number>(1280)
   const [legendVisible, setLegendVisible] = useState<boolean>(false)
   const [loading, setLoading] = useState<boolean>(false)
+  const [loadingProgress, setLoadingProgress] = useState<string>('')
   const [largeGraphWarning, setLargeGraphWarning] = useState<string | null>(null)
   const graphRef = useRef<GraphCanvasHandle>(null)
   const detailsPanelRef = useRef<HTMLElement>(null)
@@ -464,25 +469,36 @@ export default function App() {
     }
   }
 
+  // Helper function to yield control to the event loop
+  const yieldToEventLoop = () => new Promise(resolve => setTimeout(resolve, YIELD_DELAY_MS))
+
   async function render(input: string) {
     console.log('[OID-See] 🔄 Starting render process...')
     const renderStartTime = performance.now()
     
     setLoading(true)
+    setLoadingProgress('Initializing...')
     setError(null)
     setSelection(null)
     setLargeGraphWarning(null)
     
     try {
       // Use setTimeout to allow the loading overlay to render before heavy processing
-      console.log('[OID-See] ⏱️  Waiting ${RENDER_DELAY_MS}ms for UI to update...')
+      console.log(`[OID-See] ⏱️  Waiting ${RENDER_DELAY_MS}ms for UI to update...`)
       await new Promise(resolve => setTimeout(resolve, RENDER_DELAY_MS))
       
+      setLoadingProgress('Parsing JSON data...')
       console.log('[OID-See] 🔍 Parsing JSON...')
+      // Yield to allow progress message to render
+      await yieldToEventLoop()
+      
       const parseStartTime = performance.now()
       const parsed = JSON.parse(input)
       const parseTime = performance.now() - parseStartTime
       console.log('[OID-See] ✅ JSON parse complete:', `${parseTime.toFixed(0)}ms`)
+      
+      // Yield to event loop after parsing large JSON
+      await new Promise(resolve => setTimeout(resolve, 0))
       
       // Check if this is a large graph
       const nodeCount = parsed?.nodes?.length || 0
@@ -508,15 +524,30 @@ export default function App() {
       
       if (exceedsLimits) {
         console.log('[OID-See] ✂️  Graph exceeds limits - truncating to top risk nodes...')
+        setLoadingProgress(`Analyzing ${nodeCount.toLocaleString()} nodes...`)
         const truncateStartTime = performance.now()
         
         // Truncate to only high-risk nodes for massive graphs
         const originalNodeCount = nodeCount
         const originalEdgeCount = edgeCount
         
-        // Sort nodes by risk score (highest first)
+        // Create indices array instead of copying nodes
+        console.log('[OID-See] 📋 Creating index array for sorting...')
+        setLoadingProgress(`Preparing to sort ${nodeCount.toLocaleString()} nodes...`)
+        const indices = Array.from({ length: parsed.nodes.length }, (_, i) => i)
+        
+        // Yield to event loop to allow progress update to render
+        await yieldToEventLoop()
+        
+        // Sort indices by risk score (highest first)
         console.log('[OID-See] 📋 Sorting nodes by risk score...')
-        const sortedNodes = [...(parsed.nodes || [])].sort((a: OidSeeNode, b: OidSeeNode) => {
+        setLoadingProgress(`Sorting ${nodeCount.toLocaleString()} nodes by risk...`)
+        // Yield again before the blocking sort operation
+        await yieldToEventLoop()
+        
+        indices.sort((aIdx, bIdx) => {
+          const a = parsed.nodes[aIdx]
+          const b = parsed.nodes[bIdx]
           const scoreA = a?.risk?.score ?? 0
           const scoreB = b?.risk?.score ?? 0
           return scoreB - scoreA
@@ -524,12 +555,21 @@ export default function App() {
         const sortTime = performance.now() - truncateStartTime
         console.log('[OID-See] ✅ Sort complete:', `${sortTime.toFixed(0)}ms`)
         
-        // Take top N highest-risk nodes
-        const truncatedNodes = sortedNodes.slice(0, MAX_RENDERABLE_NODES)
+        // Yield to event loop after sort
+        await new Promise(resolve => setTimeout(resolve, 0))
+        
+        // Take top N highest-risk nodes using sorted indices
+        console.log('[OID-See] ✂️  Selecting top risk nodes...')
+        setLoadingProgress(`Selecting top ${MAX_RENDERABLE_NODES.toLocaleString()} risk nodes...`)
+        const truncatedNodes = indices.slice(0, MAX_RENDERABLE_NODES).map(i => parsed.nodes[i])
         const nodeIds = new Set(truncatedNodes.map((n: OidSeeNode) => n.id))
         
         // Filter edges to only those connecting truncated nodes
         console.log('[OID-See] 🔗 Filtering edges...')
+        setLoadingProgress('Filtering edges...')
+        // Yield before filtering edges
+        await yieldToEventLoop()
+        
         const truncatedEdges = (parsed.edges || [])
           .filter((e: OidSeeEdge) => nodeIds.has(e.from) && nodeIds.has(e.to))
           .slice(0, MAX_RENDERABLE_EDGES)
@@ -572,8 +612,13 @@ export default function App() {
       
       // Process the data
       console.log('[OID-See] 🎨 Converting to vis-network format...')
+      setLoadingProgress(`Converting ${parsed.nodes.length.toLocaleString()} nodes to graph format...`)
+      // Yield to allow progress message to render
+      await yieldToEventLoop()
+      
       const visStartTime = performance.now()
-      const vis = toVisData(parsed)
+      // Use async version for large graphs to prevent UI blocking
+      const vis = isLargeGraph ? await toVisDataAsync(parsed) : toVisData(parsed)
       const visTime = performance.now() - visStartTime
       console.log('[OID-See] ✅ Vis-network conversion complete:', {
         duration: `${visTime.toFixed(0)}ms`,
@@ -581,10 +626,19 @@ export default function App() {
         edges: vis.edges.length.toLocaleString()
       })
       
+      console.log('[OID-See] 🎬 Setting data to trigger graph render...')
+      setLoadingProgress('Rendering graph...')
+      // Yield before setting data to allow progress message to render
+      await yieldToEventLoop()
+      
       setData(vis)
+      
+      // Yield after setting data to allow React to schedule the update
+      await new Promise(resolve => setTimeout(resolve, 100))
       
       const totalTime = performance.now() - renderStartTime
       console.log('[OID-See] 🎉 Render process complete:', `${totalTime.toFixed(0)}ms total`)
+      console.log('[OID-See] ⚠️  Note: Graph initialization (clustering, spatial indexing) will continue in background')
     } catch (e: any) {
       console.error('[OID-See] ❌ Render error:', e)
       setData(null)
@@ -592,6 +646,7 @@ export default function App() {
       setError(e?.message ?? String(e))
     } finally {
       setLoading(false)
+      setLoadingProgress('')
     }
   }
 
@@ -1045,7 +1100,7 @@ export default function App() {
         onClose={() => setLegendVisible(false)}
       />
       
-      <LoadingOverlay visible={loading} message="Loading graph" />
+      <LoadingOverlay visible={loading} message="Loading graph" progress={loadingProgress} />
     </div>
   )
 }
