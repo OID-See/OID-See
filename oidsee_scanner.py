@@ -2960,10 +2960,11 @@ class OidSeeCollector:
             dir_roles_by_sp[sp_id] = result["dir_roles"]
             sp_delegated_scopes[sp_id] = result["scopes_by_res"]
             
-            # Collect referenced IDs
-            self._resource_sp_needed.update(result["resource_sp_ids"])
-            self._principal_ids_needed.update(result["principal_ids"])
-            self._role_def_ids_needed.update(result["role_def_ids"])
+            # Collect referenced IDs (with lock for thread safety and consistency)
+            with self._id_collection_lock:
+                self._resource_sp_needed.update(result["resource_sp_ids"])
+                self._principal_ids_needed.update(result["principal_ids"])
+                self._role_def_ids_needed.update(result["role_def_ids"])
 
         # Summaries
         grants_total = sum(len(v) for v in grants_by_sp.values())
