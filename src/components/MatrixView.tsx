@@ -22,10 +22,12 @@ export function MatrixView({ nodes, edges, onDrillDown }: MatrixViewProps) {
 
   // Build matrix data
   const matrixData = useMemo(() => {
-    // Create node type lookup
+    // Create node type lookup and node map for risk scores
     const nodeTypeMap = new Map<string, string>()
+    const nodeMap = new Map<string, OidSeeNode>()
     for (const node of nodes) {
       nodeTypeMap.set(node.id, node.type)
+      nodeMap.set(node.id, node)
     }
 
     // Get unique node types
@@ -54,15 +56,22 @@ export function MatrixView({ nodes, edges, onDrillDown }: MatrixViewProps) {
       cell.count++
       cell.edges.push(edge)
       
-      const riskScore = edge.risk?.score ?? 0
+      // Get risk score from target node (not from edge)
+      const targetNode = nodeMap.get(edge.to)
+      const riskScore = targetNode?.risk?.score ?? 0
       if (riskScore > cell.maxRisk) {
         cell.maxRisk = riskScore
       }
     }
 
-    // Calculate average risks
+    // Calculate average risks based on target node risk scores
     for (const cell of matrix.values()) {
-      const risks = cell.edges.map(e => e.risk?.score ?? 0).filter(r => r > 0)
+      const risks = cell.edges
+        .map(e => {
+          const targetNode = nodeMap.get(e.to)
+          return targetNode?.risk?.score ?? 0
+        })
+        .filter(r => r > 0)
       cell.avgRisk = risks.length > 0 
         ? risks.reduce((sum, r) => sum + r, 0) / risks.length 
         : 0
