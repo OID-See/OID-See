@@ -659,6 +659,8 @@ export default function App() {
       
       // PRIORITY 2: Convert truncated data for graph view in TRUE BACKGROUND
       // Use setTimeout to move this completely off the main render flow
+      // Capture the start time for accurate background task measurement
+      const graphConversionStartTime = performance.now()
       setTimeout(async () => {
         try {
           console.log('[OID-See] 🎨 Converting data to vis-network format for graph view (background)...')
@@ -678,7 +680,8 @@ export default function App() {
           setViewsReady(prev => new Set([...prev, 'graph']))
           
           const totalTime = performance.now() - renderStartTime
-          console.log('[OID-See] ✅ All views ready! Total time:', `${totalTime.toFixed(0)}ms`)
+          const graphTaskTime = performance.now() - graphConversionStartTime
+          console.log(`[OID-See] ✅ All views ready! Dashboard: ${dashboardTime.toFixed(0)}ms, Graph: ${graphTaskTime.toFixed(0)}ms, Total: ${totalTime.toFixed(0)}ms`)
         } catch (e: any) {
           console.error('[OID-See] ❌ Background graph conversion error:', e)
           // Graph view fails silently - other views still work
@@ -692,6 +695,7 @@ export default function App() {
       setViewsReady(new Set())
       setSelection(null)
       setError(e?.message ?? String(e))
+      // Only set loading false if it hasn't been set already
       setLoading(false)
       setLoadingProgress('')
     }
