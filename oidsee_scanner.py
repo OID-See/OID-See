@@ -2424,12 +2424,14 @@ class OidSeeCollector:
             print(f"  Retrieved {len(all_apps)} total in-tenant applications", file=sys.stderr)
             
             # Build lookup dictionary and filter to only apps we care about
+            # Use lock for thread safety even though bulk fetch is typically single-threaded
             matched = 0
-            for app in all_apps:
-                appid = app.get("appId")
-                if appid and appid in app_ids_needed:
-                    self.app_cache_by_appid[appid] = app
-                    matched += 1
+            with self._app_cache_lock:
+                for app in all_apps:
+                    appid = app.get("appId")
+                    if appid and appid in app_ids_needed:
+                        self.app_cache_by_appid[appid] = app
+                        matched += 1
             
             print(f"  Matched {matched} applications to target service principals", file=sys.stderr)
             
