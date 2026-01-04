@@ -2291,6 +2291,7 @@ class OidSeeCollector:
         self.sp_cache: Dict[str, Dict[str, Any]] = {}        # by servicePrincipal id
         self.sp_by_appid: Dict[str, Dict[str, Any]] = {}     # by appId (best-effort)
         self.app_cache_by_appid: Dict[str, Dict[str, Any]] = {}  # in-tenant applications by appId
+        self.owners_cache: Dict[str, List[Dict[str, Any]]] = {}  # owners by SP id (cache to avoid redundant calls)
 
         self._resource_sp_needed: Set[str] = set()
         self._principal_ids_needed: Set[str] = set()
@@ -2301,6 +2302,7 @@ class OidSeeCollector:
         self._app_cache_lock = Lock()
         self._sp_cache_lock = Lock()
         self._role_defs_lock = Lock()
+        self._owners_cache_lock = Lock()
         self._id_collection_lock = Lock()  # For _resource_sp_needed, _principal_ids_needed, _role_def_ids_needed
 
     # ---- add nodes with de-dupe
@@ -2382,8 +2384,9 @@ class OidSeeCollector:
                 pass
             return None
         
-        # Parallel fetch with ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        # Parallel fetch with ThreadPoolExecutor (increased workers for better performance)
+        completed = 0
+        with ThreadPoolExecutor(max_workers=20) as executor:
             future_to_appid = {executor.submit(fetch_single_app, appid): appid for appid in app_ids}
             for future in as_completed(future_to_appid):
                 result = future.result()
@@ -2391,6 +2394,11 @@ class OidSeeCollector:
                     appid, app_obj = result
                     with self._app_cache_lock:
                         self.app_cache_by_appid[appid] = app_obj
+                
+                # Progress indicator
+                completed += 1
+                if completed % 100 == 0 or completed == len(app_ids):
+                    print(f"  progress: {completed}/{len(app_ids)} application objects fetched", file=sys.stderr)
 
     def fetch_oauth2_permission_grants(self, client_sp_id: str) -> List[Dict[str, Any]]:
         # /oauth2PermissionGrants supports filter by clientId
@@ -2411,9 +2419,20 @@ class OidSeeCollector:
         return self.graph.get_paged(url)
 
     def fetch_owners(self, sp_id: str) -> List[Dict[str, Any]]:
+        # Check cache first
+        with self._owners_cache_lock:
+            if sp_id in self.owners_cache:
+                return self.owners_cache[sp_id]
+        
         # directoryObject collection
         url = f"{GRAPH_BETA}/servicePrincipals/{sp_id}/owners?$select=id,displayName"
-        return self.graph.get_paged(url)
+        owners = self.graph.get_paged(url)
+        
+        # Cache the result
+        with self._owners_cache_lock:
+            self.owners_cache[sp_id] = owners
+        
+        return owners
 
     def fetch_directory_role_assignments_to_principal(self, principal_id: str) -> List[Dict[str, Any]]:
         # roleManagement API (v1.0)
@@ -2526,8 +2545,8 @@ class OidSeeCollector:
             except Exception:
                 return (rid, {"id": rid, "displayName": None})
         
-        # Parallel fetch with ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        # Parallel fetch with ThreadPoolExecutor (increased workers for better performance)
+        with ThreadPoolExecutor(max_workers=20) as executor:
             future_to_rid = {executor.submit(fetch_single_role, rid): rid for rid in ids_to_fetch}
             for future in as_completed(future_to_rid):
                 rid, rd = future.result()
@@ -2549,13 +2568,19 @@ class OidSeeCollector:
                 # keep minimal placeholder
                 return (rid, {"id": rid, "displayName": None, "appId": None})
         
-        # Parallel fetch with ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        # Parallel fetch with ThreadPoolExecutor (increased workers for better performance)
+        completed = 0
+        with ThreadPoolExecutor(max_workers=20) as executor:
             future_to_rid = {executor.submit(fetch_single_sp, rid): rid for rid in missing}
             for future in as_completed(future_to_rid):
                 rid, sp = future.result()
                 with self._sp_cache_lock:
                     self.sp_cache[rid] = sp
+                
+                # Progress indicator
+                completed += 1
+                if completed % 50 == 0 or completed == len(missing):
+                    print(f"  progress: {completed}/{len(missing)} resource service principals loaded", file=sys.stderr)
 
     # ---- graph build
 
@@ -2641,9 +2666,10 @@ class OidSeeCollector:
         print("→ Collecting delegated grants, app permissions, assignments, owners, and directory roles...", file=sys.stderr)
         stage_start = time.time()
         
-        # Parallel collection with ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        # Parallel collection with ThreadPoolExecutor (increased workers for better performance)
+        with ThreadPoolExecutor(max_workers=20) as executor:
             future_to_sp = {executor.submit(self.fetch_all_data_for_sp, sp): sp for sp in target_sps}
+            completed = 0
             for future in as_completed(future_to_sp):
                 result = future.result()
                 sp_id = result["sp_id"]
@@ -2661,6 +2687,11 @@ class OidSeeCollector:
                     self._resource_sp_needed.update(result["resource_sp_ids"])
                     self._principal_ids_needed.update(result["principal_ids"])
                     self._role_def_ids_needed.update(result["role_def_ids"])
+                
+                # Progress indicator
+                completed += 1
+                if completed % 100 == 0 or completed == len(target_sps):
+                    print(f"  progress: {completed}/{len(target_sps)} service principals processed", file=sys.stderr)
 
         # Summaries
         grants_total = sum(len(v) for v in grants_by_sp.values())
