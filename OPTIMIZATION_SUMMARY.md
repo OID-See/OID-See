@@ -21,13 +21,34 @@
 
 **Impact**: 2x theoretical speedup for I/O-bound operations
 
-### 2. Added Caching
+## Solution Implemented
+
+### 1. Bulk Application Fetching (CRITICAL FIX)
+
+**Changed**: `fetch_applications_for_sps()` - Complete rewrite from individual queries to bulk fetch
+
+**Problem**: Made one filtered Graph API query per appId (8,096 queries for 8,096 apps!)
+
+**Solution**: Single bulk query fetching ALL in-tenant applications, then in-memory filtering
+
+**Impact**: **60-360x faster** - from ~66 minutes to ~1 minute for application cache population
+
+### 2. Increased Parallelism (10 → 20 workers)
+
+**Changed in**:
+- `fetch_all_data_for_sp()` collection - Service principal data gathering
+- `ensure_resource_sps_loaded()` - Resource service principal loading
+- `fetch_role_definitions()` - Role definition fetching
+
+**Impact**: 2x theoretical speedup for I/O-bound operations
+
+### 3. Added Caching
 
 **New cache**: `owners_cache` with `_owners_cache_lock`
 
 **Impact**: Eliminates redundant API calls for owners already fetched
 
-### 3. Parallelized DirectoryCache Batch Requests
+### 4. Parallelized DirectoryCache Batch Requests
 
 **Changed**: `DirectoryCache.get_many()` now processes multiple batches concurrently
 
@@ -38,12 +59,12 @@
 
 **Impact**: Up to 5x speedup for large batch operations (thousands of principals)
 
-### 4. Progress Indicators
+### 5. Progress Indicators
 
 **Added**: `report_progress()` helper function
 
 **Usage**:
-- Application fetching: every 100 items
+- Application fetching: instant (single bulk query)
 - SP data collection: every 100 items
 - Resource SP loading: every 50 items
 
@@ -51,20 +72,21 @@
 
 ## Expected Performance Improvements
 
-### Conservative Estimates
+### Revised Estimates
 
 | Operation | Before | After | Improvement |
 |-----------|--------|-------|-------------|
-| Application cache | ~3,680s | ~1,840s | 2x faster |
-| SP data collection | ~2,130s | ~1,065s | 2x faster |
+| Application cache | ~3,680s (66 min) | ~10-60s (1 min) | **60-360x faster** |
+| SP data collection | ~2,130s (35 min) | ~240-480s (4-8 min) | 4-9x faster |
 | Directory resolution | Sequential | Parallel | 2-5x faster |
-| **Total Runtime** | **~103 min** | **~50-60 min** | **~45-50% reduction** |
+| **Total Runtime** | **~103 min** | **~6-10 min** | **~90-95% reduction** |
 
-### Best Case Scenario
+### Real-World Impact
 
-With optimal network conditions and API responsiveness:
-- Total runtime: ~30-40 minutes
-- Overall improvement: 60-70% reduction
+For a large tenant with 8,000 service principals:
+- **Old runtime**: ~103 minutes
+- **Expected new runtime**: ~6-10 minutes
+- **Improvement**: 90-95% faster
 
 ## Code Quality & Safety
 

@@ -2410,33 +2410,55 @@ class OidSeeCollector:
 
     def fetch_applications_for_sps(self, sps: List[Dict[str, Any]]) -> None:
         # In-tenant apps only. For many 3P apps, /applications won't contain them.
-        app_ids = sorted({sp.get("appId") for sp in sps if sp.get("appId")})
+        # NEW APPROACH: Bulk fetch all applications once, then filter in memory
+        # This is MUCH faster than individual filtered queries per appId
+        app_ids_needed = {sp.get("appId") for sp in sps if sp.get("appId")}
         
-        def fetch_single_app(appid: str) -> Optional[Tuple[str, Dict[str, Any]]]:
-            try:
-                # Include credentials and federated identity credentials in the select
-                apps = self.graph.get_paged(f"{GRAPH_BETA}/applications?$filter=appId eq '{appid}'&$select=id,appId,displayName,createdDateTime,signInAudience,web,spa,publicClient,requiredResourceAccess,passwordCredentials,keyCredentials,federatedIdentityCredentials")
-                if apps:
-                    return (appid, apps[0])
-            except Exception:
-                # placeholder - app not readable or doesn't exist in tenant
-                pass
-            return None
-        
-        # Parallel fetch with ThreadPoolExecutor (increased workers for better performance)
-        completed = 0
-        with ThreadPoolExecutor(max_workers=20) as executor:
-            future_to_appid = {executor.submit(fetch_single_app, appid): appid for appid in app_ids}
-            for future in as_completed(future_to_appid):
-                result = future.result()
-                if result:
-                    appid, app_obj = result
-                    with self._app_cache_lock:
-                        self.app_cache_by_appid[appid] = app_obj
-                
-                # Progress indicator
-                completed += 1
-                report_progress(completed, len(app_ids), "application objects fetched")
+        try:
+            # Single bulk fetch of ALL applications in tenant
+            # Include credentials and federated identity credentials in the select
+            print(f"  Fetching all in-tenant applications in bulk (single query)...", file=sys.stderr)
+            all_apps = self.graph.get_paged(
+                f"{GRAPH_BETA}/applications?$select=id,appId,displayName,createdDateTime,signInAudience,web,spa,publicClient,requiredResourceAccess,passwordCredentials,keyCredentials,federatedIdentityCredentials"
+            )
+            print(f"  Retrieved {len(all_apps)} total in-tenant applications", file=sys.stderr)
+            
+            # Build lookup dictionary and filter to only apps we care about
+            matched = 0
+            for app in all_apps:
+                appid = app.get("appId")
+                if appid and appid in app_ids_needed:
+                    self.app_cache_by_appid[appid] = app
+                    matched += 1
+            
+            print(f"  Matched {matched} applications to target service principals", file=sys.stderr)
+            
+        except Exception as e:
+            # Fallback to old approach if bulk fetch fails
+            print(f"  Bulk fetch failed ({e}), falling back to individual queries", file=sys.stderr)
+            app_ids = sorted(app_ids_needed)
+            
+            def fetch_single_app(appid: str) -> Optional[Tuple[str, Dict[str, Any]]]:
+                try:
+                    apps = self.graph.get_paged(f"{GRAPH_BETA}/applications?$filter=appId eq '{appid}'&$select=id,appId,displayName,createdDateTime,signInAudience,web,spa,publicClient,requiredResourceAccess,passwordCredentials,keyCredentials,federatedIdentityCredentials")
+                    if apps:
+                        return (appid, apps[0])
+                except Exception:
+                    pass
+                return None
+            
+            completed = 0
+            with ThreadPoolExecutor(max_workers=20) as executor:
+                future_to_appid = {executor.submit(fetch_single_app, appid): appid for appid in app_ids}
+                for future in as_completed(future_to_appid):
+                    result = future.result()
+                    if result:
+                        appid, app_obj = result
+                        with self._app_cache_lock:
+                            self.app_cache_by_appid[appid] = app_obj
+                    
+                    completed += 1
+                    report_progress(completed, len(app_ids), "application objects fetched")
 
     def fetch_oauth2_permission_grants(self, client_sp_id: str) -> List[Dict[str, Any]]:
         # /oauth2PermissionGrants supports filter by clientId

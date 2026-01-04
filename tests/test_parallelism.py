@@ -18,7 +18,7 @@ from oidsee_scanner import OidSeeCollector, CollectOptions, GraphClient
 
 
 def test_parallel_application_fetching():
-    """Test that fetch_applications_for_sps works correctly with parallelism."""
+    """Test that fetch_applications_for_sps works correctly with bulk fetching."""
     print("\n=== Testing parallel application fetching ===")
     
     # Create mock graph client
@@ -28,8 +28,20 @@ def test_parallel_application_fetching():
     def mock_get_paged(url):
         # Simulate API delay
         time.sleep(0.01)
-        if "appId eq" in url:
-            # Extract appId from URL
+        # New bulk approach: return all apps in one query
+        if "/applications?" in url and "appId eq" not in url:
+            # Bulk fetch - return all test apps
+            return [
+                {
+                    "id": f"obj-app-{i}",
+                    "appId": f"app-{i}",
+                    "displayName": f"App {i}",
+                    "signInAudience": "AzureADMultipleOrgs"
+                }
+                for i in range(20)
+            ]
+        elif "appId eq" in url:
+            # Fallback approach: single app fetch
             import re
             match = re.search(r"appId eq '([^']+)'", url)
             if match:
@@ -66,16 +78,14 @@ def test_parallel_application_fetching():
     for i in range(20):
         appid = f"app-{i}"
         assert appid in collector.app_cache_by_appid, f"App {appid} not found in cache"
-        assert collector.app_cache_by_appid[appid]["displayName"] == f"App {appid}"
+        assert collector.app_cache_by_appid[appid]["displayName"] == f"App {i}"
     
     print(f"✓ PASS: Fetched 20 applications in {parallel_duration:.2f}s")
     print(f"  All applications correctly cached")
     
-    # Verify parallelism benefit (should be much faster than sequential)
-    # With 10 workers and 0.01s per request, 20 requests should take ~0.02-0.05s
-    # Sequential would take ~0.2s
-    assert parallel_duration < 0.15, f"Parallel execution took too long: {parallel_duration:.2f}s"
-    print(f"  ✓ Parallelism effective (< 0.15s for 20 requests)")
+    # With bulk fetch, should be very fast (single query)
+    assert parallel_duration < 0.10, f"Bulk fetch took too long: {parallel_duration:.2f}s"
+    print(f"  ✓ Bulk fetch effective (< 0.10s for 20 apps)")
     
     return True
 
