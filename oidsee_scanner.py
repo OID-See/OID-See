@@ -409,6 +409,36 @@ class GraphClient:
     def post(self, url: str, json: Optional[Dict[str, Any]] = None, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         return self._request("POST", url, params=params, json=json)
 
+    def batch(self, requests: List[Dict[str, Any]], api_version: str = "beta") -> List[Dict[str, Any]]:
+        """
+        Execute a batch of requests using Microsoft Graph $batch endpoint.
+        
+        Args:
+            requests: List of request dictionaries with 'id', 'method', and 'url' keys
+                     URLs should NOT include the version prefix (/beta or /v1.0)
+                     Example: [{"id": "1", "method": "GET", "url": "/users"}]
+            api_version: API version to use for all requests ("beta" or "v1.0")
+        
+        Returns:
+            List of response dictionaries with 'id', 'status', and 'body' keys
+        """
+        # Use the specified API version for the batch endpoint
+        batch_base = f"https://graph.microsoft.com/{api_version}"
+        batch_url = f"{batch_base}/$batch"
+        payload = {"requests": requests}
+        
+        response = self.post(batch_url, json=payload)
+        responses = response.get("responses", [])
+        
+        # Log any errors
+        for resp in responses:
+            if resp.get("status", 200) >= 400:
+                error_body = resp.get("body", {})
+                error_msg = error_body.get("error", {}).get("message", "Unknown error")
+                print(f"  ERROR: Batch request {resp.get('id')} failed: {resp.get('status')} - {error_msg}", file=sys.stderr)
+        
+        return responses
+
     def get_paged(self, url: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Follow @odata.nextLink and return aggregated 'value'. Handles throttling."""
         out: List[Dict[str, Any]] = []
@@ -525,23 +555,44 @@ class DirectoryCache:
     def __init__(self, graph: GraphClient):
         self.graph = graph
         self._cache: Dict[str, Dict[str, Any]] = {}
+        self._cache_lock = Lock()
 
     def get_many(self, ids: Set[str]) -> None:
         unknown = [i for i in ids if i and i not in self._cache]
         if not unknown:
             return
         # /directoryObjects/getByIds supports up to 1000 ids but keep it conservative
-        for batch in chunked(unknown, 500):
+        batches = list(chunked(unknown, 500))
+        
+        def fetch_batch(batch: List[str]) -> List[Dict[str, Any]]:
             body = {"ids": batch, "types": ["user", "group", "servicePrincipal", "directoryRole"]}
             try:
                 data = self.graph.post(f"{GRAPH_V1}/directoryObjects/getByIds", json=body)
+                return data.get("value", [])
             except GraphClient.GraphNotFound:
                 # getByIds won't 404 on batch; ignore
-                data = {"value": []}
-            for obj in data.get("value", []):
-                oid = obj.get("id")
-                if oid:
-                    self._cache[oid] = obj
+                return []
+        
+        # Parallelize batch requests for better performance with large ID sets
+        # Use parallelism if we have multiple batches to process
+        if len(batches) > 1:
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                future_to_batch = {executor.submit(fetch_batch, batch): batch for batch in batches}
+                for future in as_completed(future_to_batch):
+                    objects = future.result()
+                    with self._cache_lock:
+                        for obj in objects:
+                            oid = obj.get("id")
+                            if oid:
+                                self._cache[oid] = obj
+        elif len(batches) == 1:
+            # Single batch - process directly with proper locking for thread safety
+            objects = fetch_batch(batches[0])
+            with self._cache_lock:
+                for obj in objects:
+                    oid = obj.get("id")
+                    if oid:
+                        self._cache[oid] = obj
 
     def get(self, oid: str) -> Optional[Dict[str, Any]]:
         return self._cache.get(oid)
@@ -2266,6 +2317,24 @@ def compute_risk_for_sp(
 
 
 # -----------------------------
+# Progress tracking helper
+# -----------------------------
+
+def report_progress(completed: int, total: int, item_name: str, report_every: int = 100) -> None:
+    """
+    Report progress for long-running operations.
+    
+    Args:
+        completed: Number of items completed
+        total: Total number of items
+        item_name: Name of items being processed (e.g., "application objects fetched")
+        report_every: Report every N items or at completion
+    """
+    if completed % report_every == 0 or completed == total:
+        print(f"  progress: {completed}/{total} {item_name}", file=sys.stderr)
+
+
+# -----------------------------
 # Collector
 # -----------------------------
 
@@ -2291,6 +2360,7 @@ class OidSeeCollector:
         self.sp_cache: Dict[str, Dict[str, Any]] = {}        # by servicePrincipal id
         self.sp_by_appid: Dict[str, Dict[str, Any]] = {}     # by appId (best-effort)
         self.app_cache_by_appid: Dict[str, Dict[str, Any]] = {}  # in-tenant applications by appId
+        self.owners_cache: Dict[str, List[Dict[str, Any]]] = {}  # owners by SP id (cache to avoid redundant calls)
 
         self._resource_sp_needed: Set[str] = set()
         self._principal_ids_needed: Set[str] = set()
@@ -2301,6 +2371,7 @@ class OidSeeCollector:
         self._app_cache_lock = Lock()
         self._sp_cache_lock = Lock()
         self._role_defs_lock = Lock()
+        self._owners_cache_lock = Lock()
         self._id_collection_lock = Lock()  # For _resource_sp_needed, _principal_ids_needed, _role_def_ids_needed
 
     # ---- add nodes with de-dupe
@@ -2369,28 +2440,57 @@ class OidSeeCollector:
 
     def fetch_applications_for_sps(self, sps: List[Dict[str, Any]]) -> None:
         # In-tenant apps only. For many 3P apps, /applications won't contain them.
-        app_ids = sorted({sp.get("appId") for sp in sps if sp.get("appId")})
+        # NEW APPROACH: Bulk fetch all applications once, then filter in memory
+        # This is MUCH faster than individual filtered queries per appId
+        app_ids_needed = {sp.get("appId") for sp in sps if sp.get("appId")}
         
-        def fetch_single_app(appid: str) -> Optional[Tuple[str, Dict[str, Any]]]:
-            try:
-                # Include credentials and federated identity credentials in the select
-                apps = self.graph.get_paged(f"{GRAPH_BETA}/applications?$filter=appId eq '{appid}'&$select=id,appId,displayName,createdDateTime,signInAudience,web,spa,publicClient,requiredResourceAccess,passwordCredentials,keyCredentials,federatedIdentityCredentials")
-                if apps:
-                    return (appid, apps[0])
-            except Exception:
-                # placeholder - app not readable or doesn't exist in tenant
-                pass
-            return None
-        
-        # Parallel fetch with ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            future_to_appid = {executor.submit(fetch_single_app, appid): appid for appid in app_ids}
-            for future in as_completed(future_to_appid):
-                result = future.result()
-                if result:
-                    appid, app_obj = result
-                    with self._app_cache_lock:
-                        self.app_cache_by_appid[appid] = app_obj
+        try:
+            # Single bulk fetch of ALL applications in tenant
+            # Include credentials and federated identity credentials in the select
+            print(f"  Fetching all in-tenant applications in bulk (single query)...", file=sys.stderr)
+            all_apps = self.graph.get_paged(
+                f"{GRAPH_BETA}/applications?$select=id,appId,displayName,createdDateTime,signInAudience,web,spa,publicClient,requiredResourceAccess,passwordCredentials,keyCredentials,federatedIdentityCredentials"
+            )
+            print(f"  Retrieved {len(all_apps)} total in-tenant applications", file=sys.stderr)
+            
+            # Build lookup dictionary and filter to only apps we care about
+            # Use lock for thread safety even though bulk fetch is typically single-threaded
+            matched = 0
+            with self._app_cache_lock:
+                for app in all_apps:
+                    appid = app.get("appId")
+                    if appid and appid in app_ids_needed:
+                        self.app_cache_by_appid[appid] = app
+                        matched += 1
+            
+            print(f"  Matched {matched} applications to target service principals", file=sys.stderr)
+            
+        except Exception as e:
+            # Fallback to old approach if bulk fetch fails
+            print(f"  Bulk fetch failed ({e}), falling back to individual queries", file=sys.stderr)
+            app_ids = sorted(app_ids_needed)
+            
+            def fetch_single_app(appid: str) -> Optional[Tuple[str, Dict[str, Any]]]:
+                try:
+                    apps = self.graph.get_paged(f"{GRAPH_BETA}/applications?$filter=appId eq '{appid}'&$select=id,appId,displayName,createdDateTime,signInAudience,web,spa,publicClient,requiredResourceAccess,passwordCredentials,keyCredentials,federatedIdentityCredentials")
+                    if apps:
+                        return (appid, apps[0])
+                except Exception:
+                    pass
+                return None
+            
+            completed = 0
+            with ThreadPoolExecutor(max_workers=20) as executor:
+                future_to_appid = {executor.submit(fetch_single_app, appid): appid for appid in app_ids}
+                for future in as_completed(future_to_appid):
+                    result = future.result()
+                    if result:
+                        appid, app_obj = result
+                        with self._app_cache_lock:
+                            self.app_cache_by_appid[appid] = app_obj
+                    
+                    completed += 1
+                    report_progress(completed, len(app_ids), "application objects fetched")
 
     def fetch_oauth2_permission_grants(self, client_sp_id: str) -> List[Dict[str, Any]]:
         # /oauth2PermissionGrants supports filter by clientId
@@ -2411,9 +2511,20 @@ class OidSeeCollector:
         return self.graph.get_paged(url)
 
     def fetch_owners(self, sp_id: str) -> List[Dict[str, Any]]:
+        # Check cache first
+        with self._owners_cache_lock:
+            if sp_id in self.owners_cache:
+                return self.owners_cache[sp_id]
+        
         # directoryObject collection
         url = f"{GRAPH_BETA}/servicePrincipals/{sp_id}/owners?$select=id,displayName"
-        return self.graph.get_paged(url)
+        owners = self.graph.get_paged(url)
+        
+        # Cache the result
+        with self._owners_cache_lock:
+            self.owners_cache[sp_id] = owners
+        
+        return owners
 
     def fetch_directory_role_assignments_to_principal(self, principal_id: str) -> List[Dict[str, Any]]:
         # roleManagement API (v1.0)
@@ -2426,6 +2537,8 @@ class OidSeeCollector:
         Fetch all data for a single service principal.
         Returns a dict with grants, app_perms, assigned_to, owners, dir_roles,
         and extracted IDs for resource_sps, principals, and role_defs.
+        
+        OPTIMIZED: Parallelizes the 5 Graph API calls per SP for faster collection.
         """
         sp_id = sp["id"]
         result = {
@@ -2441,14 +2554,30 @@ class OidSeeCollector:
             "scopes_by_res": {},
         }
         
-        # Delegated grants
-        try:
-            grants = self.fetch_oauth2_permission_grants(sp_id)
-        except Exception as e:
-            print(f"⚠️  oauth2PermissionGrants failed for {sp_id}: {e}", file=sys.stderr)
-            grants = []
-        result["grants"] = grants
+        # Parallelize the 5 API calls for this SP using ThreadPoolExecutor
+        # This reduces latency significantly (5 sequential calls → 1 parallel batch)
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            # Submit all 5 calls in parallel
+            future_grants = executor.submit(self._safe_fetch_oauth2_grants, sp_id)
+            future_app_perms = executor.submit(self._safe_fetch_app_role_assignments, sp_id)
+            future_assigned_to = executor.submit(self._safe_fetch_app_role_assigned_to, sp_id)
+            future_owners = executor.submit(self._safe_fetch_owners, sp_id)
+            future_dir_roles = executor.submit(self._safe_fetch_directory_roles, sp_id)
+            
+            # Collect results
+            grants = future_grants.result()
+            app_perms = future_app_perms.result()
+            assigned_to = future_assigned_to.result()
+            owners = future_owners.result()
+            dir_roles = future_dir_roles.result()
         
+        result["grants"] = grants
+        result["app_perms"] = app_perms
+        result["assigned_to"] = assigned_to
+        result["owners"] = owners
+        result["dir_roles"] = dir_roles
+        
+        # Process grants for scope extraction
         scopes_by_res: Dict[str, Set[str]] = {}
         for g in grants:
             rid = g.get("resourceId")
@@ -2461,59 +2590,295 @@ class OidSeeCollector:
                 result["principal_ids"].add(pid)
         result["scopes_by_res"] = scopes_by_res
         
-        # App permissions (appRoleAssignments)
-        try:
-            app_perms = self.fetch_app_role_assignments(sp_id)
-        except Exception as e:
-            print(f"⚠️  appRoleAssignments failed for {sp_id}: {e}", file=sys.stderr)
-            app_perms = []
-        result["app_perms"] = app_perms
-        
+        # Extract resource SP IDs from app permissions
         for a in app_perms:
             rid = a.get("resourceId")
             if rid:
                 result["resource_sp_ids"].add(rid)
         
-        # Assigned to (who can use it, if assignment required / optional)
-        try:
-            assigned_to = self.fetch_app_role_assigned_to(sp_id)
-        except Exception as e:
-            print(f"⚠️  appRoleAssignedTo failed for {sp_id}: {e}", file=sys.stderr)
-            assigned_to = []
-        result["assigned_to"] = assigned_to
-        
+        # Extract principal IDs from assignments
         for a in assigned_to:
             pid = a.get("principalId")
             if pid:
                 result["principal_ids"].add(pid)
         
-        # Owners
-        try:
-            owners = self.fetch_owners(sp_id)
-        except Exception as e:
-            print(f"⚠️  owners failed for {sp_id}: {e}", file=sys.stderr)
-            owners = []
-        result["owners"] = owners
-        
+        # Extract principal IDs from owners
         for o in owners:
             oid = o.get("id")
             if oid:
                 result["principal_ids"].add(oid)
         
-        # Directory role assignments (Azure AD roles to the SP itself)
-        try:
-            dras = self.fetch_directory_role_assignments_to_principal(sp_id)
-        except Exception as e:
-            print(f"⚠️  directory roleAssignments failed for {sp_id}: {e}", file=sys.stderr)
-            dras = []
-        result["dir_roles"] = dras
-        
-        for ra in dras:
+        # Extract role definition IDs
+        for ra in dir_roles:
             rid = ra.get("roleDefinitionId")
             if rid:
                 result["role_def_ids"].add(rid)
         
         return result
+    
+    def fetch_all_data_for_sps_batched(self, sps: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+        """
+        Fetch all data for multiple service principals using Graph API batching.
+        This is significantly faster than individual requests as it combines up to 20 requests
+        into a single HTTP call.
+        
+        Beta batch: 5 SPs × 4 operations = 20 requests per batch
+        v1.0 batch: 20 SPs × 1 operation = 20 requests per batch
+        
+        Uses multi-threading to execute batches in parallel for maximum performance.
+        
+        Returns a dict mapping sp_id to result dict with grants, app_perms, assigned_to, owners, dir_roles,
+        and extracted IDs.
+        """
+        results = {}
+        results_lock = Lock()
+        completed_batches = 0
+        completed_batches_lock = Lock()
+        total_batches = len([sps[i:i+5] for i in range(0, len(sps), 5)])  # Calculate total batches upfront
+        
+        # Maximize batching efficiency:
+        # - Beta API: 5 SPs per batch (5 SPs × 4 operations = 20 requests)
+        # - v1.0 API: Bundled with beta batch (same SPs, separate batch call)
+        beta_batch_size = 5
+        
+        # Create batches for beta operations (limiting factor since each SP needs 4 beta requests)
+        beta_sp_batches = [sps[i:i+beta_batch_size] for i in range(0, len(sps), beta_batch_size)]
+        
+        print(f"  Using Graph API batching: {len(beta_sp_batches)} beta batches of up to {beta_batch_size} SPs each", file=sys.stderr)
+        print(f"  Multi-threading enabled: Processing batches in parallel", file=sys.stderr)
+        
+        def process_batch(batch_idx: int, sp_batch: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+            """Process a single batch of SPs with beta and v1.0 operations."""
+            batch_results = {}
+            
+            # Build batch requests - separate beta and v1.0 calls since they can't be mixed
+            beta_batch_requests = []
+            v1_batch_requests = []
+            request_map = {}  # Maps request ID to (sp_id, operation_type)
+            req_counter = 1  # Simple sequential numeric IDs matching Microsoft Graph examples
+            
+            for sp in sp_batch:
+                sp_id = sp["id"]
+                
+                # Beta API requests (4 operations)
+                # 1. OAuth2 permission grants
+                req_id_grants = str(req_counter)
+                req_counter += 1
+                beta_batch_requests.append({
+                    "id": req_id_grants,
+                    "method": "GET",
+                    "url": f"/oauth2PermissionGrants?$filter=clientId eq '{sp_id}'&$select=id,clientId,resourceId,scope,consentType,principalId,expiryTime"
+                })
+                request_map[req_id_grants] = (sp_id, "grants")
+                
+                # 2. App role assignments (app permissions)
+                req_id_app_perms = str(req_counter)
+                req_counter += 1
+                beta_batch_requests.append({
+                    "id": req_id_app_perms,
+                    "method": "GET",
+                    "url": f"/servicePrincipals/{sp_id}/appRoleAssignments?$select=id,appRoleId,principalId,resourceId"
+                })
+                request_map[req_id_app_perms] = (sp_id, "app_perms")
+                
+                # 3. App role assigned to (assignments)
+                req_id_assigned_to = str(req_counter)
+                req_counter += 1
+                beta_batch_requests.append({
+                    "id": req_id_assigned_to,
+                    "method": "GET",
+                    "url": f"/servicePrincipals/{sp_id}/appRoleAssignedTo?$select=id,appRoleId,principalId,resourceId"
+                })
+                request_map[req_id_assigned_to] = (sp_id, "assigned_to")
+                
+                # 4. Owners
+                req_id_owners = str(req_counter)
+                req_counter += 1
+                beta_batch_requests.append({
+                    "id": req_id_owners,
+                    "method": "GET",
+                    "url": f"/servicePrincipals/{sp_id}/owners?$select=id,displayName"
+                })
+                request_map[req_id_owners] = (sp_id, "owners")
+                
+                # v1.0 API requests (1 operation)
+                # 5. Directory role assignments
+                req_id_dir_roles = str(req_counter)
+                req_counter += 1
+                v1_batch_requests.append({
+                    "id": req_id_dir_roles,
+                    "method": "GET",
+                    "url": f"/roleManagement/directory/roleAssignments?$filter=principalId eq '{sp_id}'&$select=id,principalId,roleDefinitionId,directoryScopeId"
+                })
+                request_map[req_id_dir_roles] = (sp_id, "dir_roles")
+                
+                # Initialize result structure for this SP
+                batch_results[sp_id] = {
+                    "sp_id": sp_id,
+                    "grants": [],
+                    "app_perms": [],
+                    "assigned_to": [],
+                    "owners": [],
+                    "dir_roles": [],
+                    "resource_sp_ids": set(),
+                    "principal_ids": set(),
+                    "role_def_ids": set(),
+                    "scopes_by_res": {},
+                }
+            
+            # Execute batch requests (separate calls for beta and v1.0)
+            try:
+                all_responses = []
+                
+                # Execute beta batch if there are beta requests
+                if beta_batch_requests:
+                    beta_responses = self.graph.batch(beta_batch_requests, api_version="beta")
+                    all_responses.extend(beta_responses)
+                
+                # Execute v1.0 batch if there are v1.0 requests
+                if v1_batch_requests:
+                    v1_responses = self.graph.batch(v1_batch_requests, api_version="v1.0")
+                    all_responses.extend(v1_responses)
+                
+                # Process responses
+                for response in all_responses:
+                    req_id = response.get("id")
+                    status = response.get("status", 0)
+                    body = response.get("body", {})
+                    
+                    if req_id not in request_map:
+                        continue
+                    
+                    sp_id, operation = request_map[req_id]
+                    
+                    # Handle successful responses (200 or 404)
+                    if status == 200:
+                        data = body.get("value", [])
+                        batch_results[sp_id][operation] = data
+                    elif status == 404:
+                        # Not found is acceptable (no data for this operation)
+                        batch_results[sp_id][operation] = []
+                    else:
+                        # Other errors - log with details and use empty data
+                        error_msg = body.get("error", {}).get("message", "Unknown error")
+                        print(f"⚠️  Batch request {req_id} ({operation}) failed with status {status}: {error_msg}", file=sys.stderr)
+                        batch_results[sp_id][operation] = []
+                        
+            except Exception as e:
+                print(f"⚠️  Batch {batch_idx + 1}/{len(beta_sp_batches)} failed: {e}, falling back to individual requests", file=sys.stderr)
+                # Fallback to parallel individual requests for this batch
+                with ThreadPoolExecutor(max_workers=5) as executor:
+                    future_to_sp = {executor.submit(self.fetch_all_data_for_sp, sp): sp for sp in sp_batch}
+                    for future in as_completed(future_to_sp):
+                        try:
+                            result = future.result()
+                            batch_results[result["sp_id"]] = result
+                        except Exception as e2:
+                            print(f"⚠️  Failed to fetch data for SP {future_to_sp[future].get('id')}: {e2}", file=sys.stderr)
+            
+            return batch_results
+        
+        # Process batches in parallel using ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            future_to_batch = {
+                executor.submit(process_batch, batch_idx, sp_batch): (batch_idx, sp_batch)
+                for batch_idx, sp_batch in enumerate(beta_sp_batches)
+            }
+            
+            for future in as_completed(future_to_batch):
+                batch_idx, sp_batch = future_to_batch[future]
+                try:
+                    batch_results = future.result()
+                    
+                    # Asynchronously update results with thread safety
+                    with results_lock:
+                        results.update(batch_results)
+                    
+                    # Progress indicator - track batch completion
+                    with completed_batches_lock:
+                        completed_batches += 1
+                        if completed_batches % 25 == 0 or completed_batches == total_batches:
+                            completed_sps = len(results)
+                            print(f"  progress: {completed_sps}/{len(sps)} service principals processed ({completed_batches}/{total_batches} batches)", file=sys.stderr)
+                except Exception as e:
+                    print(f"⚠️  Unexpected error processing batch {batch_idx + 1}: {e}", file=sys.stderr)
+        
+        # Post-process results to extract IDs
+        for sp_id, result in results.items():
+            # Process grants for scope extraction
+            scopes_by_res: Dict[str, Set[str]] = {}
+            for g in result["grants"]:
+                rid = g.get("resourceId")
+                if rid:
+                    result["resource_sp_ids"].add(rid)
+                    scopes = set((g.get("scope") or "").split())
+                    scopes_by_res.setdefault(rid, set()).update(scopes)
+                pid = g.get("principalId")
+                if pid:
+                    result["principal_ids"].add(pid)
+            result["scopes_by_res"] = scopes_by_res
+            
+            # Extract resource SP IDs from app permissions
+            for a in result["app_perms"]:
+                rid = a.get("resourceId")
+                if rid:
+                    result["resource_sp_ids"].add(rid)
+            
+            # Extract principal IDs from assignments
+            for a in result["assigned_to"]:
+                pid = a.get("principalId")
+                if pid:
+                    result["principal_ids"].add(pid)
+            
+            # Extract owner IDs
+            for owner in result["owners"]:
+                oid = owner.get("id")
+                if oid:
+                    result["principal_ids"].add(oid)
+            
+            # Extract role definition IDs
+            for ra in result["dir_roles"]:
+                rid = ra.get("roleDefinitionId")
+                if rid:
+                    result["role_def_ids"].add(rid)
+        
+        return results
+    
+    # Helper methods with error handling for parallel execution
+    def _safe_fetch_oauth2_grants(self, sp_id: str) -> List[Dict[str, Any]]:
+        try:
+            return self.fetch_oauth2_permission_grants(sp_id)
+        except Exception as e:
+            print(f"⚠️  oauth2PermissionGrants failed for {sp_id}: {e}", file=sys.stderr)
+            return []
+    
+    def _safe_fetch_app_role_assignments(self, sp_id: str) -> List[Dict[str, Any]]:
+        try:
+            return self.fetch_app_role_assignments(sp_id)
+        except Exception as e:
+            print(f"⚠️  appRoleAssignments failed for {sp_id}: {e}", file=sys.stderr)
+            return []
+    
+    def _safe_fetch_app_role_assigned_to(self, sp_id: str) -> List[Dict[str, Any]]:
+        try:
+            return self.fetch_app_role_assigned_to(sp_id)
+        except Exception as e:
+            print(f"⚠️  appRoleAssignedTo failed for {sp_id}: {e}", file=sys.stderr)
+            return []
+    
+    def _safe_fetch_owners(self, sp_id: str) -> List[Dict[str, Any]]:
+        try:
+            return self.fetch_owners(sp_id)
+        except Exception as e:
+            print(f"⚠️  owners failed for {sp_id}: {e}", file=sys.stderr)
+            return []
+    
+    def _safe_fetch_directory_roles(self, sp_id: str) -> List[Dict[str, Any]]:
+        try:
+            return self.fetch_directory_role_assignments_to_principal(sp_id)
+        except Exception as e:
+            print(f"⚠️  directory roleAssignments failed for {sp_id}: {e}", file=sys.stderr)
+            return []
 
     def fetch_role_definitions(self, ids: Set[str]) -> None:
         # roleDefinitions are queryable; fetch in parallel
@@ -2526,8 +2891,8 @@ class OidSeeCollector:
             except Exception:
                 return (rid, {"id": rid, "displayName": None})
         
-        # Parallel fetch with ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        # Parallel fetch with ThreadPoolExecutor (increased workers for better performance)
+        with ThreadPoolExecutor(max_workers=20) as executor:
             future_to_rid = {executor.submit(fetch_single_role, rid): rid for rid in ids_to_fetch}
             for future in as_completed(future_to_rid):
                 rid, rd = future.result()
@@ -2549,13 +2914,18 @@ class OidSeeCollector:
                 # keep minimal placeholder
                 return (rid, {"id": rid, "displayName": None, "appId": None})
         
-        # Parallel fetch with ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        # Parallel fetch with ThreadPoolExecutor (increased workers for better performance)
+        completed = 0
+        with ThreadPoolExecutor(max_workers=20) as executor:
             future_to_rid = {executor.submit(fetch_single_sp, rid): rid for rid in missing}
             for future in as_completed(future_to_rid):
                 rid, sp = future.result()
                 with self._sp_cache_lock:
                     self.sp_cache[rid] = sp
+                
+                # Progress indicator
+                completed += 1
+                report_progress(completed, len(missing), "resource service principals loaded", report_every=50)
 
     # ---- graph build
 
@@ -2641,26 +3011,23 @@ class OidSeeCollector:
         print("→ Collecting delegated grants, app permissions, assignments, owners, and directory roles...", file=sys.stderr)
         stage_start = time.time()
         
-        # Parallel collection with ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            future_to_sp = {executor.submit(self.fetch_all_data_for_sp, sp): sp for sp in target_sps}
-            for future in as_completed(future_to_sp):
-                result = future.result()
-                sp_id = result["sp_id"]
-                
-                # Store results
-                grants_by_sp[sp_id] = result["grants"]
-                app_perms_by_sp[sp_id] = result["app_perms"]
-                assigned_to_by_sp[sp_id] = result["assigned_to"]
-                owners_by_sp[sp_id] = result["owners"]
-                dir_roles_by_sp[sp_id] = result["dir_roles"]
-                sp_delegated_scopes[sp_id] = result["scopes_by_res"]
-                
-                # Collect referenced IDs with thread safety
-                with self._id_collection_lock:
-                    self._resource_sp_needed.update(result["resource_sp_ids"])
-                    self._principal_ids_needed.update(result["principal_ids"])
-                    self._role_def_ids_needed.update(result["role_def_ids"])
+        # Use batched collection (combines up to 20 API calls per HTTP request)
+        batch_results = self.fetch_all_data_for_sps_batched(target_sps)
+        
+        # Store results from batch
+        for sp_id, result in batch_results.items():
+            grants_by_sp[sp_id] = result["grants"]
+            app_perms_by_sp[sp_id] = result["app_perms"]
+            assigned_to_by_sp[sp_id] = result["assigned_to"]
+            owners_by_sp[sp_id] = result["owners"]
+            dir_roles_by_sp[sp_id] = result["dir_roles"]
+            sp_delegated_scopes[sp_id] = result["scopes_by_res"]
+            
+            # Collect referenced IDs with thread safety
+            with self._id_collection_lock:
+                self._resource_sp_needed.update(result["resource_sp_ids"])
+                self._principal_ids_needed.update(result["principal_ids"])
+                self._role_def_ids_needed.update(result["role_def_ids"])
 
         # Summaries
         grants_total = sum(len(v) for v in grants_by_sp.values())
