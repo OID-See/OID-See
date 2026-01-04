@@ -29,10 +29,10 @@ def test_role_tier_mapping():
     assert tier == "tier0", f"Expected tier0 for Global Admin, got {tier}"
     print("✓ Global Administrator correctly mapped to Tier 0")
     
-    # Cloud Application Administrator (Tier 1)
+    # Cloud Application Administrator (Tier 0)
     cloud_app_admin_id = "158c047a-c907-4556-b7ef-446551a6b5f7"
     tier = get_role_tier(cloud_app_admin_id)
-    assert tier == "tier0", f"Expected tier0 for Cloud App Admin (updated), got {tier}"
+    assert tier == "tier0", f"Expected tier0 for Cloud App Admin, got {tier}"
     print("✓ Cloud Application Administrator correctly mapped to Tier 0")
     
     # Security Reader (Tier 2)
