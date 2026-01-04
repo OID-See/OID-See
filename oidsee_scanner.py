@@ -2628,18 +2628,33 @@ class OidSeeCollector:
         This is significantly faster than individual requests as it combines up to 20 requests
         into a single HTTP call.
         
+        Beta batch: 5 SPs × 4 operations = 20 requests per batch
+        v1.0 batch: 20 SPs × 1 operation = 20 requests per batch
+        
+        Uses multi-threading to execute batches in parallel for maximum performance.
+        
         Returns a dict mapping sp_id to result dict with grants, app_perms, assigned_to, owners, dir_roles,
         and extracted IDs.
         """
         results = {}
+        results_lock = Lock()
         
-        # Process SPs in batches of 4 (4 SPs × 5 requests = 20 requests per batch, the Graph API limit)
-        batch_size = 4
-        sp_batches = [sps[i:i+batch_size] for i in range(0, len(sps), batch_size)]
+        # Maximize batching efficiency:
+        # - Beta API: 5 SPs per batch (5 SPs × 4 operations = 20 requests)
+        # - v1.0 API: 20 SPs per batch (20 SPs × 1 operation = 20 requests)
+        beta_batch_size = 5
+        v1_batch_size = 20
         
-        print(f"  Using Graph API batching: {len(sp_batches)} batches of up to {batch_size} SPs each", file=sys.stderr)
+        # Create batches for beta operations (limiting factor since each SP needs 4 beta requests)
+        beta_sp_batches = [sps[i:i+beta_batch_size] for i in range(0, len(sps), beta_batch_size)]
         
-        for batch_idx, sp_batch in enumerate(sp_batches):
+        print(f"  Using Graph API batching: {len(beta_sp_batches)} beta batches of up to {beta_batch_size} SPs each", file=sys.stderr)
+        print(f"  Multi-threading enabled: Processing batches in parallel", file=sys.stderr)
+        
+        def process_batch(batch_idx: int, sp_batch: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+            """Process a single batch of SPs with beta and v1.0 operations."""
+            batch_results = {}
+            
             # Build batch requests - separate beta and v1.0 calls since they can't be mixed
             beta_batch_requests = []
             v1_batch_requests = []
@@ -2702,19 +2717,18 @@ class OidSeeCollector:
                 request_map[req_id_dir_roles] = (sp_id, "dir_roles")
                 
                 # Initialize result structure for this SP
-                if sp_id not in results:
-                    results[sp_id] = {
-                        "sp_id": sp_id,
-                        "grants": [],
-                        "app_perms": [],
-                        "assigned_to": [],
-                        "owners": [],
-                        "dir_roles": [],
-                        "resource_sp_ids": set(),
-                        "principal_ids": set(),
-                        "role_def_ids": set(),
-                        "scopes_by_res": {},
-                    }
+                batch_results[sp_id] = {
+                    "sp_id": sp_id,
+                    "grants": [],
+                    "app_perms": [],
+                    "assigned_to": [],
+                    "owners": [],
+                    "dir_roles": [],
+                    "resource_sp_ids": set(),
+                    "principal_ids": set(),
+                    "role_def_ids": set(),
+                    "scopes_by_res": {},
+                }
             
             # Execute batch requests (separate calls for beta and v1.0)
             try:
@@ -2744,32 +2758,53 @@ class OidSeeCollector:
                     # Handle successful responses (200 or 404)
                     if status == 200:
                         data = body.get("value", [])
-                        results[sp_id][operation] = data
+                        batch_results[sp_id][operation] = data
                     elif status == 404:
                         # Not found is acceptable (no data for this operation)
-                        results[sp_id][operation] = []
+                        batch_results[sp_id][operation] = []
                     else:
                         # Other errors - log with details and use empty data
                         error_msg = body.get("error", {}).get("message", "Unknown error")
                         print(f"⚠️  Batch request {req_id} ({operation}) failed with status {status}: {error_msg}", file=sys.stderr)
-                        results[sp_id][operation] = []
+                        batch_results[sp_id][operation] = []
                         
             except Exception as e:
-                print(f"⚠️  Batch {batch_idx + 1}/{len(sp_batches)} failed: {e}, falling back to individual requests", file=sys.stderr)
+                print(f"⚠️  Batch {batch_idx + 1}/{len(beta_sp_batches)} failed: {e}, falling back to individual requests", file=sys.stderr)
                 # Fallback to parallel individual requests for this batch
                 with ThreadPoolExecutor(max_workers=5) as executor:
                     future_to_sp = {executor.submit(self.fetch_all_data_for_sp, sp): sp for sp in sp_batch}
                     for future in as_completed(future_to_sp):
                         try:
                             result = future.result()
-                            results[result["sp_id"]] = result
+                            batch_results[result["sp_id"]] = result
                         except Exception as e2:
                             print(f"⚠️  Failed to fetch data for SP {future_to_sp[future].get('id')}: {e2}", file=sys.stderr)
             
-            # Progress indicator
-            if (batch_idx + 1) % 25 == 0 or (batch_idx + 1) == len(sp_batches):
-                completed_sps = min((batch_idx + 1) * batch_size, len(sps))
-                print(f"  progress: {completed_sps}/{len(sps)} service principals processed (batch {batch_idx + 1}/{len(sp_batches)})", file=sys.stderr)
+            return batch_results
+        
+        # Process batches in parallel using ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            future_to_batch = {
+                executor.submit(process_batch, batch_idx, sp_batch): (batch_idx, sp_batch)
+                for batch_idx, sp_batch in enumerate(beta_sp_batches)
+            }
+            
+            for future in as_completed(future_to_batch):
+                batch_idx, sp_batch = future_to_batch[future]
+                try:
+                    batch_results = future.result()
+                    
+                    # Asynchronously update results with thread safety
+                    with results_lock:
+                        results.update(batch_results)
+                    
+                    # Progress indicator
+                    with results_lock:
+                        completed_count = len(results)
+                        if completed_count % 100 == 0 or completed_count == len(sps):
+                            print(f"  progress: {completed_count}/{len(sps)} service principals processed", file=sys.stderr)
+                except Exception as e:
+                    print(f"⚠️  Unexpected error processing batch {batch_idx + 1}: {e}", file=sys.stderr)
         
         # Post-process results to extract IDs
         for sp_id, result in results.items():
