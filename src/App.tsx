@@ -535,85 +535,21 @@ export default function App() {
         maxEdges: MAX_RENDERABLE_EDGES
       })
       
-      let originalParsed = parsed // Reference to original data
+      // IMPORTANT: Do NOT truncate here! Dashboard needs full data immediately.
+      // Truncation will happen in background when converting for graph view.
       
       if (exceedsLimits) {
-        console.log('[OID-See] ✂️  Graph exceeds limits - truncating ONLY for graph view...')
+        console.log('[OID-See] ℹ️  Graph exceeds limits - will truncate ONLY for graph view in background')
         console.log('[OID-See] ℹ️  Alternative views (Table, Tree, Matrix, Dashboard) will use full dataset')
-        setLoadingProgress(`Analyzing ${nodeCount.toLocaleString()} nodes...`)
-        const truncateStartTime = performance.now()
-        
-        // Clone the parsed data to preserve the original for alternative views (only when truncating)
-        originalParsed = { ...parsed, nodes: [...parsed.nodes], edges: [...(parsed.edges || [])] }
-        
-        // Truncate to only high-risk nodes for massive graphs (ONLY for graph view)
-        const originalNodeCount = nodeCount
-        const originalEdgeCount = edgeCount
-        
-        // Create indices array instead of copying nodes
-        console.log('[OID-See] 📋 Creating index array for sorting...')
-        setLoadingProgress(`Preparing to sort ${nodeCount.toLocaleString()} nodes...`)
-        const indices = Array.from({ length: parsed.nodes.length }, (_, i) => i)
-        
-        // Yield to event loop to allow progress update to render
-        await yieldToEventLoop()
-        
-        // Sort indices by risk score (highest first)
-        console.log('[OID-See] 📋 Sorting nodes by risk score...')
-        setLoadingProgress(`Sorting ${nodeCount.toLocaleString()} nodes by risk...`)
-        // Yield again before the blocking sort operation
-        await yieldToEventLoop()
-        
-        indices.sort((aIdx, bIdx) => {
-          const a = parsed.nodes[aIdx]
-          const b = parsed.nodes[bIdx]
-          const scoreA = a?.risk?.score ?? 0
-          const scoreB = b?.risk?.score ?? 0
-          return scoreB - scoreA
-        })
-        const sortTime = performance.now() - truncateStartTime
-        console.log('[OID-See] ✅ Sort complete:', `${sortTime.toFixed(0)}ms`)
-        
-        // Yield to event loop after sort
-        await new Promise(resolve => setTimeout(resolve, 0))
-        
-        // Take top N highest-risk nodes using sorted indices
-        console.log('[OID-See] ✂️  Selecting top risk nodes for graph view...')
-        setLoadingProgress(`Selecting top ${MAX_RENDERABLE_NODES.toLocaleString()} risk nodes for graph...`)
-        const truncatedNodes = indices.slice(0, MAX_RENDERABLE_NODES).map(i => parsed.nodes[i])
-        const nodeIds = new Set(truncatedNodes.map((n: OidSeeNode) => n.id))
-        
-        // Filter edges to only those connecting truncated nodes
-        console.log('[OID-See] 🔗 Filtering edges for graph view...')
-        setLoadingProgress('Filtering edges...')
-        // Yield before filtering edges
-        await yieldToEventLoop()
-        
-        const truncatedEdges = (parsed.edges || [])
-          .filter((e: OidSeeEdge) => nodeIds.has(e.from) && nodeIds.has(e.to))
-          .slice(0, MAX_RENDERABLE_EDGES)
-        
-        // Create truncated version for graph view only
-        parsed.nodes = truncatedNodes
-        parsed.edges = truncatedEdges
-        
-        const truncateTime = performance.now() - truncateStartTime
-        console.log('[OID-See] ✅ Truncation complete (graph view only):', {
-          duration: `${truncateTime.toFixed(0)}ms`,
-          originalNodes: originalNodeCount.toLocaleString(),
-          originalEdges: originalEdgeCount.toLocaleString(),
-          graphViewNodes: truncatedNodes.length.toLocaleString(),
-          graphViewEdges: truncatedEdges.length.toLocaleString()
-        })
         
         // Warn user about truncation for graph view only
         setLargeGraphWarning(
-          `⚠️ Graph view truncated to ${truncatedNodes.length.toLocaleString()} highest-risk nodes (original: ${originalNodeCount.toLocaleString()} nodes, ${originalEdgeCount.toLocaleString()} edges). ` +
+          `⚠️ Graph view will be truncated to ${MAX_RENDERABLE_NODES.toLocaleString()} highest-risk nodes (dataset: ${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges). ` +
           `Use Table, Tree, Matrix, or Dashboard views to see the full dataset. Physics disabled for performance.`
         )
         
         // Disable physics for truncated graphs
-        console.log('[OID-See] ⚙️  Disabling physics for truncated graph...')
+        console.log('[OID-See] ⚙️  Disabling physics for large graph...')
         const physicsDisabled = createDisabledPhysicsConfig()
         setPhysicsConfig(physicsDisabled)
         savePhysicsConfig(physicsDisabled)
@@ -636,7 +572,7 @@ export default function App() {
       await yieldToEventLoop()
       
       const originalVisStartTime = performance.now()
-      const originalVis = isLargeGraph ? await toVisDataAsync(originalParsed) : toVisData(originalParsed)
+      const originalVis = isLargeGraph ? await toVisDataAsync(parsed) : toVisData(parsed)
       const originalVisTime = performance.now() - originalVisStartTime
       console.log('[OID-See] ✅ Alternative views data ready:', {
         duration: `${originalVisTime.toFixed(0)}ms`,
@@ -657,17 +593,65 @@ export default function App() {
       setLoading(false)
       setLoadingProgress('')
       
-      // PRIORITY 2: Convert truncated data for graph view in TRUE BACKGROUND
+      // PRIORITY 2: Truncate and convert data for graph view in TRUE BACKGROUND
       // Use setTimeout to move this completely off the main render flow
       // Capture the start time for accurate background task measurement
       const graphConversionStartTime = performance.now()
       setTimeout(async () => {
         try {
-          console.log('[OID-See] 🎨 Converting data to vis-network format for graph view (background)...')
+          console.log('[OID-See] 🎨 Starting background graph view preparation...')
           
+          // Truncate if needed (do this in background, not in main render flow!)
+          let graphParsed = parsed
+          if (exceedsLimits) {
+            console.log('[OID-See] ✂️  Truncating data for graph view (background)...')
+            const truncateStartTime = performance.now()
+            
+            // Clone to avoid mutating original
+            graphParsed = { ...parsed, nodes: [...parsed.nodes], edges: [...(parsed.edges || [])] }
+            
+            // Create indices array for sorting
+            console.log('[OID-See] 📋 Creating index array for sorting...')
+            const indices = Array.from({ length: graphParsed.nodes.length }, (_, i) => i)
+            
+            // Sort indices by risk score (highest first)
+            console.log('[OID-See] 📋 Sorting nodes by risk score...')
+            indices.sort((aIdx, bIdx) => {
+              const a = graphParsed.nodes[aIdx]
+              const b = graphParsed.nodes[bIdx]
+              const scoreA = a?.risk?.score ?? 0
+              const scoreB = b?.risk?.score ?? 0
+              return scoreB - scoreA
+            })
+            const sortTime = performance.now() - truncateStartTime
+            console.log('[OID-See] ✅ Sort complete:', `${sortTime.toFixed(0)}ms`)
+            
+            // Take top N highest-risk nodes
+            console.log(`[OID-See] ✂️  Selecting top ${MAX_RENDERABLE_NODES.toLocaleString()} risk nodes...`)
+            const truncatedNodes = indices.slice(0, MAX_RENDERABLE_NODES).map(i => graphParsed.nodes[i])
+            const nodeIds = new Set(truncatedNodes.map((n: OidSeeNode) => n.id))
+            
+            // Filter edges
+            console.log('[OID-See] 🔗 Filtering edges...')
+            const truncatedEdges = (graphParsed.edges || [])
+              .filter((e: OidSeeEdge) => nodeIds.has(e.from) && nodeIds.has(e.to))
+              .slice(0, MAX_RENDERABLE_EDGES)
+            
+            graphParsed.nodes = truncatedNodes
+            graphParsed.edges = truncatedEdges
+            
+            const truncateTime = performance.now() - truncateStartTime
+            console.log('[OID-See] ✅ Truncation complete:', {
+              duration: `${truncateTime.toFixed(0)}ms`,
+              graphViewNodes: truncatedNodes.length.toLocaleString(),
+              graphViewEdges: truncatedEdges.length.toLocaleString()
+            })
+          }
+          
+          console.log('[OID-See] 🎨 Converting data to vis-network format for graph view...')
           const visStartTime = performance.now()
           // Use async version for large graphs to prevent UI blocking
-          const vis = isLargeGraph ? await toVisDataAsync(parsed) : toVisData(parsed)
+          const vis = isLargeGraph ? await toVisDataAsync(graphParsed) : toVisData(graphParsed)
           const visTime = performance.now() - visStartTime
           console.log('[OID-See] ✅ Graph view data ready:', {
             duration: `${visTime.toFixed(0)}ms`,
