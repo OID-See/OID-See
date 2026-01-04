@@ -364,6 +364,7 @@ export default function App() {
   const [viewsReady, setViewsReady] = useState<Set<ViewMode>>(new Set())
   const graphRef = useRef<GraphCanvasHandle>(null)
   const detailsPanelRef = useRef<HTMLElement>(null)
+  const graphConversionTimeoutRef = useRef<number | null>(null)
 
   // Load physics config on mount
   useEffect(() => {
@@ -489,6 +490,13 @@ export default function App() {
     console.log('[OID-See] 🔄 Starting render process...')
     const renderStartTime = performance.now()
     
+    // Cancel any pending graph conversion from previous render
+    if (graphConversionTimeoutRef.current !== null) {
+      clearTimeout(graphConversionTimeoutRef.current)
+      graphConversionTimeoutRef.current = null
+      console.log('[OID-See] 🚫 Cancelled previous graph conversion')
+    }
+    
     setLoading(true)
     setLoadingProgress('Initializing...')
     setError(null)
@@ -595,9 +603,10 @@ export default function App() {
       
       // PRIORITY 2: Truncate and convert data for graph view in TRUE BACKGROUND
       // Use setTimeout to move this completely off the main render flow
+      // Store timeout ID for cleanup
       // Capture the start time for accurate background task measurement
       const graphConversionStartTime = performance.now()
-      setTimeout(async () => {
+      graphConversionTimeoutRef.current = window.setTimeout(async () => {
         try {
           console.log('[OID-See] 🎨 Starting background graph view preparation...')
           
