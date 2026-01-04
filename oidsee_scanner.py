@@ -427,21 +427,15 @@ class GraphClient:
         batch_url = f"{batch_base}/$batch"
         payload = {"requests": requests}
         
-        # Log the batch request for debugging
-        print(f"  DEBUG: Sending {api_version} batch with {len(requests)} requests", file=sys.stderr)
-        if len(requests) > 0:
-            print(f"  DEBUG: First request ID: {requests[0].get('id')}", file=sys.stderr)
-            print(f"  DEBUG: First request URL: {requests[0].get('url')}", file=sys.stderr)
-        
         response = self.post(batch_url, json=payload)
         responses = response.get("responses", [])
         
-        # Log any errors for debugging
+        # Log any errors
         for resp in responses:
             if resp.get("status", 200) >= 400:
                 error_body = resp.get("body", {})
                 error_msg = error_body.get("error", {}).get("message", "Unknown error")
-                print(f"  DEBUG: Request {resp.get('id')} failed: {resp.get('status')} - {error_msg}", file=sys.stderr)
+                print(f"  ERROR: Batch request {resp.get('id')} failed: {resp.get('status')} - {error_msg}", file=sys.stderr)
         
         return responses
 
