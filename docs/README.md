@@ -31,6 +31,14 @@ Welcome to the comprehensive documentation for the OID-See project. This documen
    - Filter query syntax
    - Advanced usage patterns
 
+5. **[Visualization Modes Documentation](./visualization-modes.md)**
+   - Alternative view modes for large datasets
+   - Table View with virtual scrolling (50,000+ nodes)
+   - Hierarchical Tree View with risk aggregation
+   - Matrix Heat Map for relationship patterns
+   - Dashboard View for statistical summaries
+   - Hybrid approach for subset visualization
+
 ## Quick Start
 
 ### For Security Analysts
@@ -40,7 +48,8 @@ Start here to analyze your tenant:
 1. **Generate Data**: Follow the [Scanner Documentation](./scanner.md) to collect tenant data
 2. **Understanding Risk**: Read [Scoring Logic](./scoring-logic.md) to interpret risk scores
 3. **Visualize**: Use the [Web App Guide](./web-app.md) to explore your data at **https://oid-see.netlify.app/**
-4. **Query**: Learn filter syntax to find specific security issues
+4. **Choose View Mode**: For large datasets, see [Visualization Modes](./visualization-modes.md)
+5. **Query**: Learn filter syntax to find specific security issues
 
 ### For Developers
 
