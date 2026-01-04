@@ -2638,12 +2638,14 @@ class OidSeeCollector:
         """
         results = {}
         results_lock = Lock()
+        completed_batches = 0
+        completed_batches_lock = Lock()
+        total_batches = len([sps[i:i+5] for i in range(0, len(sps), 5)])  # Calculate total batches upfront
         
         # Maximize batching efficiency:
         # - Beta API: 5 SPs per batch (5 SPs × 4 operations = 20 requests)
-        # - v1.0 API: 20 SPs per batch (20 SPs × 1 operation = 20 requests)
+        # - v1.0 API: Bundled with beta batch (same SPs, separate batch call)
         beta_batch_size = 5
-        v1_batch_size = 20
         
         # Create batches for beta operations (limiting factor since each SP needs 4 beta requests)
         beta_sp_batches = [sps[i:i+beta_batch_size] for i in range(0, len(sps), beta_batch_size)]
@@ -2798,11 +2800,12 @@ class OidSeeCollector:
                     with results_lock:
                         results.update(batch_results)
                     
-                    # Progress indicator
-                    with results_lock:
-                        completed_count = len(results)
-                        if completed_count % 100 == 0 or completed_count == len(sps):
-                            print(f"  progress: {completed_count}/{len(sps)} service principals processed", file=sys.stderr)
+                    # Progress indicator - track batch completion
+                    with completed_batches_lock:
+                        completed_batches += 1
+                        if completed_batches % 25 == 0 or completed_batches == total_batches:
+                            completed_sps = len(results)
+                            print(f"  progress: {completed_sps}/{len(sps)} service principals processed ({completed_batches}/{total_batches} batches)", file=sys.stderr)
                 except Exception as e:
                     print(f"⚠️  Unexpected error processing batch {batch_idx + 1}: {e}", file=sys.stderr)
         
