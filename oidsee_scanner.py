@@ -557,13 +557,12 @@ class DirectoryCache:
                                 self._cache[oid] = obj
         else:
             # Single batch - process directly with proper locking for thread safety
-            for batch in batches:
-                objects = fetch_batch(batch)
-                with self._cache_lock:
-                    for obj in objects:
-                        oid = obj.get("id")
-                        if oid:
-                            self._cache[oid] = obj
+            objects = fetch_batch(batches[0])
+            with self._cache_lock:
+                for obj in objects:
+                    oid = obj.get("id")
+                    if oid:
+                        self._cache[oid] = obj
 
     def get(self, oid: str) -> Optional[Dict[str, Any]]:
         return self._cache.get(oid)
@@ -2288,6 +2287,24 @@ def compute_risk_for_sp(
 
 
 # -----------------------------
+# Progress tracking helper
+# -----------------------------
+
+def report_progress(completed: int, total: int, item_name: str, report_every: int = 100) -> None:
+    """
+    Report progress for long-running operations.
+    
+    Args:
+        completed: Number of items completed
+        total: Total number of items
+        item_name: Name of items being processed (e.g., "application objects fetched")
+        report_every: Report every N items or at completion
+    """
+    if completed % report_every == 0 or completed == total:
+        print(f"  progress: {completed}/{total} {item_name}", file=sys.stderr)
+
+
+# -----------------------------
 # Collector
 # -----------------------------
 
@@ -2419,8 +2436,7 @@ class OidSeeCollector:
                 
                 # Progress indicator
                 completed += 1
-                if completed % 100 == 0 or completed == len(app_ids):
-                    print(f"  progress: {completed}/{len(app_ids)} application objects fetched", file=sys.stderr)
+                report_progress(completed, len(app_ids), "application objects fetched")
 
     def fetch_oauth2_permission_grants(self, client_sp_id: str) -> List[Dict[str, Any]]:
         # /oauth2PermissionGrants supports filter by clientId
@@ -2601,8 +2617,7 @@ class OidSeeCollector:
                 
                 # Progress indicator
                 completed += 1
-                if completed % 50 == 0 or completed == len(missing):
-                    print(f"  progress: {completed}/{len(missing)} resource service principals loaded", file=sys.stderr)
+                report_progress(completed, len(missing), "resource service principals loaded", report_every=50)
 
     # ---- graph build
 
@@ -2712,8 +2727,7 @@ class OidSeeCollector:
                 
                 # Progress indicator
                 completed += 1
-                if completed % 100 == 0 or completed == len(target_sps):
-                    print(f"  progress: {completed}/{len(target_sps)} service principals processed", file=sys.stderr)
+                report_progress(completed, len(target_sps), "service principals processed")
 
         # Summaries
         grants_total = sum(len(v) for v in grants_by_sp.values())
