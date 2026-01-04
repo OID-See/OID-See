@@ -30,6 +30,10 @@ const LARGE_GRAPH_THRESHOLD = 3000 // nodes or edges
 const MAX_RENDERABLE_NODES = 3000
 const MAX_RENDERABLE_EDGES = 4500
 
+// Maximum nodes for subset visualization (hybrid approach)
+// This limit ensures optimal performance when visualizing selected subsets
+const MAX_SUBSET_VISUALIZATION_NODES = 500
+
 // Delay before processing to allow loading overlay to render
 // Increased to 200ms for large graphs to ensure overlay is visible before blocking operations
 const RENDER_DELAY_MS = 200 // ms delay to ensure UI updates before heavy processing
@@ -819,9 +823,8 @@ export default function App() {
     if (nodeIds.length === 0) return
     
     // Check size constraints
-    const MAX_SUBSET_NODES = 500
-    if (nodeIds.length > MAX_SUBSET_NODES) {
-      alert(`Selection too large (${nodeIds.length} nodes). Please select ${MAX_SUBSET_NODES} or fewer nodes for visualization.`)
+    if (nodeIds.length > MAX_SUBSET_VISUALIZATION_NODES) {
+      alert(`Selection too large (${nodeIds.length} nodes). Please select ${MAX_SUBSET_VISUALIZATION_NODES} or fewer nodes for visualization.`)
       return
     }
     

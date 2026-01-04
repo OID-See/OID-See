@@ -146,7 +146,10 @@ export function TableView({ nodes, edges, onSelection, onVisualize }: TableViewP
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `oidsee-export-${dataType}-${new Date().toISOString()}.json`
+    // Sanitize dataType and format timestamp for valid filename
+    const sanitizedType = dataType.replace(/[^a-zA-Z0-9-_]/g, '-')
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    a.download = `oidsee-export-${sanitizedType}-${timestamp}.json`
     a.click()
     URL.revokeObjectURL(url)
   }

@@ -50,9 +50,17 @@ If you used `--generate-report`, open `scan-results-report.html` in your browser
 
 Open the OID-See web app at **https://oid-see.netlify.app/** (or run locally with `npm run dev`), then:
 1. Click **Upload JSON** and select your `scan-results.json` file
-2. Use the **Risk** lens to focus on high-risk applications
-3. Filter by risk score: `n.risk.score>=70`
-4. Click nodes to see detailed risk analysis
+2. Choose your preferred view mode:
+   - **Graph View**: Interactive network visualization (best for < 1,000 nodes)
+   - **Table View**: High-performance tabular view with virtual scrolling (handles 50,000+ nodes)
+   - **Tree View**: Hierarchical organization by node type with risk aggregation
+   - **Matrix View**: Heat map of relationships between node types
+   - **Dashboard View**: Statistical summary and key metrics
+3. Use the **Risk** lens to focus on high-risk applications
+4. Filter by risk score: `n.risk.score>=70`
+5. Click nodes to see detailed risk analysis
+
+**For large datasets (10,000+ nodes)**, start with Dashboard View for an overview, then use Table View to search and filter, and finally visualize specific subsets in Graph View. See [Visualization Modes Documentation](./docs/visualization-modes.md) for details.
 
 ### 4. Take Action
 
@@ -71,6 +79,7 @@ Comprehensive documentation is available in the [`docs/`](./docs/) directory:
 - **[Scoring Logic](./docs/scoring-logic.md)** - Understanding risk assessment methodology
 - **[Schema Reference](./docs/schema.md)** - Export format specification and field descriptions
 - **[Web App Guide](./docs/web-app.md)** - Using the browser-based visualization tool
+- **[Visualization Modes](./docs/visualization-modes.md)** - Alternative views for large datasets (Table, Tree, Matrix, Dashboard)
 
 ## 📊 HTML Report Generation
 
@@ -105,7 +114,12 @@ This repo includes the full JSON Schema at `schemas/oidsee-graph-export.schema.j
 - **Optional Enrichment**: DNS, RDAP, and IP WHOIS lookups identify domain ownership patterns and reduce false positives (can be disabled with CLI flags)
 
 ### Features
+- **Multiple Visualization Modes**: Choose from Graph, Table, Tree, Matrix, or Dashboard views optimized for different use cases and dataset sizes
 - **Interactive Graph Visualization**: Explore relationships between service principals, applications, users, and permissions
+- **High-Performance Table View**: Virtual scrolling handles 50,000+ nodes with instant search and filtering
+- **Hierarchical Tree View**: Organize by type with lazy loading and risk aggregation
+- **Matrix Heat Map**: Visual relationship patterns and risk distribution between node types
+- **Dashboard Analytics**: Statistical summaries, top risks, and critical path identification
 - **Risk Scoring**: Automatic risk assessment based on permissions, exposure, governance, and security hygiene
 - **Browser-Only Processing**: All visualization happens in your browser—no data is uploaded to any server, no telemetry
 - **Security Heuristics**: 
@@ -116,6 +130,7 @@ This repo includes the full JSON Schema at `schemas/oidsee-graph-export.schema.j
   - **Brokered Authentication**: Recognizes mobile broker schemes (msauth://, ms-app://, brk-*://) and other custom schemes
 - **Advanced Filtering**: Filter nodes and edges using a powerful query syntax
 - **Multiple Lenses**: View full graph, risk-focused, or structural relationships
+- **Subset Visualization**: Select and visualize specific node subsets with size constraints for optimal performance
 
 ### Minimal example
 ```json

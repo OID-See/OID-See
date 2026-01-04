@@ -75,15 +75,24 @@ export function MatrixView({ nodes, edges, onDrillDown }: MatrixViewProps) {
     return matrixData.matrix.get(`${fromType}:${toType}`)
   }
 
+  // Risk color constants
+  const RISK_COLORS = {
+    CRITICAL: '#ff4444',
+    HIGH: '#ff9933',
+    MEDIUM: '#ffcc00',
+    LOW: '#99cc00',
+    EMPTY: '#f5f5f5'
+  }
+
   const getCellColor = (cell?: MatrixCell): string => {
-    if (!cell || cell.count === 0) return '#f5f5f5'
+    if (!cell || cell.count === 0) return RISK_COLORS.EMPTY
     
     // Color based on average risk
     const risk = cell.avgRisk
-    if (risk >= 70) return '#ff4444'
-    if (risk >= 40) return '#ff9933'
-    if (risk >= 20) return '#ffcc00'
-    if (risk > 0) return '#99cc00'
+    if (risk >= 70) return RISK_COLORS.CRITICAL
+    if (risk >= 40) return RISK_COLORS.HIGH
+    if (risk >= 20) return RISK_COLORS.MEDIUM
+    if (risk > 0) return RISK_COLORS.LOW
     
     // Color based on count if no risk
     const intensity = Math.min(cell.count / 100, 1)
