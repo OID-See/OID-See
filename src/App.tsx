@@ -534,15 +534,16 @@ export default function App() {
         maxEdges: MAX_RENDERABLE_EDGES
       })
       
-      // Store the original full dataset before any truncation
-      // Clone the parsed data to preserve the original for alternative views
-      const originalParsed = { ...parsed, nodes: [...parsed.nodes], edges: [...(parsed.edges || [])] }
+      let originalParsed = parsed // Reference to original data
       
       if (exceedsLimits) {
         console.log('[OID-See] ✂️  Graph exceeds limits - truncating ONLY for graph view...')
         console.log('[OID-See] ℹ️  Alternative views (Table, Tree, Matrix, Dashboard) will use full dataset')
         setLoadingProgress(`Analyzing ${nodeCount.toLocaleString()} nodes...`)
         const truncateStartTime = performance.now()
+        
+        // Clone the parsed data to preserve the original for alternative views (only when truncating)
+        originalParsed = { ...parsed, nodes: [...parsed.nodes], edges: [...(parsed.edges || [])] }
         
         // Truncate to only high-risk nodes for massive graphs (ONLY for graph view)
         const originalNodeCount = nodeCount
@@ -628,7 +629,7 @@ export default function App() {
       }
       
       // Process the truncated data for graph view
-      console.log('[OID-See] 🎨 Converting truncated data to vis-network format for graph view...')
+      console.log('[OID-See] 🎨 Converting data to vis-network format...')
       setLoadingProgress(`Converting ${parsed.nodes.length.toLocaleString()} nodes to graph format...`)
       // Yield to allow progress message to render
       await yieldToEventLoop()
@@ -643,16 +644,21 @@ export default function App() {
         edges: vis.edges.length.toLocaleString()
       })
       
-      // Convert original full dataset for alternative views
-      console.log('[OID-See] 🎨 Converting full dataset for alternative views...')
-      const originalVisStartTime = performance.now()
-      const originalVis = isLargeGraph ? await toVisDataAsync(originalParsed) : toVisData(originalParsed)
-      const originalVisTime = performance.now() - originalVisStartTime
-      console.log('[OID-See] ✅ Full dataset conversion complete (alternative views):', {
-        duration: `${originalVisTime.toFixed(0)}ms`,
-        nodes: originalVis.nodes.length.toLocaleString(),
-        edges: originalVis.edges.length.toLocaleString()
-      })
+      // Convert original full dataset for alternative views (only if different from graph data)
+      let originalVis = vis
+      if (exceedsLimits) {
+        console.log('[OID-See] 🎨 Converting full dataset for alternative views...')
+        const originalVisStartTime = performance.now()
+        originalVis = isLargeGraph ? await toVisDataAsync(originalParsed) : toVisData(originalParsed)
+        const originalVisTime = performance.now() - originalVisStartTime
+        console.log('[OID-See] ✅ Full dataset conversion complete (alternative views):', {
+          duration: `${originalVisTime.toFixed(0)}ms`,
+          nodes: originalVis.nodes.length.toLocaleString(),
+          edges: originalVis.edges.length.toLocaleString()
+        })
+      } else {
+        console.log('[OID-See] ℹ️  No truncation - reusing graph data for alternative views')
+      }
       
       console.log('[OID-See] 🎬 Setting data to trigger render...')
       setLoadingProgress('Rendering...')
@@ -660,7 +666,7 @@ export default function App() {
       await yieldToEventLoop()
       
       setData(vis) // Truncated data for graph view
-      setOriginalData(originalVis) // Full data for alternative views
+      setOriginalData(originalVis) // Full data for alternative views (same as vis if not truncated)
       
       // Yield after setting data to allow React to schedule the update
       await new Promise(resolve => setTimeout(resolve, 100))
@@ -715,8 +721,8 @@ export default function App() {
     return {
       nodes: filtered.nodes.length,
       edges: filtered.edges.length,
-      totalNodes: originalData?.nodes.length || data.nodes.length,
-      totalEdges: originalData?.edges.length || data.edges.length,
+      totalNodes: originalData?.nodes.length ?? data?.nodes.length ?? 0,
+      totalEdges: originalData?.edges.length ?? data?.edges.length ?? 0,
     }
   }, [data, filtered, originalData])
 
