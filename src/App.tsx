@@ -649,33 +649,42 @@ export default function App() {
       setViewsReady(new Set(['dashboard', 'table', 'tree', 'matrix']))
       
       console.log('[OID-See] ✅ Dashboard and alternative views ready!')
-      setLoadingProgress('Dashboard ready')
-      await yieldToEventLoop()
       
-      // PRIORITY 2: Convert truncated data for graph view in background
-      // Only do this after alternative views are ready
-      console.log('[OID-See] 🎨 Converting data to vis-network format for graph view (background)...')
-      setLoadingProgress('Preparing graph view in background...')
-      await yieldToEventLoop()
+      const dashboardTime = performance.now() - renderStartTime
+      console.log('[OID-See] 🎉 Dashboard ready in:', `${dashboardTime.toFixed(0)}ms`)
       
-      const visStartTime = performance.now()
-      // Use async version for large graphs to prevent UI blocking
-      const vis = isLargeGraph ? await toVisDataAsync(parsed) : toVisData(parsed)
-      const visTime = performance.now() - visStartTime
-      console.log('[OID-See] ✅ Graph view data ready:', {
-        duration: `${visTime.toFixed(0)}ms`,
-        nodes: vis.nodes.length.toLocaleString(),
-        edges: vis.edges.length.toLocaleString()
-      })
+      // HIDE LOADING DIALOG NOW - Dashboard is ready and user can interact
+      setLoading(false)
+      setLoadingProgress('')
       
-      // Set graph data
-      setData(vis)
-      setViewsReady(prev => new Set([...prev, 'graph']))
+      // PRIORITY 2: Convert truncated data for graph view in TRUE BACKGROUND
+      // Use setTimeout to move this completely off the main render flow
+      setTimeout(async () => {
+        try {
+          console.log('[OID-See] 🎨 Converting data to vis-network format for graph view (background)...')
+          
+          const visStartTime = performance.now()
+          // Use async version for large graphs to prevent UI blocking
+          const vis = isLargeGraph ? await toVisDataAsync(parsed) : toVisData(parsed)
+          const visTime = performance.now() - visStartTime
+          console.log('[OID-See] ✅ Graph view data ready:', {
+            duration: `${visTime.toFixed(0)}ms`,
+            nodes: vis.nodes.length.toLocaleString(),
+            edges: vis.edges.length.toLocaleString()
+          })
+          
+          // Set graph data
+          setData(vis)
+          setViewsReady(prev => new Set([...prev, 'graph']))
+          
+          const totalTime = performance.now() - renderStartTime
+          console.log('[OID-See] ✅ All views ready! Total time:', `${totalTime.toFixed(0)}ms`)
+        } catch (e: any) {
+          console.error('[OID-See] ❌ Background graph conversion error:', e)
+          // Graph view fails silently - other views still work
+        }
+      }, 100) // Small delay to ensure dashboard renders first
       
-      console.log('[OID-See] ✅ All views ready!')
-      
-      const totalTime = performance.now() - renderStartTime
-      console.log('[OID-See] 🎉 Render process complete:', `${totalTime.toFixed(0)}ms total`)
     } catch (e: any) {
       console.error('[OID-See] ❌ Render error:', e)
       setData(null)
@@ -683,7 +692,6 @@ export default function App() {
       setViewsReady(new Set())
       setSelection(null)
       setError(e?.message ?? String(e))
-    } finally {
       setLoading(false)
       setLoadingProgress('')
     }
