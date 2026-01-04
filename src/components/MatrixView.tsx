@@ -94,10 +94,8 @@ export function MatrixView({ nodes, edges, onDrillDown }: MatrixViewProps) {
     if (risk >= 20) return RISK_COLORS.MEDIUM
     if (risk > 0) return RISK_COLORS.LOW
     
-    // Color based on count if no risk
-    const intensity = Math.min(cell.count / 100, 1)
-    const blue = Math.floor(150 + (255 - 150) * (1 - intensity))
-    return `rgb(${blue}, ${blue}, 255)`
+    // Color for edges with no risk data (matches legend #ccccff)
+    return '#ccccff'
   }
 
   const handleCellClick = (fromType: string, toType: string) => {

@@ -1611,6 +1611,11 @@ body{
   cursor: pointer;
 }
 
+.table-view__type-selector .select option {
+  background: rgba(11,14,18,1);
+  color: rgba(234,242,255,0.90);
+}
+
 .table-view__stats {
   display: flex;
   gap: 1rem;
