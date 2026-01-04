@@ -525,23 +525,43 @@ class DirectoryCache:
     def __init__(self, graph: GraphClient):
         self.graph = graph
         self._cache: Dict[str, Dict[str, Any]] = {}
+        self._cache_lock = Lock()
 
     def get_many(self, ids: Set[str]) -> None:
         unknown = [i for i in ids if i and i not in self._cache]
         if not unknown:
             return
         # /directoryObjects/getByIds supports up to 1000 ids but keep it conservative
-        for batch in chunked(unknown, 500):
+        batches = list(chunked(unknown, 500))
+        
+        def fetch_batch(batch: List[str]) -> List[Dict[str, Any]]:
             body = {"ids": batch, "types": ["user", "group", "servicePrincipal", "directoryRole"]}
             try:
                 data = self.graph.post(f"{GRAPH_V1}/directoryObjects/getByIds", json=body)
+                return data.get("value", [])
             except GraphClient.GraphNotFound:
                 # getByIds won't 404 on batch; ignore
-                data = {"value": []}
-            for obj in data.get("value", []):
-                oid = obj.get("id")
-                if oid:
-                    self._cache[oid] = obj
+                return []
+        
+        # Parallelize batch requests for better performance with large ID sets
+        if len(batches) > 1:
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                future_to_batch = {executor.submit(fetch_batch, batch): batch for batch in batches}
+                for future in as_completed(future_to_batch):
+                    objects = future.result()
+                    with self._cache_lock:
+                        for obj in objects:
+                            oid = obj.get("id")
+                            if oid:
+                                self._cache[oid] = obj
+        else:
+            # Single batch - no need for parallelism
+            for batch in batches:
+                objects = fetch_batch(batch)
+                for obj in objects:
+                    oid = obj.get("id")
+                    if oid:
+                        self._cache[oid] = obj
 
     def get(self, oid: str) -> Optional[Dict[str, Any]]:
         return self._cache.get(oid)
