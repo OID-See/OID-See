@@ -2639,12 +2639,14 @@ class OidSeeCollector:
             # Build batch requests for all 5 operations across all SPs in this batch
             batch_requests = []
             request_map = {}  # Maps request ID to (sp_id, operation_type)
+            req_counter = 1  # Simple sequential numeric IDs matching Microsoft Graph examples
             
             for sp in sp_batch:
                 sp_id = sp["id"]
                 
                 # 1. OAuth2 permission grants
-                req_id_grants = f"{sp_id}_grants"
+                req_id_grants = str(req_counter)
+                req_counter += 1
                 batch_requests.append({
                     "id": req_id_grants,
                     "method": "GET",
@@ -2653,7 +2655,8 @@ class OidSeeCollector:
                 request_map[req_id_grants] = (sp_id, "grants")
                 
                 # 2. App role assignments (app permissions)
-                req_id_app_perms = f"{sp_id}_app_perms"
+                req_id_app_perms = str(req_counter)
+                req_counter += 1
                 batch_requests.append({
                     "id": req_id_app_perms,
                     "method": "GET",
@@ -2662,7 +2665,8 @@ class OidSeeCollector:
                 request_map[req_id_app_perms] = (sp_id, "app_perms")
                 
                 # 3. App role assigned to (assignments)
-                req_id_assigned_to = f"{sp_id}_assigned_to"
+                req_id_assigned_to = str(req_counter)
+                req_counter += 1
                 batch_requests.append({
                     "id": req_id_assigned_to,
                     "method": "GET",
@@ -2671,7 +2675,8 @@ class OidSeeCollector:
                 request_map[req_id_assigned_to] = (sp_id, "assigned_to")
                 
                 # 4. Owners
-                req_id_owners = f"{sp_id}_owners"
+                req_id_owners = str(req_counter)
+                req_counter += 1
                 batch_requests.append({
                     "id": req_id_owners,
                     "method": "GET",
@@ -2680,7 +2685,8 @@ class OidSeeCollector:
                 request_map[req_id_owners] = (sp_id, "owners")
                 
                 # 5. Directory role assignments
-                req_id_dir_roles = f"{sp_id}_dir_roles"
+                req_id_dir_roles = str(req_counter)
+                req_counter += 1
                 batch_requests.append({
                     "id": req_id_dir_roles,
                     "method": "GET",
