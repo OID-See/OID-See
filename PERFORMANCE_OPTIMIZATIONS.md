@@ -50,44 +50,39 @@ for app in all_apps:
 
 **Fallback**: If bulk fetch fails, falls back to parallel individual queries with 20 workers.
 
-### 2. Graph API Batch Requests for SP Data Collection (CRITICAL FIX #2)
+### 2. Parallelized Per-SP Data Collection (CRITICAL FIX #2)
 
-**Impact**: ~10-15x speedup for service principal data collection - from 35 minutes to ~2-3 minutes
+**Impact**: ~3.5-5x speedup for service principal data collection - from 35 minutes to ~7-10 minutes
 
-**Problem**: Each service principal required 5 separate Graph API requests, resulting in 40,480 total HTTP calls for 8,096 SPs (8,096 × 5):
+**Problem**: Each service principal made 5 sequential Graph API calls, resulting in 5× network latency per SP:
 ```python
-# OLD: Individual requests per SP (8,096 SPs × 5 calls = 40,480 HTTP requests!)
-for sp in sps:
-    grants = fetch_oauth2_permission_grants(sp_id)
-    app_perms = fetch_app_role_assignments(sp_id)
-    assigned_to = fetch_app_role_assigned_to(sp_id)
-    owners = fetch_owners(sp_id)
-    dir_roles = fetch_directory_roles(sp_id)
+# OLD: Sequential calls (5 × network latency per SP!)
+grants = fetch_oauth2_permission_grants(sp_id)       # Call 1
+app_perms = fetch_app_role_assignments(sp_id)        # Call 2
+assigned_to = fetch_app_role_assigned_to(sp_id)      # Call 3
+owners = fetch_owners(sp_id)                          # Call 4
+dir_roles = fetch_directory_roles(sp_id)             # Call 5
 ```
 
-**Solution**: Use Microsoft Graph `$batch` API to combine up to 20 requests into a single HTTP call:
+**Solution**: Parallelize the 5 calls within each SP using nested ThreadPoolExecutor:
 ```python
-# NEW: Batch API combines 20 requests per HTTP call (8,096 SPs × 5 / 20 = ~2,024 HTTP requests)
-# Process SPs in groups of 4 (4 SPs × 5 operations = 20 requests per batch)
-batch_requests = []
-for sp in sp_batch:  # 4 SPs at a time
-    batch_requests.append({"id": f"{sp_id}_grants", "method": "GET", "url": f"/beta/oauth2PermissionGrants?$filter=clientId eq '{sp_id}'&..."})
-    batch_requests.append({"id": f"{sp_id}_app_perms", "method": "GET", "url": f"/beta/servicePrincipals/{sp_id}/appRoleAssignments?..."})
-    batch_requests.append({"id": f"{sp_id}_assigned_to", "method": "GET", "url": f"/beta/servicePrincipals/{sp_id}/appRoleAssignedTo?..."})
-    batch_requests.append({"id": f"{sp_id}_owners", "method": "GET", "url": f"/beta/servicePrincipals/{sp_id}/owners?..."})
-    batch_requests.append({"id": f"{sp_id}_dir_roles", "method": "GET", "url": f"/v1.0/roleManagement/directory/roleAssignments?$filter=principalId eq '{sp_id}'&..."})
-
-batch_responses = graph.batch(batch_requests)  # Single HTTP call for 20 requests
+# NEW: Parallel calls (1 × network latency per SP!)
+with ThreadPoolExecutor(max_workers=5) as executor:
+    future_grants = executor.submit(fetch_oauth2_permission_grants, sp_id)
+    future_app_perms = executor.submit(fetch_app_role_assignments, sp_id)
+    future_assigned_to = executor.submit(fetch_app_role_assigned_to, sp_id)
+    future_owners = executor.submit(fetch_owners, sp_id)
+    future_dir_roles = executor.submit(fetch_directory_roles, sp_id)
+    # Collect all results in parallel
 ```
 
 **Why this is faster**:
-- Reduces HTTP calls from 40,480 to ~2,024 (20x reduction)
-- Single HTTP connection setup/teardown per batch instead of per request
-- Eliminates TCP handshake, TLS negotiation, and connection overhead for each request
-- Reduced network latency: ~2,024 round-trips instead of 40,480
-- Server-side optimizations: Graph API can process batch requests more efficiently
+- 5 API calls run concurrently instead of sequentially
+- Latency is now ~1× network round-trip instead of 5×
+- With 20 SPs being processed in parallel, that's 100 concurrent API calls (20 × 5)
+- Still well within API rate limits (2,000 req/10s)
 
-**Fallback**: If batch request fails, falls back to parallelized per-SP approach (5 parallel calls per SP).
+**Note**: Graph API batching was attempted but encountered compatibility issues. The nested parallelization approach provides significant performance improvements (3.5-5x) with proven reliability.
 
 ### 3. Increased Parallelism (10 → 20 workers)
 
@@ -152,7 +147,7 @@ Progress messages help users understand that the scanner is actively working and
 | Operation | Before | After | Improvement |
 |-----------|--------|-------|-------------|
 | Application fetching | ~3,680s (8,096 queries) | ~10-60s (1 query) | **60-360x faster** |
-| SP data collection | ~2,130s (40,480 HTTP calls) | ~120-180s (2,024 batch calls) | **12-18x faster** |
+| SP data collection | ~2,130s (5 sequential calls/SP) | ~420-600s (5 parallel calls/SP) | **3.5-5x faster** |
 | Directory object resolution | Sequential batches | Parallel batches | Up to 5x faster |
 
 ### Overall Impact
@@ -160,8 +155,8 @@ Progress messages help users understand that the scanner is actively working and
 For a large tenant with 8,000 service principals:
 
 - **Old runtime**: ~103 minutes (application fetching: 66 min + SP collection: 35 min + misc: 2 min)
-- **Expected new runtime**: ~3-5 minutes (application fetching: 1 min + SP collection: 2-3 min + misc: 0-1 min)
-- **Improvement**: **95-97% faster** (from 103 minutes to 3-5 minutes)
+- **Expected new runtime**: ~8-11 minutes (application fetching: 1 min + SP collection: 7-10 min + misc: 0-1 min)
+- **Improvement**: **89-92% faster** (from 103 minutes to 8-11 minutes)
 
 ## Thread Safety
 

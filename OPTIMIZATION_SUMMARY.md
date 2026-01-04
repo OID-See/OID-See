@@ -23,17 +23,18 @@
 
 ### 2. Parallelized Per-SP Data Collection (CRITICAL FIX #2)
 
-**Changed**: `fetch_all_data_for_sps_batched()` - Rewrote SP data collection to use Graph API batching
+**Changed**: `fetch_all_data_for_sp()` - Parallelized the 5 sequential Graph API calls per SP
 
-**Problem**: Each service principal required 5 separate HTTP requests (8,096 SPs × 5 = 40,480 HTTP calls)
+**Problem**: Each service principal made 5 sequential Graph API calls (5× latency penalty)
 
-**Solution**: Use Microsoft Graph `$batch` API to combine up to 20 requests per HTTP call
+**Solution**: Parallelize the 5 calls using nested ThreadPoolExecutor with 5 workers
 
-**Impact**: **12-18x faster** - from ~35 minutes to ~2-3 minutes for SP data collection
+**Impact**: **3.5-5x faster** - from ~35 minutes to ~7-10 minutes for SP data collection
 
 ### 3. Increased Parallelism (10 → 20 workers)
 
 **Changed in**:
+- `fetch_all_data_for_sp()` collection - Service principal data gathering
 - `ensure_resource_sps_loaded()` - Resource service principal loading
 - `fetch_role_definitions()` - Role definition fetching
 
@@ -62,7 +63,7 @@
 
 **Usage**:
 - Application fetching: instant (single bulk query)
-- SP data collection: batch progress updates
+- SP data collection: every 100 items
 - Resource SP loading: every 50 items
 
 **Impact**: Better user visibility during long scans
@@ -74,16 +75,16 @@
 | Operation | Before | After | Improvement |
 |-----------|--------|-------|-------------|
 | Application cache | ~3,680s (66 min) | ~10-60s (1 min) | **60-360x faster** |
-| SP data collection | ~2,130s (35 min) | ~120-180s (2-3 min) | **12-18x faster** |
+| SP data collection | ~2,130s (35 min) | ~420-600s (7-10 min) | **3.5-5x faster** |
 | Directory resolution | Sequential | Parallel | 2-5x faster |
-| **Total Runtime** | **~103 min** | **~3-5 min** | **~95-97% reduction** |
+| **Total Runtime** | **~103 min** | **~8-11 min** | **~89-92% reduction** |
 
 ### Real-World Impact
 
 For a large tenant with 8,000 service principals:
 - **Old runtime**: ~103 minutes
-- **Expected new runtime**: ~3-5 minutes
-- **Improvement**: 95-97% faster
+- **Expected new runtime**: ~8-11 minutes
+- **Improvement**: 89-92% faster
 
 ## Code Quality & Safety
 
