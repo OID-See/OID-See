@@ -1531,8 +1531,14 @@ body{
   box-shadow: 0 0 12px rgba(66,232,224,0.3);
 }
 
-.btn--view-mode:hover {
+.btn--view-mode:hover:not(.disabled) {
   border-color: var(--teal);
+}
+
+.btn--view-mode.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(255,255,255,0.02);
 }
 
 /* Table View */

@@ -360,7 +360,8 @@ export default function App() {
   const [loading, setLoading] = useState<boolean>(false)
   const [loadingProgress, setLoadingProgress] = useState<string>('')
   const [largeGraphWarning, setLargeGraphWarning] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('graph')
+  const [viewMode, setViewMode] = useState<ViewMode>('dashboard')
+  const [viewsReady, setViewsReady] = useState<Set<ViewMode>>(new Set())
   const graphRef = useRef<GraphCanvasHandle>(null)
   const detailsPanelRef = useRef<HTMLElement>(null)
 
@@ -628,56 +629,58 @@ export default function App() {
         )
       }
       
-      // Process the truncated data for graph view
-      console.log('[OID-See] 🎨 Converting data to vis-network format...')
-      setLoadingProgress(`Converting ${parsed.nodes.length.toLocaleString()} nodes to graph format...`)
-      // Yield to allow progress message to render
+      // PRIORITY 1: Convert full dataset for alternative views (dashboard, table, tree, matrix)
+      // These views don't need vis-network format, they work directly with OidSee format
+      console.log('[OID-See] 🎨 Preparing data for dashboard and alternative views...')
+      setLoadingProgress('Preparing dashboard view...')
+      await yieldToEventLoop()
+      
+      const originalVisStartTime = performance.now()
+      const originalVis = isLargeGraph ? await toVisDataAsync(originalParsed) : toVisData(originalParsed)
+      const originalVisTime = performance.now() - originalVisStartTime
+      console.log('[OID-See] ✅ Alternative views data ready:', {
+        duration: `${originalVisTime.toFixed(0)}ms`,
+        nodes: originalVis.nodes.length.toLocaleString(),
+        edges: originalVis.edges.length.toLocaleString()
+      })
+      
+      // Set original data immediately for dashboard/table/tree/matrix views
+      setOriginalData(originalVis)
+      setViewsReady(new Set(['dashboard', 'table', 'tree', 'matrix']))
+      
+      console.log('[OID-See] ✅ Dashboard and alternative views ready!')
+      setLoadingProgress('Dashboard ready')
+      await yieldToEventLoop()
+      
+      // PRIORITY 2: Convert truncated data for graph view in background
+      // Only do this after alternative views are ready
+      console.log('[OID-See] 🎨 Converting data to vis-network format for graph view (background)...')
+      setLoadingProgress('Preparing graph view in background...')
       await yieldToEventLoop()
       
       const visStartTime = performance.now()
       // Use async version for large graphs to prevent UI blocking
       const vis = isLargeGraph ? await toVisDataAsync(parsed) : toVisData(parsed)
       const visTime = performance.now() - visStartTime
-      console.log('[OID-See] ✅ Vis-network conversion complete (graph view):', {
+      console.log('[OID-See] ✅ Graph view data ready:', {
         duration: `${visTime.toFixed(0)}ms`,
         nodes: vis.nodes.length.toLocaleString(),
         edges: vis.edges.length.toLocaleString()
       })
       
-      // Convert original full dataset for alternative views (only if different from graph data)
-      let originalVis = vis
-      if (exceedsLimits) {
-        console.log('[OID-See] 🎨 Converting full dataset for alternative views...')
-        const originalVisStartTime = performance.now()
-        originalVis = isLargeGraph ? await toVisDataAsync(originalParsed) : toVisData(originalParsed)
-        const originalVisTime = performance.now() - originalVisStartTime
-        console.log('[OID-See] ✅ Full dataset conversion complete (alternative views):', {
-          duration: `${originalVisTime.toFixed(0)}ms`,
-          nodes: originalVis.nodes.length.toLocaleString(),
-          edges: originalVis.edges.length.toLocaleString()
-        })
-      } else {
-        console.log('[OID-See] ℹ️  No truncation - reusing graph data for alternative views')
-      }
+      // Set graph data
+      setData(vis)
+      setViewsReady(prev => new Set([...prev, 'graph']))
       
-      console.log('[OID-See] 🎬 Setting data to trigger render...')
-      setLoadingProgress('Rendering...')
-      // Yield before setting data to allow progress message to render
-      await yieldToEventLoop()
-      
-      setData(vis) // Truncated data for graph view
-      setOriginalData(originalVis) // Full data for alternative views (same as vis if not truncated)
-      
-      // Yield after setting data to allow React to schedule the update
-      await new Promise(resolve => setTimeout(resolve, 100))
+      console.log('[OID-See] ✅ All views ready!')
       
       const totalTime = performance.now() - renderStartTime
       console.log('[OID-See] 🎉 Render process complete:', `${totalTime.toFixed(0)}ms total`)
-      console.log('[OID-See] ⚠️  Note: Graph initialization (clustering, spatial indexing) will continue in background')
     } catch (e: any) {
       console.error('[OID-See] ❌ Render error:', e)
       setData(null)
       setOriginalData(null)
+      setViewsReady(new Set())
       setSelection(null)
       setError(e?.message ?? String(e))
     } finally {
@@ -937,7 +940,7 @@ export default function App() {
         </div>
 
         <div className="topbar__actions">
-          <ViewModeSelector currentMode={viewMode} onChange={setViewMode} />
+          <ViewModeSelector currentMode={viewMode} onChange={setViewMode} viewsReady={viewsReady} />
           
           <button
             className="btn file"
@@ -1248,7 +1251,7 @@ export default function App() {
         onClose={() => setLegendVisible(false)}
       />
       
-      <LoadingOverlay visible={loading} message="Loading graph" progress={loadingProgress} />
+      <LoadingOverlay visible={loading} message="Loading data" progress={loadingProgress} />
     </div>
   )
 }
