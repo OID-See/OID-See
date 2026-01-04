@@ -2507,6 +2507,8 @@ class OidSeeCollector:
         Fetch all data for a single service principal.
         Returns a dict with grants, app_perms, assigned_to, owners, dir_roles,
         and extracted IDs for resource_sps, principals, and role_defs.
+        
+        OPTIMIZED: Parallelizes the 5 Graph API calls per SP for faster collection.
         """
         sp_id = sp["id"]
         result = {
@@ -2522,14 +2524,30 @@ class OidSeeCollector:
             "scopes_by_res": {},
         }
         
-        # Delegated grants
-        try:
-            grants = self.fetch_oauth2_permission_grants(sp_id)
-        except Exception as e:
-            print(f"⚠️  oauth2PermissionGrants failed for {sp_id}: {e}", file=sys.stderr)
-            grants = []
-        result["grants"] = grants
+        # Parallelize the 5 API calls for this SP using ThreadPoolExecutor
+        # This reduces latency significantly (5 sequential calls → 1 parallel batch)
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            # Submit all 5 calls in parallel
+            future_grants = executor.submit(self._safe_fetch_oauth2_grants, sp_id)
+            future_app_perms = executor.submit(self._safe_fetch_app_role_assignments, sp_id)
+            future_assigned_to = executor.submit(self._safe_fetch_app_role_assigned_to, sp_id)
+            future_owners = executor.submit(self._safe_fetch_owners, sp_id)
+            future_dir_roles = executor.submit(self._safe_fetch_directory_roles, sp_id)
+            
+            # Collect results
+            grants = future_grants.result()
+            app_perms = future_app_perms.result()
+            assigned_to = future_assigned_to.result()
+            owners = future_owners.result()
+            dir_roles = future_dir_roles.result()
         
+        result["grants"] = grants
+        result["app_perms"] = app_perms
+        result["assigned_to"] = assigned_to
+        result["owners"] = owners
+        result["dir_roles"] = dir_roles
+        
+        # Process grants for scope extraction
         scopes_by_res: Dict[str, Set[str]] = {}
         for g in grants:
             rid = g.get("resourceId")
@@ -2542,59 +2560,67 @@ class OidSeeCollector:
                 result["principal_ids"].add(pid)
         result["scopes_by_res"] = scopes_by_res
         
-        # App permissions (appRoleAssignments)
-        try:
-            app_perms = self.fetch_app_role_assignments(sp_id)
-        except Exception as e:
-            print(f"⚠️  appRoleAssignments failed for {sp_id}: {e}", file=sys.stderr)
-            app_perms = []
-        result["app_perms"] = app_perms
-        
+        # Extract resource SP IDs from app permissions
         for a in app_perms:
             rid = a.get("resourceId")
             if rid:
                 result["resource_sp_ids"].add(rid)
         
-        # Assigned to (who can use it, if assignment required / optional)
-        try:
-            assigned_to = self.fetch_app_role_assigned_to(sp_id)
-        except Exception as e:
-            print(f"⚠️  appRoleAssignedTo failed for {sp_id}: {e}", file=sys.stderr)
-            assigned_to = []
-        result["assigned_to"] = assigned_to
-        
+        # Extract principal IDs from assignments
         for a in assigned_to:
             pid = a.get("principalId")
             if pid:
                 result["principal_ids"].add(pid)
         
-        # Owners
-        try:
-            owners = self.fetch_owners(sp_id)
-        except Exception as e:
-            print(f"⚠️  owners failed for {sp_id}: {e}", file=sys.stderr)
-            owners = []
-        result["owners"] = owners
-        
+        # Extract principal IDs from owners
         for o in owners:
             oid = o.get("id")
             if oid:
                 result["principal_ids"].add(oid)
         
-        # Directory role assignments (Azure AD roles to the SP itself)
-        try:
-            dras = self.fetch_directory_role_assignments_to_principal(sp_id)
-        except Exception as e:
-            print(f"⚠️  directory roleAssignments failed for {sp_id}: {e}", file=sys.stderr)
-            dras = []
-        result["dir_roles"] = dras
-        
-        for ra in dras:
+        # Extract role definition IDs
+        for ra in dir_roles:
             rid = ra.get("roleDefinitionId")
             if rid:
                 result["role_def_ids"].add(rid)
         
         return result
+    
+    # Helper methods with error handling for parallel execution
+    def _safe_fetch_oauth2_grants(self, sp_id: str) -> List[Dict[str, Any]]:
+        try:
+            return self.fetch_oauth2_permission_grants(sp_id)
+        except Exception as e:
+            print(f"⚠️  oauth2PermissionGrants failed for {sp_id}: {e}", file=sys.stderr)
+            return []
+    
+    def _safe_fetch_app_role_assignments(self, sp_id: str) -> List[Dict[str, Any]]:
+        try:
+            return self.fetch_app_role_assignments(sp_id)
+        except Exception as e:
+            print(f"⚠️  appRoleAssignments failed for {sp_id}: {e}", file=sys.stderr)
+            return []
+    
+    def _safe_fetch_app_role_assigned_to(self, sp_id: str) -> List[Dict[str, Any]]:
+        try:
+            return self.fetch_app_role_assigned_to(sp_id)
+        except Exception as e:
+            print(f"⚠️  appRoleAssignedTo failed for {sp_id}: {e}", file=sys.stderr)
+            return []
+    
+    def _safe_fetch_owners(self, sp_id: str) -> List[Dict[str, Any]]:
+        try:
+            return self.fetch_owners(sp_id)
+        except Exception as e:
+            print(f"⚠️  owners failed for {sp_id}: {e}", file=sys.stderr)
+            return []
+    
+    def _safe_fetch_directory_roles(self, sp_id: str) -> List[Dict[str, Any]]:
+        try:
+            return self.fetch_directory_role_assignments_to_principal(sp_id)
+        except Exception as e:
+            print(f"⚠️  directory roleAssignments failed for {sp_id}: {e}", file=sys.stderr)
+            return []
 
     def fetch_role_definitions(self, ids: Set[str]) -> None:
         # roleDefinitions are queryable; fetch in parallel
