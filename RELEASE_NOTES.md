@@ -1,15 +1,21 @@
-<<<<<<< HEAD
-# Release Notes - private-beta-2 (Unreleased)
+# Release Notes - private-beta-2
 
 ## Overview
 
-This release dramatically improves the OID-See viewer's ability to handle large datasets. Previously, loading tenant exports with 10,000+ nodes caused browser unresponsiveness and crashes. This release introduces alternative visualization modes, virtual rendering infrastructure, and comprehensive performance optimizations that enable analysis of datasets with 50,000+ nodes while maintaining browser responsiveness.
+This release delivers major improvements to both the OID-See scanner and viewer, making them production-ready for large-scale enterprise deployments.
+
+**Scanner Performance**: Massive performance improvements (97-98% faster) through bulk fetching and Graph API batching. Large tenant scans that took ~103 minutes now complete in ~2-3 minutes.
+
+**Viewer Performance**: Dramatically improved ability to handle large datasets. Previously, loading tenant exports with 10,000+ nodes caused browser unresponsiveness and crashes. This release introduces alternative visualization modes, virtual rendering infrastructure, and comprehensive performance optimizations that enable analysis of datasets with 50,000+ nodes while maintaining browser responsiveness.
 
 **Key Highlights:**
-- ✅ Alternative visualization modes (Table, Tree, Matrix, Dashboard) for large datasets
-- ✅ Virtual rendering with viewport-based display and progressive detail levels
-- ✅ Graph View automatically handles datasets up to 3k nodes with physics disabled for larger graphs
-- ✅ Comprehensive performance logging and diagnostics
+- ✅ Scanner: 97-98% faster scans through bulk fetching and Graph API batching
+- ✅ Scanner: Application cache population from 66 min → 1 min (60-360x faster)
+- ✅ Scanner: SP data collection from 35 min → 30-60 sec (12-18x faster)
+- ✅ Scanner: HTTP requests reduced by 97% (48,576 → 1,621)
+- ✅ Viewer: Alternative visualization modes (Table, Tree, Matrix, Dashboard) for large datasets
+- ✅ Viewer: Virtual rendering with viewport-based display and progressive detail levels
+- ✅ Viewer: Graph View automatically handles datasets up to 3k nodes with physics disabled for larger graphs
 - ✅ Architecture documentation for future 30k+ node graph support
 - ✅ Large sample dataset (12k nodes, 18k edges) for testing
 
@@ -150,6 +156,61 @@ Added comprehensive technical documentation for future enhancements:
 - Load time: < 100ms regardless of dataset size
 - Instant statistics generation
 - No UI blocking
+
+### Scanner Performance Optimization (97-98% Faster)
+
+**Impact**: Large tenant scans that took ~103 minutes now complete in ~2-3 minutes
+
+**Problem Solved**: Scanner performance degraded significantly in large tenants due to inefficient per-resource Graph API queries and limited parallelism.
+
+**Example Tenant (8,096 service principals)**:
+- **Before**: 103 minutes total (66 min app cache + 35 min SP collection + overhead)
+- **After**: 2-3 minutes total (1 min app cache + 30-60 sec SP collection + overhead)
+- **Improvement**: 97-98% reduction in scan time
+
+#### Key Scanner Optimizations
+
+##### 1. Bulk Application Fetching (60-360x faster)
+- **Before**: Made 8,096 individual filtered Graph queries (one per appId)
+- **After**: Single bulk query + in-memory filtering
+- **Impact**: Application cache population from 66 minutes → 1 minute
+
+##### 2. Graph API Batch Requests (12-18x faster)
+- **Before**: 40,480 individual HTTP requests (8,096 SPs × 5 calls each)
+- **After**: ~1,620 batch requests using Microsoft Graph `$batch` endpoint
+- **Impact**: SP data collection from 35 minutes → 30-60 seconds
+- **Details**: Maximized batch sizes (5 SPs × 4 operations = 20 requests per batch) with 20 parallel workers
+
+##### 3. Increased Parallelism (2x faster)
+- Worker threads increased from 10 → 20 for resource loading and role definitions
+- Thread-safe caching eliminates redundant API calls
+- Async cache updates with proper locking
+
+##### 4. Enhanced Progress Indicators
+- Clean output showing scan progress without debug clutter
+- Error messages displayed for failed batch requests
+- Accurate progress tracking based on batch completion
+
+##### 5. Technical Implementation Details
+- Properly separates beta and v1.0 API calls per Microsoft Graph requirements
+- URLs correctly formatted without version prefix in batch requests
+- Comprehensive error handling with automatic fallback to individual requests
+- Thread-safe locking for all shared caches and results
+- Async cache updates eliminate wait time
+
+#### Scanner Performance Benchmarks
+
+| Tenant Size | Before | After | Improvement |
+|-------------|--------|-------|-------------|
+| 1,000 SPs | ~13 min | ~30 sec | 96% |
+| 5,000 SPs | ~52 min | ~1.5 min | 97% |
+| 8,096 SPs | ~103 min | ~2-3 min | 97-98% |
+| 10,000 SPs | ~128 min | ~3-4 min | 97-98% |
+
+**HTTP Request Reduction**:
+- **Before**: 48,576 individual HTTP requests
+- **After**: ~1,621 batch requests
+- **Reduction**: 97% fewer round-trips
 
 ## Bug Fixes
 
@@ -322,6 +383,9 @@ None. This release is fully backward compatible with existing scan data.
 - ✅ Manual testing with 12k node sample dataset
 - ✅ Performance validated across all view modes
 - ✅ Cross-browser compatibility (Chrome, Edge, Firefox, Safari)
+- ✅ Scanner performance validated with test suite
+- ✅ Thread safety validated with locks on shared results
+- ✅ Proper API version separation (beta and v1.0)
 
 ## Contributors
 
@@ -335,59 +399,6 @@ See `docs/LARGE_GRAPH_ARCHITECTURE.md` for detailed roadmap:
 - **Phase 1**: Web Workers for background processing (4-6 weeks)
 - **Phase 2**: Full virtual rendering for Graph View (4-6 weeks)  
 - **Phase 3**: Advanced analytics dashboard (6-8 weeks)
-=======
-# Release Notes - private-beta-2
-
-## Overview
-
-This release delivers massive performance improvements for large tenant scans (97-98% faster) through bulk fetching and Graph API batching, while maintaining all functionality from private-beta-1.
-
-## What's New in private-beta-2
-
-### Scanner Performance Optimization (97-98% Faster)
-
-**Impact**: Large tenant scans that took ~103 minutes now complete in ~2-3 minutes
-
-**Problem Solved**: Scanner performance degraded significantly in large tenants due to inefficient per-resource Graph API queries and limited parallelism.
-
-**Example Tenant (8,096 service principals)**:
-- **Before**: 103 minutes total (66 min app cache + 35 min SP collection + overhead)
-- **After**: 2-3 minutes total (1 min app cache + 30-60 sec SP collection + overhead)
-- **Improvement**: 97-98% reduction in scan time
-
-### Key Optimizations
-
-#### 1. Bulk Application Fetching (60-360x faster)
-- **Before**: Made 8,096 individual filtered Graph queries (one per appId)
-- **After**: Single bulk query + in-memory filtering
-- **Impact**: Application cache population from 66 minutes → 1 minute
-
-#### 2. Graph API Batch Requests (12-18x faster)
-- **Before**: 40,480 individual HTTP requests (8,096 SPs × 5 calls each)
-- **After**: ~1,620 batch requests using Microsoft Graph `$batch` endpoint
-- **Impact**: SP data collection from 35 minutes → 30-60 seconds
-- **Details**: Maximized batch sizes (5 SPs × 4 operations = 20 requests per batch) with 20 parallel workers
-
-#### 3. Increased Parallelism (2x faster)
-- Worker threads increased from 10 → 20 for resource loading and role definitions
-- Thread-safe caching eliminates redundant API calls
-- Async cache updates with proper locking
-
-#### 4. Technical Implementation
-- Properly separates beta and v1.0 API calls per Microsoft Graph requirements
-- URLs correctly formatted without version prefix in batch requests
-- Comprehensive error handling with automatic fallback to individual requests
-- Progress indicators for long-running operations
-
-### Performance Benchmarks
-
-| Tenant Size | Before | After | Improvement |
-|-------------|--------|-------|-------------|
-| 1,000 SPs | ~13 min | ~30 sec | 96% |
-| 5,000 SPs | ~52 min | ~1.5 min | 97% |
-| 8,096 SPs | ~103 min | ~2-3 min | 97-98% |
-| 10,000 SPs | ~128 min | ~3-4 min | 97-98% |
->>>>>>> copilot/improve-scanner-performance
 
 ---
 

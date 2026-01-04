@@ -7,7 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-<<<<<<< HEAD
+## [private-beta-2] - 2026-01-04
+
+### Changed - Scanner Performance Optimizations
+- **BREAKING PERFORMANCE IMPROVEMENT**: Scanner now uses bulk fetching and Graph API batching for 97-98% faster scans in large tenants
+- Application fetching rewritten from individual filtered queries to single bulk query + in-memory filtering (60-360x faster)
+- SP data collection rewritten to use Microsoft Graph `$batch` API with maximized batch sizes (12-18x faster)
+- Increased parallelism from 10 to 20 workers for resource loading and role definitions
+- Added progress indicators for long-running operations
+
+### Added - Scanner Improvements
+- Graph API batch request support with proper API version separation (beta/v1.0)
+- Thread-safe owners cache to eliminate redundant API calls
+- Parallelized DirectoryCache batch processing (5 concurrent workers)
+- Comprehensive error handling with automatic fallback to individual requests
+- Performance optimization test suite validating batch processing and thread safety
+
 ### Added - Viewer Performance Optimizations & Alternative Visualization Modes
 
 #### Alternative Visualization Modes (for large datasets 10,000+ nodes)
@@ -58,7 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed UI blocking during JSON parsing and graph construction
 - Fixed race conditions in DataSet updates with `updateInProgressRef`
 
-### Changed
+### Changed - Viewer Improvements
 - Risk calculation logic in `compute_risk_for_sp()` now consistently gates on `app_ownership == "1st Party"` for attribution-related risks
 - Updated sample data to use anonymized real tenant export demonstrating fixed behavior
 - Graph viewer now defaults to Dashboard View for large datasets (10k+ nodes)
@@ -66,36 +81,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Error handling improved with fallback rendering for malformed nodes
 - Enhanced InfoDialog component (separate from ErrorDialog) for non-error notifications
 
-### Performance Metrics
-- **Small graphs (<3k nodes)**: No performance impact, physics enabled by default
-- **Medium graphs (3k-10k nodes)**: Truncated to 3k nodes, responsive with physics disabled
-- **Large graphs (10k-50k+ nodes)**: Alternative views (Table/Tree/Matrix/Dashboard) provide excellent performance
-- **Virtual rendering**: Handles 50k+ nodes with viewport-based display
-=======
-## [private-beta-2] - 2026-01-04
-
-### Changed
-- **BREAKING PERFORMANCE IMPROVEMENT**: Scanner now uses bulk fetching and Graph API batching for 97-98% faster scans in large tenants
-- Application fetching rewritten from individual filtered queries to single bulk query + in-memory filtering (60-360x faster)
-- SP data collection rewritten to use Microsoft Graph `$batch` API with maximized batch sizes (12-18x faster)
-- Increased parallelism from 10 to 20 workers for resource loading and role definitions
-- Added progress indicators for long-running operations
->>>>>>> copilot/improve-scanner-performance
-
-### Added
-- Graph API batch request support with proper API version separation (beta/v1.0)
-- Thread-safe owners cache to eliminate redundant API calls
-- Parallelized DirectoryCache batch processing (5 concurrent workers)
-- Comprehensive error handling with automatic fallback to individual requests
-- Performance optimization test suite validating batch processing and thread safety
-
-### Performance
+### Performance - Scanner
 - Large tenant (8,096 SPs) scan time: **103 minutes → 2-3 minutes** (97-98% faster)
 - Application cache population: **66 minutes → 1 minute** (60-360x faster)
 - SP data collection: **35 minutes → 30-60 seconds** (12-18x faster)
 - HTTP requests reduced from 48,576 to ~1,621 (97% reduction)
 
-### Technical Details
+### Performance - Viewer
+- **Small graphs (<3k nodes)**: No performance impact, physics enabled by default
+- **Medium graphs (3k-10k nodes)**: Truncated to 3k nodes, responsive with physics disabled
+- **Large graphs (10k-50k+ nodes)**: Alternative views (Table/Tree/Matrix/Dashboard) provide excellent performance
+- **Virtual rendering**: Handles 50k+ nodes with viewport-based display
+
+### Technical Details - Scanner
 - Bulk application fetch uses single `/applications` query with in-memory filtering
 - Graph batch API combines up to 20 requests per HTTP call
 - Batch sizes optimized: 5 SPs per beta batch (5 × 4 operations = 20 requests)
