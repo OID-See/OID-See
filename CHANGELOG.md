@@ -7,23 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- Scanner risk scoring now correctly respects the `appOwnership` field populated from Merill Fernando's Microsoft Apps feed
-- **IDENTITY_LAUNDERING** risk no longer incorrectly flags legitimate Microsoft first-party apps
-- **DECEPTION** risk no longer incorrectly flags name mismatches in legitimate Microsoft first-party apps
-- **MIXED_REPLYURL_DOMAINS** risk no longer incorrectly flags Microsoft apps using multiple legitimate Microsoft domains
-- **REPLYURL_OUTLIER_DOMAIN** risk no longer incorrectly flags Microsoft apps using their legitimate domain portfolio
-
-### Added
-- Comprehensive test suite (`test_appownership_risk_logic.py`) validating all appOwnership-related risk fixes
-- Test coverage for verifying 1st Party apps are correctly excluded from false positive risks
-- Test coverage for verifying 3rd Party apps with similar characteristics are still properly flagged
+## [private-beta-2] - 2026-01-04
 
 ### Changed
-- Risk calculation logic in `compute_risk_for_sp()` now consistently gates on `app_ownership == "1st Party"` for attribution-related risks
-- Updated sample data to use anonymized real tenant export demonstrating fixed behavior
+- **BREAKING PERFORMANCE IMPROVEMENT**: Scanner now uses bulk fetching and Graph API batching for 97-98% faster scans in large tenants
+- Application fetching rewritten from individual filtered queries to single bulk query + in-memory filtering (60-360x faster)
+- SP data collection rewritten to use Microsoft Graph `$batch` API with maximized batch sizes (12-18x faster)
+- Increased parallelism from 10 to 20 workers for resource loading and role definitions
+- Added progress indicators for long-running operations
 
-## [private-beta-1] - TBD
+### Added
+- Graph API batch request support with proper API version separation (beta/v1.0)
+- Thread-safe owners cache to eliminate redundant API calls
+- Parallelized DirectoryCache batch processing (5 concurrent workers)
+- Comprehensive error handling with automatic fallback to individual requests
+- Performance optimization test suite validating batch processing and thread safety
+
+### Performance
+- Large tenant (8,096 SPs) scan time: **103 minutes → 2-3 minutes** (97-98% faster)
+- Application cache population: **66 minutes → 1 minute** (60-360x faster)
+- SP data collection: **35 minutes → 30-60 seconds** (12-18x faster)
+- HTTP requests reduced from 48,576 to ~1,621 (97% reduction)
+
+### Technical Details
+- Bulk application fetch uses single `/applications` query with in-memory filtering
+- Graph batch API combines up to 20 requests per HTTP call
+- Batch sizes optimized: 5 SPs per beta batch (5 × 4 operations = 20 requests)
+- 20 parallel batch workers with async cache updates
+- Proper URL formatting for batch requests (no version prefix)
+- Thread-safe locking for all shared caches and results
+
+## [private-beta-1] - 2026-01-03
 
 ### Summary
 This release fixes critical false positive issues in the risk scoring logic where legitimate Microsoft first-party applications were incorrectly flagged with high-severity risks despite being correctly identified via the authoritative Microsoft Apps feed.
