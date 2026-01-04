@@ -814,6 +814,39 @@ export default function App() {
     savePhysicsConfig(DEFAULT_PHYSICS)
   }
 
+  // Handle visualization of selected node subset
+  function handleVisualizeNodes(nodeIds: string[]) {
+    if (nodeIds.length === 0) return
+    
+    // Check size constraints
+    const MAX_SUBSET_NODES = 500
+    if (nodeIds.length > MAX_SUBSET_NODES) {
+      alert(`Selection too large (${nodeIds.length} nodes). Please select ${MAX_SUBSET_NODES} or fewer nodes for visualization.`)
+      return
+    }
+    
+    // Create a filter query for the selected nodes
+    const idQuery = nodeIds.map(id => `n.id="${id}"`).join(' ')
+    setQuery(idQuery)
+    setViewMode('graph')
+    
+    // Show info message
+    setLargeGraphWarning(
+      `Visualizing ${nodeIds.length} selected node${nodeIds.length !== 1 ? 's' : ''}. ` +
+      `Use the filter controls to adjust the view or return to previous mode.`
+    )
+  }
+
+  // Handle visualization of table items (nodes or edges)
+  function handleVisualizeTableItems(items: any[]) {
+    if (items.length === 0) return
+    
+    const nodeItems = items.filter(item => item.__itemType === 'node')
+    if (nodeItems.length > 0) {
+      handleVisualizeNodes(nodeItems.map(item => item.id))
+    }
+  }
+
   function handleInputResize(delta: number) {
     setInputWidth(prev => Math.max(200, Math.min(800, prev + delta)))
   }
@@ -1070,6 +1103,7 @@ export default function App() {
                   nodes={filteredNodes}
                   edges={filteredEdges}
                   onSelection={setSelection}
+                  onVisualize={handleVisualizeTableItems}
                 />
               )}
               {viewMode === 'tree' && (
@@ -1077,6 +1111,7 @@ export default function App() {
                   nodes={filteredNodes}
                   edges={filteredEdges}
                   onSelection={setSelection}
+                  onVisualize={handleVisualizeNodes}
                 />
               )}
               {viewMode === 'matrix' && (
