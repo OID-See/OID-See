@@ -2055,7 +2055,7 @@ def compute_risk_for_sp(
             if count > 0:
                 tier_config = get_tier_config(tier_name)
                 base_weight = tier_config.get("base_weight", 0)
-                per_role_weight = tier_config.get("per_role_weight", 0)
+                per_role_weight = tier_config.get("weight_per_role", 0)
                 max_weight = tier_config.get("max_weight", 0)
                 
                 tier_weight = min(base_weight + (per_role_weight * count), max_weight)
