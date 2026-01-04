@@ -154,8 +154,8 @@ Progress messages help users understand that the scanner is actively working and
 For a large tenant with 8,000 service principals:
 
 - **Old runtime**: ~103 minutes (application fetching: 66 min + SP collection: 35 min + misc: 2 min)
-- **Expected new runtime**: ~3-5 minutes (application fetching: 1 min + SP collection: 1.5-2.5 min + misc: 0.5-1 min)
-- **Improvement**: **95-97% faster** (from 103 minutes to 3-5 minutes)
+- **Expected new runtime**: ~8-11 minutes (application fetching: 1 min + SP collection: 7-10 min + misc: 0-1 min)
+- **Improvement**: **89-92% faster** (from 103 minutes to 8-11 minutes)
 
 ## Thread Safety
 

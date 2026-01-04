@@ -75,7 +75,7 @@
 | Operation | Before | After | Improvement |
 |-----------|--------|-------|-------------|
 | Application cache | ~3,680s (66 min) | ~10-60s (1 min) | **60-360x faster** |
-| SP data collection | ~2,130s (35 min) | ~420-600s (7-10 min) | **4-5x faster** |
+| SP data collection | ~2,130s (35 min) | ~420-600s (7-10 min) | **3.5-5x faster** |
 | Directory resolution | Sequential | Parallel | 2-5x faster |
 | Directory resolution | Sequential | Parallel | 2-5x |
 | **Total Runtime** | **~103 min** | **~8-11 min** | **~89-92% reduction** |

@@ -2525,7 +2525,7 @@ class OidSeeCollector:
         }
         
         # Parallelize the 5 API calls for this SP using ThreadPoolExecutor
-        # This reduces latency significantly (5 sequential calls → 1 parallel batch)
+        # This reduces latency significantly (5 sequential calls → 5 parallel calls)
         with ThreadPoolExecutor(max_workers=5) as executor:
             # Submit all 5 calls in parallel
             future_grants = executor.submit(self._safe_fetch_oauth2_grants, sp_id)
