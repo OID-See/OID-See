@@ -1,11 +1,19 @@
 {
   "classify_app_role_value": {
     "weights": {
+      "readwrite_all": 60,
+      "action_privileged": 55,
       "high_write_markers": 50,
       "high_read_markers": 25,
       "default": 35
     },
     "markers": {
+      "readwrite_all": [
+        "readwrite.all"
+      ],
+      "action_privileged": [
+        ".action"
+      ],
       "high_write_markers": [
         "directory.readwrite",
         "directory.access",
@@ -31,21 +39,91 @@
       ]
     }
   },
+  "role_tiering": {
+    "tiers": {
+      "tier0": {
+        "label": "Tier 0 - Horizontal/Global Control",
+        "description": "Roles that control identity, authentication, authorization, or policy for entire tenant",
+        "weight_per_role": 25,
+        "max_weight": 75,
+        "base_weight": 15
+      },
+      "tier1": {
+        "label": "Tier 1 - Vertical/Critical Services",
+        "description": "Roles that control critical workloads or platforms but not identity directly",
+        "weight_per_role": 10,
+        "max_weight": 40,
+        "base_weight": 8
+      },
+      "tier2": {
+        "label": "Tier 2 - Scoped/Operational",
+        "description": "Roles scoped to specific services with limited blast radius",
+        "weight_per_role": 3,
+        "max_weight": 15,
+        "base_weight": 3
+      }
+    },
+    "role_template_ids": {
+      "62e90394-69f5-4237-9190-012177145e10": "tier0",
+      "e8611ab8-c189-46e8-94e1-60213ab1f814": "tier0",
+      "7be44c8a-adaf-4e2a-84d6-ab2649e08a13": "tier0",
+      "194ae4cb-b126-40b2-bd5b-6091b380977d": "tier0",
+      "b1be1c3e-b65d-4f19-8427-f6fa0d97feb9": "tier0",
+      "966707d0-3269-4727-9be2-8c3a10f19b9d": "tier0",
+      "29232cdf-9323-42fd-ade2-1d097af3e4de": "tier0",
+      "8ac3fc64-6eca-42ea-9e69-59f4c7b60eb2": "tier0",
+      "fe930be7-5e62-47db-91af-98c3a49a38b1": "tier0",
+      "3a2c62db-5318-420d-8d74-23affee5d9d5": "tier0",
+      "9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3": "tier0",
+      "158c047a-c907-4556-b7ef-446551a6b5f7": "tier0",
+      "9c094953-4995-41c8-84c8-3ebb9b32c93f": "tier1",
+      "0526716b-113d-4c15-b2c8-68e3c22b9f80": "tier1",
+      "e00e864a-17c5-4a4b-9c06-f5b95a8d5bd8": "tier1",
+      "892c5842-a9a6-463a-8041-72aa08ca3cf6": "tier1",
+      "644ef478-e28f-4e28-b9dc-3fdde9aa0b1f": "tier1",
+      "11648597-926c-4cf3-9c36-bcebb0ba8dcc": "tier1",
+      "f28a1f50-f6e7-4571-818b-6a12f2af6b6c": "tier1",
+      "75941009-915a-4869-abe7-691bff18279e": "tier1",
+      "4ba39ca4-527c-499a-b93d-d9b492c50246": "tier1",
+      "729827e3-9c14-49f7-bb1b-9608f156bbb8": "tier2",
+      "38a96431-2bdf-4b4c-8b6e-5d3d8abac1a4": "tier2",
+      "4a5d8f65-41da-4de4-8968-e035b65339cf": "tier2",
+      "95e79109-95c0-4d8e-aee3-d01accf2d47c": "tier2",
+      "ffd52fa5-98dc-465c-991d-fc073eb59f8f": "tier2",
+      "2af84b1e-32c8-42b7-82bc-daa82404023b": "tier2",
+      "59d46f88-662b-457b-bceb-5c3809e5908f": "tier2"
+    }
+  },
   "classify_scopes": {
     "scope_classifications": {
+      "readwrite_all": {
+        "condition": "scope contains 'ReadWrite.All' (case insensitive)",
+        "edge_type": "HAS_READWRITE_ALL_SCOPES",
+        "classification_label": "readwrite_all",
+        "priority": 1
+      },
+      "action_privileged": {
+        "condition": "scope contains '.Action' or ends with '.Action' (case insensitive)",
+        "edge_type": "HAS_PRIVILEGED_ACTION_SCOPES",
+        "classification_label": "action_privileged",
+        "priority": 2
+      },
       "too_broad": {
         "condition": "scope ends with '.All'",
         "edge_type": "HAS_TOO_MANY_SCOPES",
-        "classification_label": "too_broad"
+        "classification_label": "too_broad",
+        "priority": 3
       },
-      "privileged": {
-        "condition": "scope contains 'write' or 'readwrite'",
+      "write_privileged": {
+        "condition": "scope contains 'Write' or 'ReadWrite' (case insensitive)",
         "edge_type": "HAS_PRIVILEGED_SCOPES",
-        "classification_label": "privileged"
+        "classification_label": "write_privileged",
+        "priority": 4
       },
       "regular": {
         "edge_type": "HAS_SCOPES",
-        "classification_label": "regular"
+        "classification_label": "regular",
+        "priority": 5
       }
     }
   },
@@ -61,7 +139,15 @@
       },
       "HAS_PRIVILEGED_SCOPES": {
         "weight": 20,
-        "description": "Privileged delegated scopes granted"
+        "description": "Privileged delegated scopes granted (Write/ReadWrite permissions)"
+      },
+      "HAS_READWRITE_ALL_SCOPES": {
+        "weight": 30,
+        "description": "ReadWrite.All scopes granted (near-admin level permissions)"
+      },
+      "HAS_PRIVILEGED_ACTION_SCOPES": {
+        "weight": 25,
+        "description": "Action-style permissions granted (state-changing operations)"
       },
       "HAS_TOO_MANY_SCOPES": {
         "weight": 15,
@@ -83,8 +169,15 @@
         "details": "Applied when app does not require assignment and has no explicit assignments, making it broadly reachable (any user can consent/sign-in). High reachability can also occur when assignment is required AND assignments are large (direct + group-expanded). Thresholds: >50 (groups-only), >100 (users-only or mixed). Prefer true effective user count via group expansion where possible."
       },
       "PRIVILEGE": {
-        "weight": "calculated as 10 + 5 * roles_reachable (max 30)",
-        "description": "Directory roles reachable from app depends on assignments"
+        "description": "Directory roles reachable from app (tier-aware scoring)",
+        "details": "Scoring based on Entra role tiering: Tier 0 (horizontal/global control) weighted highest, Tier 1 (critical services) high, Tier 2 (operational) moderate. Each tier has base_weight + (per_role_weight * count) capped at max_weight.",
+        "tier_based": true,
+        "legacy_fallback": {
+          "base_weight": 10,
+          "per_role_weight": 5,
+          "max_weight": 30,
+          "description": "Fallback for roles without tier classification"
+        }
       },
       "DECEPTION": {
         "weight": 20,
