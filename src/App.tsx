@@ -13,6 +13,12 @@ import { ResizeHandle } from './components/ResizeHandle'
 import { Legend } from './components/Legend'
 import { LoadingOverlay } from './components/LoadingOverlay'
 import { OidSeeNode, OidSeeEdge } from './adapters/types'
+import { ViewMode } from './types/ViewMode'
+import { ViewModeSelector } from './components/ViewModeSelector'
+import { TableView } from './components/TableView'
+import { TreeView } from './components/TreeView'
+import { MatrixView } from './components/MatrixView'
+import { DashboardView } from './components/DashboardView'
 
 type SavedQuery = { name: string; query: string }
 
@@ -349,6 +355,7 @@ export default function App() {
   const [loading, setLoading] = useState<boolean>(false)
   const [loadingProgress, setLoadingProgress] = useState<string>('')
   const [largeGraphWarning, setLargeGraphWarning] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>('graph')
   const graphRef = useRef<GraphCanvasHandle>(null)
   const detailsPanelRef = useRef<HTMLElement>(null)
 
@@ -695,6 +702,28 @@ export default function App() {
     return new Map(data.edges.map(e => [e.id, e]))
   }, [data])
 
+  // Extract original nodes and edges for alternative views
+  const originalNodes = useMemo(() => {
+    if (!data) return []
+    return data.nodes.map(n => n.__oidsee ?? n as OidSeeNode).filter((n): n is OidSeeNode => !!n)
+  }, [data])
+
+  const originalEdges = useMemo(() => {
+    if (!data) return []
+    return data.edges.map(e => e.__oidsee ?? e as OidSeeEdge).filter((e): e is OidSeeEdge => !!e)
+  }, [data])
+
+  // Filtered nodes and edges for alternative views
+  const filteredNodes = useMemo(() => {
+    if (!filtered) return []
+    return filtered.nodes.map(n => n.__oidsee ?? n as OidSeeNode).filter((n): n is OidSeeNode => !!n)
+  }, [filtered])
+
+  const filteredEdges = useMemo(() => {
+    if (!filtered) return []
+    return filtered.edges.map(e => e.__oidsee ?? e as OidSeeEdge).filter((e): e is OidSeeEdge => !!e)
+  }, [filtered])
+
   function saveCurrentQuery() {
     const name = prompt('Save query as…')
     if (!name) return
@@ -834,6 +863,8 @@ export default function App() {
         </div>
 
         <div className="topbar__actions">
+          <ViewModeSelector currentMode={viewMode} onChange={setViewMode} />
+          
           <button
             className="btn file"
             onClick={() => {
@@ -979,24 +1010,34 @@ export default function App() {
         <section className={`panel panel--graph${maximizedPanel === 'graph' ? ' maximized-panel' : ''}`}>
           <div className="panel__title">
             <div className="panel__header-content">
-              <span className="panel__title-text">Graph</span>
+              <span className="panel__title-text">
+                {viewMode === 'graph' && 'Graph'}
+                {viewMode === 'table' && 'Table'}
+                {viewMode === 'tree' && 'Tree'}
+                {viewMode === 'matrix' && 'Matrix'}
+                {viewMode === 'dashboard' && 'Dashboard'}
+              </span>
               <div className="panel__header-actions">
-                <button
-                  className="btn btn--ghost btn--maximize"
-                  onClick={() => setLegendVisible(!legendVisible)}
-                  title="Show legend"
-                >
-                  ?
-                </button>
-                <PhysicsControls 
-                  config={physicsConfig} 
-                  onChange={handlePhysicsChange}
-                  onReset={handlePhysicsReset}
-                />
+                {viewMode === 'graph' && (
+                  <>
+                    <button
+                      className="btn btn--ghost btn--maximize"
+                      onClick={() => setLegendVisible(!legendVisible)}
+                      title="Show legend"
+                    >
+                      ?
+                    </button>
+                    <PhysicsControls 
+                      config={physicsConfig} 
+                      onChange={handlePhysicsChange}
+                      onReset={handlePhysicsReset}
+                    />
+                  </>
+                )}
                 <button
                   className="btn btn--ghost btn--maximize"
                   onClick={() => resetPanelView('graph')}
-                  title="Reset graph panel view"
+                  title="Reset panel view"
                 >
                   ⟲
                 </button>
@@ -1011,19 +1052,50 @@ export default function App() {
             </div>
           </div>
           {data && filtered ? (
-            <GraphCanvas 
-              ref={graphRef} 
-              allNodes={data.nodes} 
-              allEdges={data.edges}
-              visibleNodes={filtered.nodes} 
-              visibleEdges={filtered.edges}
-              physicsConfig={physicsConfig}
-              onSelection={setSelection}
-              onError={setGraphError}
-            />
+            <>
+              {viewMode === 'graph' && (
+                <GraphCanvas 
+                  ref={graphRef} 
+                  allNodes={data.nodes} 
+                  allEdges={data.edges}
+                  visibleNodes={filtered.nodes} 
+                  visibleEdges={filtered.edges}
+                  physicsConfig={physicsConfig}
+                  onSelection={setSelection}
+                  onError={setGraphError}
+                />
+              )}
+              {viewMode === 'table' && (
+                <TableView 
+                  nodes={filteredNodes}
+                  edges={filteredEdges}
+                  onSelection={setSelection}
+                />
+              )}
+              {viewMode === 'tree' && (
+                <TreeView 
+                  nodes={filteredNodes}
+                  edges={filteredEdges}
+                  onSelection={setSelection}
+                />
+              )}
+              {viewMode === 'matrix' && (
+                <MatrixView 
+                  nodes={filteredNodes}
+                  edges={filteredEdges}
+                />
+              )}
+              {viewMode === 'dashboard' && (
+                <DashboardView 
+                  nodes={filteredNodes}
+                  edges={filteredEdges}
+                  onSelection={setSelection}
+                />
+              )}
+            </>
           ) : (
             <div className="empty">
-              <div className="empty__title">No graph yet</div>
+              <div className="empty__title">No data yet</div>
               <div className="empty__msg">Paste or upload an OID-See export JSON and click Render.</div>
             </div>
           )}
