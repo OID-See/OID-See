@@ -156,6 +156,67 @@ def _extract_metrics(export_data: Dict[str, Any]) -> Dict[str, Any]:
         if sp.get('properties', {}).get('trustSignals', {}).get('identityLaunderingSuspected') is True
     )
     
+    # Tier exposure metrics
+    role_nodes = [n for n in nodes if n.get('type') == 'Role']
+    tier0_roles = [r for r in role_nodes if r.get('properties', {}).get('tier') == 'tier0']
+    tier1_roles = [r for r in role_nodes if r.get('properties', {}).get('tier') == 'tier1']
+    tier2_roles = [r for r in role_nodes if r.get('properties', {}).get('tier') == 'tier2']
+    
+    # Count service principals with reachable roles by tier
+    sps_with_tier0 = []
+    sps_with_tier1 = []
+    sps_with_tier2 = []
+    total_tier0_assignments = 0
+    total_tier1_assignments = 0
+    total_tier2_assignments = 0
+    
+    for sp in service_principals:
+        privilege_reason = next(
+            (r for r in sp.get('risk', {}).get('reasons', []) if r.get('code') == 'PRIVILEGE'),
+            None
+        )
+        if privilege_reason:
+            tier0_count = privilege_reason.get('rolesReachableTier0', 0)
+            tier1_count = privilege_reason.get('rolesReachableTier1', 0)
+            tier2_count = privilege_reason.get('rolesReachableTier2', 0)
+            
+            if tier0_count > 0:
+                sps_with_tier0.append(sp)
+                total_tier0_assignments += tier0_count
+            if tier1_count > 0:
+                sps_with_tier1.append(sp)
+                total_tier1_assignments += tier1_count
+            if tier2_count > 0:
+                sps_with_tier2.append(sp)
+                total_tier2_assignments += tier2_count
+    
+    # Get top tier 0 roles (by number of assignments)
+    top_tier0_roles = []
+    for sp in sps_with_tier0[:10]:  # Top 10 SPs with tier 0
+        privilege_reason = next(
+            (r for r in sp.get('risk', {}).get('reasons', []) if r.get('code') == 'PRIVILEGE'),
+            None
+        )
+        if privilege_reason and privilege_reason.get('tierBreakdown'):
+            for tier_detail in privilege_reason['tierBreakdown']:
+                if tier_detail.get('tier') == 'tier0' and tier_detail.get('roles'):
+                    for role in tier_detail['roles'][:3]:  # Top 3 roles per SP
+                        top_tier0_roles.append({
+                            'sp_name': sp.get('displayName', 'Unknown'),
+                            'role_name': role.get('displayName', 'Unknown')
+                        })
+    
+    # Scope privilege metrics
+    sps_with_readwrite_all = sum(
+        1 for sp in service_principals
+        if any(r.get('code') == 'HAS_READWRITE_ALL_SCOPES' for r in sp.get('risk', {}).get('reasons', []))
+    )
+    
+    sps_with_action_scopes = sum(
+        1 for sp in service_principals
+        if any(r.get('code') == 'HAS_PRIVILEGED_ACTION_SCOPES' for r in sp.get('risk', {}).get('reasons', []))
+    )
+    
     return {
         'total_service_principals': len(service_principals),
         'total_nodes': len(nodes),
@@ -175,6 +236,20 @@ def _extract_metrics(export_data: Dict[str, Any]) -> Dict[str, Any]:
         'apps_with_ip_literals': apps_with_ip_literals,
         'apps_with_wildcards': apps_with_wildcards,
         'identity_laundering_suspected': identity_laundering_suspected,
+        'tier_exposure': {
+            'tier0_roles_count': len(tier0_roles),
+            'tier1_roles_count': len(tier1_roles),
+            'tier2_roles_count': len(tier2_roles),
+            'sps_with_tier0': len(sps_with_tier0),
+            'sps_with_tier1': len(sps_with_tier1),
+            'sps_with_tier2': len(sps_with_tier2),
+            'total_tier0_assignments': total_tier0_assignments,
+            'total_tier1_assignments': total_tier1_assignments,
+            'total_tier2_assignments': total_tier2_assignments,
+            'top_tier0_roles': top_tier0_roles[:10],
+        },
+        'sps_with_readwrite_all': sps_with_readwrite_all,
+        'sps_with_action_scopes': sps_with_action_scopes,
     }
 
 
@@ -480,6 +555,110 @@ def _generate_html(metrics: Dict[str, Any], export_data: Dict[str, Any]) -> str:
             border-left-color: #dc3545;
         }}
         
+        .metric-description {{
+            font-size: 0.85em;
+            color: #888;
+            margin-top: 5px;
+        }}
+        
+        .tier-overview {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }}
+        
+        .tier-card {{
+            background: #ffffff;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 2px solid transparent;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }}
+        
+        .tier-card:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }}
+        
+        .tier-card.tier0 {{
+            border-color: #dc3545;
+            background: linear-gradient(135deg, #fff 0%, #ffe5e7 100%);
+        }}
+        
+        .tier-card.tier1 {{
+            border-color: #ff9500;
+            background: linear-gradient(135deg, #fff 0%, #fff5e6 100%);
+        }}
+        
+        .tier-card.tier2 {{
+            border-color: #ffcc00;
+            background: linear-gradient(135deg, #fff 0%, #fffae6 100%);
+        }}
+        
+        .tier-header {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }}
+        
+        .tier-icon {{
+            font-size: 1.5em;
+        }}
+        
+        .tier-label {{
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+        }}
+        
+        .tier-subtitle {{
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }}
+        
+        .tier-stats {{
+            display: flex;
+            gap: 20px;
+            margin: 15px 0;
+        }}
+        
+        .tier-stat {{
+            flex: 1;
+        }}
+        
+        .tier-stat-value {{
+            font-size: 2em;
+            font-weight: bold;
+            color: #333;
+        }}
+        
+        .tier-stat-label {{
+            font-size: 0.75em;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+        
+        .tier-description {{
+            font-size: 0.85em;
+            color: #555;
+            line-height: 1.4;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(0,0,0,0.1);
+        }}
+        
+        .section-description {{
+            color: #666;
+            line-height: 1.6;
+            margin: 15px 0;
+        }}
+        
         table {{
             width: 100%;
             border-collapse: collapse;
@@ -753,6 +932,93 @@ def _generate_html(metrics: Dict[str, Any], export_data: Dict[str, Any]) -> str:
             </div>
             
             <div class="section">
+                <h2 class="section-title">🔐 Privilege Tier Exposure</h2>
+                <p class="section-description">
+                    Entra directory roles are categorized into three tiers based on their security impact:
+                    <strong>Tier 0</strong> (Horizontal/Global Control - existential risk),
+                    <strong>Tier 1</strong> (Vertical/Critical Services - blast radius risk), and
+                    <strong>Tier 2</strong> (Scoped/Operational - contained risk).
+                </p>
+                <div class="tier-overview">
+                    <div class="tier-card tier0">
+                        <div class="tier-header">
+                            <div class="tier-icon">🔴</div>
+                            <div class="tier-label">Tier 0</div>
+                        </div>
+                        <div class="tier-subtitle">Horizontal/Global Control</div>
+                        <div class="tier-stats">
+                            <div class="tier-stat">
+                                <div class="tier-stat-value">{metrics['tier_exposure']['sps_with_tier0']}</div>
+                                <div class="tier-stat-label">Service Principals</div>
+                            </div>
+                            <div class="tier-stat">
+                                <div class="tier-stat-value">{metrics['tier_exposure']['total_tier0_assignments']}</div>
+                                <div class="tier-stat-label">Role Assignments</div>
+                            </div>
+                        </div>
+                        <div class="tier-description">
+                            Roles that control identity, authentication, or policy for the entire tenant
+                        </div>
+                    </div>
+                    <div class="tier-card tier1">
+                        <div class="tier-header">
+                            <div class="tier-icon">🟠</div>
+                            <div class="tier-label">Tier 1</div>
+                        </div>
+                        <div class="tier-subtitle">Vertical/Critical Services</div>
+                        <div class="tier-stats">
+                            <div class="tier-stat">
+                                <div class="tier-stat-value">{metrics['tier_exposure']['sps_with_tier1']}</div>
+                                <div class="tier-stat-label">Service Principals</div>
+                            </div>
+                            <div class="tier-stat">
+                                <div class="tier-stat-value">{metrics['tier_exposure']['total_tier1_assignments']}</div>
+                                <div class="tier-stat-label">Role Assignments</div>
+                            </div>
+                        </div>
+                        <div class="tier-description">
+                            Roles that control critical workloads but not identity directly
+                        </div>
+                    </div>
+                    <div class="tier-card tier2">
+                        <div class="tier-header">
+                            <div class="tier-icon">🟡</div>
+                            <div class="tier-label">Tier 2</div>
+                        </div>
+                        <div class="tier-subtitle">Scoped/Operational</div>
+                        <div class="tier-stats">
+                            <div class="tier-stat">
+                                <div class="tier-stat-value">{metrics['tier_exposure']['sps_with_tier2']}</div>
+                                <div class="tier-stat-label">Service Principals</div>
+                            </div>
+                            <div class="tier-stat">
+                                <div class="tier-stat-value">{metrics['tier_exposure']['total_tier2_assignments']}</div>
+                                <div class="tier-stat-label">Role Assignments</div>
+                            </div>
+                        </div>
+                        <div class="tier-description">
+                            Roles scoped to specific services with limited blast radius
+                        </div>
+                    </div>
+                </div>
+                
+                {_generate_tier0_roles_table(metrics['tier_exposure']['top_tier0_roles'])}
+                
+                <div class="metrics-grid" style="margin-top: 2rem;">
+                    <div class="metric-card danger">
+                        <div class="metric-title">ReadWrite.All Scopes</div>
+                        <div class="metric-value">{metrics['sps_with_readwrite_all']}</div>
+                        <div class="metric-description">Near-admin level permissions</div>
+                    </div>
+                    <div class="metric-card warning">
+                        <div class="metric-title">Action Scopes</div>
+                        <div class="metric-value">{metrics['sps_with_action_scopes']}</div>
+                        <div class="metric-description">State-changing operations</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section">
                 <h2 class="section-title">🔝 Top Risk Contributors</h2>
                 <table>
                     <thead>
@@ -830,6 +1096,43 @@ def _generate_html(metrics: Dict[str, Any], export_data: Dict[str, Any]) -> str:
     return html
 
 
+
+
+def _generate_tier0_roles_table(top_tier0_roles: List[Dict[str, Any]]) -> str:
+    """Generate HTML table for top Tier 0 role assignments."""
+    
+    if not top_tier0_roles:
+        return ''
+    
+    rows = ""
+    for role_info in top_tier0_roles[:10]:
+        sp_name = role_info.get('sp_name', 'Unknown')
+        role_name = role_info.get('role_name', 'Unknown')
+        rows += f"""
+        <tr>
+            <td>{sp_name}</td>
+            <td><code>{role_name}</code></td>
+        </tr>
+        """
+    
+    return f"""
+    <div style="margin-top: 1.5rem;">
+        <h3 style="font-size: 1.1rem; margin-bottom: 1rem;">Top Tier 0 Role Assignments</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Service Principal</th>
+                    <th>Role</th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows}
+            </tbody>
+        </table>
+    </div>
+    """
+
+
 def _generate_alert_message(critical: int, high: int, total: int) -> str:
     """Generate appropriate alert message based on risk distribution."""
     
@@ -866,6 +1169,31 @@ def _generate_recommendations(metrics: Dict[str, Any]) -> str:
     """Generate security recommendations based on metrics."""
     
     recommendations = []
+    
+    # Tier 0 specific recommendations
+    tier_exposure = metrics.get('tier_exposure', {})
+    if tier_exposure.get('sps_with_tier0', 0) > 0:
+        recommendations.append(
+            "<strong>🔴 Critical:</strong> Reduce Tier 0 role reachability. "
+            "Review application assignments and grants; consider Conditional Access policies, "
+            "Privileged Identity Management (PIM), or access reviews for apps with Global Administrator, "
+            "Privileged Role Administrator, and other Tier 0 roles"
+        )
+    
+    # Scope-based recommendations
+    if metrics.get('sps_with_readwrite_all', 0) > 0:
+        recommendations.append(
+            "<strong>⚠️ High Priority:</strong> Replace ReadWrite.All scopes with least-privilege alternatives. "
+            "Review necessity of directory-wide write access; consider constrained application roles and "
+            "scoped permissions instead"
+        )
+    
+    if metrics.get('sps_with_action_scopes', 0) > 0:
+        recommendations.append(
+            "<strong>⚠️ High Priority:</strong> Review Action-style permissions for state-changing operations. "
+            "These permissions enable credential resets, policy modifications, and workflow triggers. "
+            "Ensure they are necessary and properly governed"
+        )
     
     if metrics['apps_without_owners'] > 0:
         recommendations.append("Assign owners to all applications to ensure accountability and lifecycle management")
