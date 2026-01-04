@@ -2552,9 +2552,11 @@ class OidSeeCollector:
             
             for sp in sp_batch:
                 sp_id = sp["id"]
+                # Create safe request IDs (alphanumeric only, no hyphens or special chars)
+                safe_id = sp_id.replace("-", "")
                 
                 # 1. OAuth2 permission grants
-                req_id_grants = f"{sp_id}_grants"
+                req_id_grants = f"{safe_id}grants"
                 batch_requests.append({
                     "id": req_id_grants,
                     "method": "GET",
@@ -2563,7 +2565,7 @@ class OidSeeCollector:
                 request_map[req_id_grants] = (sp_id, "grants")
                 
                 # 2. App role assignments (app permissions)
-                req_id_app_perms = f"{sp_id}_app_perms"
+                req_id_app_perms = f"{safe_id}appperms"
                 batch_requests.append({
                     "id": req_id_app_perms,
                     "method": "GET",
@@ -2572,7 +2574,7 @@ class OidSeeCollector:
                 request_map[req_id_app_perms] = (sp_id, "app_perms")
                 
                 # 3. App role assigned to (assignments)
-                req_id_assigned_to = f"{sp_id}_assigned_to"
+                req_id_assigned_to = f"{safe_id}assigned"
                 batch_requests.append({
                     "id": req_id_assigned_to,
                     "method": "GET",
@@ -2581,7 +2583,7 @@ class OidSeeCollector:
                 request_map[req_id_assigned_to] = (sp_id, "assigned_to")
                 
                 # 4. Owners
-                req_id_owners = f"{sp_id}_owners"
+                req_id_owners = f"{safe_id}owners"
                 batch_requests.append({
                     "id": req_id_owners,
                     "method": "GET",
@@ -2590,7 +2592,7 @@ class OidSeeCollector:
                 request_map[req_id_owners] = (sp_id, "owners")
                 
                 # 5. Directory role assignments
-                req_id_dir_roles = f"{sp_id}_dir_roles"
+                req_id_dir_roles = f"{safe_id}dirroles"
                 batch_requests.append({
                     "id": req_id_dir_roles,
                     "method": "GET",
@@ -2636,8 +2638,9 @@ class OidSeeCollector:
                         # Not found is acceptable (no data for this operation)
                         results[sp_id][operation] = []
                     else:
-                        # Other errors - log and use empty data
-                        print(f"⚠️  Batch request {req_id} failed with status {status}", file=sys.stderr)
+                        # Other errors - log with details and use empty data
+                        error_msg = body.get("error", {}).get("message", "Unknown error")
+                        print(f"⚠️  Batch request {req_id} ({operation}) failed with status {status}: {error_msg}", file=sys.stderr)
                         results[sp_id][operation] = []
                         
             except Exception as e:
