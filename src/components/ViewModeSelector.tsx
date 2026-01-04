@@ -8,13 +8,18 @@ type ViewModeSelectorProps = {
 
 export function ViewModeSelector({ currentMode, onChange, viewsReady = new Set() }: ViewModeSelectorProps) {
   const modes: ViewMode[] = ['dashboard', 'table', 'tree', 'matrix', 'graph']
+  
+  // When viewsReady is empty, we're in initial state (no data loaded yet)
+  // In this case, all buttons should be enabled to allow initial selection
+  const hasData = viewsReady.size > 0
 
   return (
     <div className="view-mode-selector">
       <label className="view-mode-selector__label">View:</label>
       <div className="view-mode-selector__buttons">
         {modes.map((mode) => {
-          const isReady = viewsReady.has(mode) || viewsReady.size === 0
+          // Button is ready if: no data loaded yet, or this specific view is ready
+          const isReady = !hasData || viewsReady.has(mode)
           const isDisabled = !isReady
           return (
             <button

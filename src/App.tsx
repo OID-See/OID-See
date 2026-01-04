@@ -926,6 +926,8 @@ export default function App() {
     setDetailsManuallyCollapsed(false)
     setFilterCollapsed(false)
     setMaximizedPanel(null)
+    // Reset view mode to dashboard when resetting all views
+    setViewMode('dashboard')
   }
 
   return (
