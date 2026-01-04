@@ -339,6 +339,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [graphError, setGraphError] = useState<string | null>(null)
   const [data, setData] = useState<VisData | null>(null)
+  const [originalData, setOriginalData] = useState<VisData | null>(null) // Full untruncated data for alternative views
   const [selection, setSelection] = useState<Selection | null>(null)
   const [query, setQuery] = useState<string>('')
   const [lens, setLens] = useState<Lens>('full')
@@ -533,12 +534,17 @@ export default function App() {
         maxEdges: MAX_RENDERABLE_EDGES
       })
       
+      // Store the original full dataset before any truncation
+      // Clone the parsed data to preserve the original for alternative views
+      const originalParsed = { ...parsed, nodes: [...parsed.nodes], edges: [...(parsed.edges || [])] }
+      
       if (exceedsLimits) {
-        console.log('[OID-See] ✂️  Graph exceeds limits - truncating to top risk nodes...')
+        console.log('[OID-See] ✂️  Graph exceeds limits - truncating ONLY for graph view...')
+        console.log('[OID-See] ℹ️  Alternative views (Table, Tree, Matrix, Dashboard) will use full dataset')
         setLoadingProgress(`Analyzing ${nodeCount.toLocaleString()} nodes...`)
         const truncateStartTime = performance.now()
         
-        // Truncate to only high-risk nodes for massive graphs
+        // Truncate to only high-risk nodes for massive graphs (ONLY for graph view)
         const originalNodeCount = nodeCount
         const originalEdgeCount = edgeCount
         
@@ -570,13 +576,13 @@ export default function App() {
         await new Promise(resolve => setTimeout(resolve, 0))
         
         // Take top N highest-risk nodes using sorted indices
-        console.log('[OID-See] ✂️  Selecting top risk nodes...')
-        setLoadingProgress(`Selecting top ${MAX_RENDERABLE_NODES.toLocaleString()} risk nodes...`)
+        console.log('[OID-See] ✂️  Selecting top risk nodes for graph view...')
+        setLoadingProgress(`Selecting top ${MAX_RENDERABLE_NODES.toLocaleString()} risk nodes for graph...`)
         const truncatedNodes = indices.slice(0, MAX_RENDERABLE_NODES).map(i => parsed.nodes[i])
         const nodeIds = new Set(truncatedNodes.map((n: OidSeeNode) => n.id))
         
         // Filter edges to only those connecting truncated nodes
-        console.log('[OID-See] 🔗 Filtering edges...')
+        console.log('[OID-See] 🔗 Filtering edges for graph view...')
         setLoadingProgress('Filtering edges...')
         // Yield before filtering edges
         await yieldToEventLoop()
@@ -585,23 +591,23 @@ export default function App() {
           .filter((e: OidSeeEdge) => nodeIds.has(e.from) && nodeIds.has(e.to))
           .slice(0, MAX_RENDERABLE_EDGES)
         
+        // Create truncated version for graph view only
         parsed.nodes = truncatedNodes
         parsed.edges = truncatedEdges
         
         const truncateTime = performance.now() - truncateStartTime
-        console.log('[OID-See] ✅ Truncation complete:', {
+        console.log('[OID-See] ✅ Truncation complete (graph view only):', {
           duration: `${truncateTime.toFixed(0)}ms`,
           originalNodes: originalNodeCount.toLocaleString(),
           originalEdges: originalEdgeCount.toLocaleString(),
-          finalNodes: truncatedNodes.length.toLocaleString(),
-          finalEdges: truncatedEdges.length.toLocaleString()
+          graphViewNodes: truncatedNodes.length.toLocaleString(),
+          graphViewEdges: truncatedEdges.length.toLocaleString()
         })
         
-        // Warn user about truncation
+        // Warn user about truncation for graph view only
         setLargeGraphWarning(
-          `⚠️ Graph too large to render (${originalNodeCount.toLocaleString()} nodes, ${originalEdgeCount.toLocaleString()} edges). ` +
-          `Showing top ${truncatedNodes.length.toLocaleString()} highest-risk nodes and ${truncatedEdges.length.toLocaleString()} edges. ` +
-          `Apply filters or use the Risk lens to focus on specific areas. Physics disabled for performance.`
+          `⚠️ Graph view truncated to ${truncatedNodes.length.toLocaleString()} highest-risk nodes (original: ${originalNodeCount.toLocaleString()} nodes, ${originalEdgeCount.toLocaleString()} edges). ` +
+          `Use Table, Tree, Matrix, or Dashboard views to see the full dataset. Physics disabled for performance.`
         )
         
         // Disable physics for truncated graphs
@@ -621,8 +627,8 @@ export default function App() {
         )
       }
       
-      // Process the data
-      console.log('[OID-See] 🎨 Converting to vis-network format...')
+      // Process the truncated data for graph view
+      console.log('[OID-See] 🎨 Converting truncated data to vis-network format for graph view...')
       setLoadingProgress(`Converting ${parsed.nodes.length.toLocaleString()} nodes to graph format...`)
       // Yield to allow progress message to render
       await yieldToEventLoop()
@@ -631,18 +637,30 @@ export default function App() {
       // Use async version for large graphs to prevent UI blocking
       const vis = isLargeGraph ? await toVisDataAsync(parsed) : toVisData(parsed)
       const visTime = performance.now() - visStartTime
-      console.log('[OID-See] ✅ Vis-network conversion complete:', {
+      console.log('[OID-See] ✅ Vis-network conversion complete (graph view):', {
         duration: `${visTime.toFixed(0)}ms`,
         nodes: vis.nodes.length.toLocaleString(),
         edges: vis.edges.length.toLocaleString()
       })
       
-      console.log('[OID-See] 🎬 Setting data to trigger graph render...')
-      setLoadingProgress('Rendering graph...')
+      // Convert original full dataset for alternative views
+      console.log('[OID-See] 🎨 Converting full dataset for alternative views...')
+      const originalVisStartTime = performance.now()
+      const originalVis = isLargeGraph ? await toVisDataAsync(originalParsed) : toVisData(originalParsed)
+      const originalVisTime = performance.now() - originalVisStartTime
+      console.log('[OID-See] ✅ Full dataset conversion complete (alternative views):', {
+        duration: `${originalVisTime.toFixed(0)}ms`,
+        nodes: originalVis.nodes.length.toLocaleString(),
+        edges: originalVis.edges.length.toLocaleString()
+      })
+      
+      console.log('[OID-See] 🎬 Setting data to trigger render...')
+      setLoadingProgress('Rendering...')
       // Yield before setting data to allow progress message to render
       await yieldToEventLoop()
       
-      setData(vis)
+      setData(vis) // Truncated data for graph view
+      setOriginalData(originalVis) // Full data for alternative views
       
       // Yield after setting data to allow React to schedule the update
       await new Promise(resolve => setTimeout(resolve, 100))
@@ -653,6 +671,7 @@ export default function App() {
     } catch (e: any) {
       console.error('[OID-See] ❌ Render error:', e)
       setData(null)
+      setOriginalData(null)
       setSelection(null)
       setError(e?.message ?? String(e))
     } finally {
@@ -667,6 +686,7 @@ export default function App() {
     if (file) void readFile(file)
   }
 
+  // Filtered data for graph view (uses truncated data)
   const filtered = useMemo(() => {
     if (!data) return null
     try {
@@ -678,15 +698,27 @@ export default function App() {
     }
   }, [data, query, lens, pathAware])
 
+  // Filtered data for alternative views (uses full originalData)
+  const filteredOriginal = useMemo(() => {
+    if (!originalData) return null
+    try {
+      return applyQuery(originalData, query.trim(), lens, pathAware)
+    } catch (e) {
+      console.error('Error applying query/lens filter to original data:', e)
+      // Return unfiltered data on error to prevent complete failure
+      return originalData
+    }
+  }, [originalData, query, lens, pathAware])
+
   const counts = useMemo(() => {
     if (!data || !filtered) return undefined
     return {
       nodes: filtered.nodes.length,
       edges: filtered.edges.length,
-      totalNodes: data.nodes.length,
-      totalEdges: data.edges.length,
+      totalNodes: originalData?.nodes.length || data.nodes.length,
+      totalEdges: originalData?.edges.length || data.edges.length,
     }
-  }, [data, filtered])
+  }, [data, filtered, originalData])
 
   const warnings = useMemo(() => {
     if (!data) return []
@@ -706,27 +738,27 @@ export default function App() {
     return new Map(data.edges.map(e => [e.id, e]))
   }, [data])
 
-  // Extract original nodes and edges for alternative views
+  // Extract original nodes and edges from full dataset for alternative views
   const originalNodes = useMemo(() => {
-    if (!data) return []
-    return data.nodes.map(n => n.__oidsee ?? n as OidSeeNode).filter((n): n is OidSeeNode => !!n)
-  }, [data])
+    if (!originalData) return []
+    return originalData.nodes.map(n => n.__oidsee ?? n as OidSeeNode).filter((n): n is OidSeeNode => !!n)
+  }, [originalData])
 
   const originalEdges = useMemo(() => {
-    if (!data) return []
-    return data.edges.map(e => e.__oidsee ?? e as OidSeeEdge).filter((e): e is OidSeeEdge => !!e)
-  }, [data])
+    if (!originalData) return []
+    return originalData.edges.map(e => e.__oidsee ?? e as OidSeeEdge).filter((e): e is OidSeeEdge => !!e)
+  }, [originalData])
 
-  // Filtered nodes and edges for alternative views
+  // Filtered nodes and edges for alternative views (from full dataset)
   const filteredNodes = useMemo(() => {
-    if (!filtered) return []
-    return filtered.nodes.map(n => n.__oidsee ?? n as OidSeeNode).filter((n): n is OidSeeNode => !!n)
-  }, [filtered])
+    if (!filteredOriginal) return []
+    return filteredOriginal.nodes.map(n => n.__oidsee ?? n as OidSeeNode).filter((n): n is OidSeeNode => !!n)
+  }, [filteredOriginal])
 
   const filteredEdges = useMemo(() => {
-    if (!filtered) return []
-    return filtered.edges.map(e => e.__oidsee ?? e as OidSeeEdge).filter((e): e is OidSeeEdge => !!e)
-  }, [filtered])
+    if (!filteredOriginal) return []
+    return filteredOriginal.edges.map(e => e.__oidsee ?? e as OidSeeEdge).filter((e): e is OidSeeEdge => !!e)
+  }, [filteredOriginal])
 
   function saveCurrentQuery() {
     const name = prompt('Save query as…')
