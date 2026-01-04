@@ -555,7 +555,7 @@ class DirectoryCache:
                             oid = obj.get("id")
                             if oid:
                                 self._cache[oid] = obj
-        else:
+        elif len(batches) == 1:
             # Single batch - process directly with proper locking for thread safety
             objects = fetch_batch(batches[0])
             with self._cache_lock:

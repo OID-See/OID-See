@@ -121,7 +121,8 @@ All tests pass successfully after optimizations.
 The increased parallelism (10 → 20 workers) is designed to stay well within Microsoft Graph API rate limits:
 
 - **Standard tier**: 2,000 requests per 10 seconds per app
-- **With 20 workers**: ~120 requests per minute (well below limits)
+- **With 20 workers**: Theoretical max ~1,200 requests per 10 seconds (well below 2,000 limit)
+- **In practice**: Network latency and API response times naturally throttle to ~500-800 requests per 10 seconds
 - **Retry logic**: Exponential backoff with jitter handles throttling gracefully
 
 The scanner already has robust retry logic with configurable backoff parameters:
