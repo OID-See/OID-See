@@ -544,6 +544,7 @@ class DirectoryCache:
                 return []
         
         # Parallelize batch requests for better performance with large ID sets
+        # Use parallelism if we have multiple batches to process
         if len(batches) > 1:
             with ThreadPoolExecutor(max_workers=5) as executor:
                 future_to_batch = {executor.submit(fetch_batch, batch): batch for batch in batches}
@@ -555,13 +556,14 @@ class DirectoryCache:
                             if oid:
                                 self._cache[oid] = obj
         else:
-            # Single batch - no need for parallelism
+            # Single batch - process directly with proper locking for thread safety
             for batch in batches:
                 objects = fetch_batch(batch)
-                for obj in objects:
-                    oid = obj.get("id")
-                    if oid:
-                        self._cache[oid] = obj
+                with self._cache_lock:
+                    for obj in objects:
+                        oid = obj.get("id")
+                        if oid:
+                            self._cache[oid] = obj
 
     def get(self, oid: str) -> Optional[Dict[str, Any]]:
         return self._cache.get(oid)
