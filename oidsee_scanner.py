@@ -409,22 +409,26 @@ class GraphClient:
     def post(self, url: str, json: Optional[Dict[str, Any]] = None, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         return self._request("POST", url, params=params, json=json)
 
-    def batch(self, requests: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def batch(self, requests: List[Dict[str, Any]], api_version: str = "beta") -> List[Dict[str, Any]]:
         """
         Execute a batch of requests using Microsoft Graph $batch endpoint.
         
         Args:
             requests: List of request dictionaries with 'id', 'method', and 'url' keys
-                     Example: [{"id": "1", "method": "GET", "url": "/v1.0/users"}]
+                     URLs should NOT include the version prefix (/beta or /v1.0)
+                     Example: [{"id": "1", "method": "GET", "url": "/users"}]
+            api_version: API version to use for all requests ("beta" or "v1.0")
         
         Returns:
             List of response dictionaries with 'id', 'status', and 'body' keys
         """
-        batch_url = f"{GRAPH_V1}/$batch"
+        # Use the specified API version for the batch endpoint
+        batch_base = f"https://graph.microsoft.com/{api_version}"
+        batch_url = f"{batch_base}/$batch"
         payload = {"requests": requests}
         
         # Log the batch request for debugging
-        print(f"  DEBUG: Sending batch with {len(requests)} requests", file=sys.stderr)
+        print(f"  DEBUG: Sending {api_version} batch with {len(requests)} requests", file=sys.stderr)
         if len(requests) > 0:
             print(f"  DEBUG: First request ID: {requests[0].get('id')}", file=sys.stderr)
             print(f"  DEBUG: First request URL: {requests[0].get('url')}", file=sys.stderr)
@@ -2636,61 +2640,64 @@ class OidSeeCollector:
         print(f"  Using Graph API batching: {len(sp_batches)} batches of up to {batch_size} SPs each", file=sys.stderr)
         
         for batch_idx, sp_batch in enumerate(sp_batches):
-            # Build batch requests for all 5 operations across all SPs in this batch
-            batch_requests = []
+            # Build batch requests - separate beta and v1.0 calls since they can't be mixed
+            beta_batch_requests = []
+            v1_batch_requests = []
             request_map = {}  # Maps request ID to (sp_id, operation_type)
             req_counter = 1  # Simple sequential numeric IDs matching Microsoft Graph examples
             
             for sp in sp_batch:
                 sp_id = sp["id"]
                 
+                # Beta API requests (4 operations)
                 # 1. OAuth2 permission grants
                 req_id_grants = str(req_counter)
                 req_counter += 1
-                batch_requests.append({
+                beta_batch_requests.append({
                     "id": req_id_grants,
                     "method": "GET",
-                    "url": f"/beta/oauth2PermissionGrants?$filter=clientId eq '{sp_id}'&$select=id,clientId,resourceId,scope,consentType,principalId,expiryTime"
+                    "url": f"/oauth2PermissionGrants?$filter=clientId eq '{sp_id}'&$select=id,clientId,resourceId,scope,consentType,principalId,expiryTime"
                 })
                 request_map[req_id_grants] = (sp_id, "grants")
                 
                 # 2. App role assignments (app permissions)
                 req_id_app_perms = str(req_counter)
                 req_counter += 1
-                batch_requests.append({
+                beta_batch_requests.append({
                     "id": req_id_app_perms,
                     "method": "GET",
-                    "url": f"/beta/servicePrincipals/{sp_id}/appRoleAssignments?$select=id,appRoleId,principalId,resourceId"
+                    "url": f"/servicePrincipals/{sp_id}/appRoleAssignments?$select=id,appRoleId,principalId,resourceId"
                 })
                 request_map[req_id_app_perms] = (sp_id, "app_perms")
                 
                 # 3. App role assigned to (assignments)
                 req_id_assigned_to = str(req_counter)
                 req_counter += 1
-                batch_requests.append({
+                beta_batch_requests.append({
                     "id": req_id_assigned_to,
                     "method": "GET",
-                    "url": f"/beta/servicePrincipals/{sp_id}/appRoleAssignedTo?$select=id,appRoleId,principalId,resourceId"
+                    "url": f"/servicePrincipals/{sp_id}/appRoleAssignedTo?$select=id,appRoleId,principalId,resourceId"
                 })
                 request_map[req_id_assigned_to] = (sp_id, "assigned_to")
                 
                 # 4. Owners
                 req_id_owners = str(req_counter)
                 req_counter += 1
-                batch_requests.append({
+                beta_batch_requests.append({
                     "id": req_id_owners,
                     "method": "GET",
-                    "url": f"/beta/servicePrincipals/{sp_id}/owners?$select=id,displayName"
+                    "url": f"/servicePrincipals/{sp_id}/owners?$select=id,displayName"
                 })
                 request_map[req_id_owners] = (sp_id, "owners")
                 
+                # v1.0 API requests (1 operation)
                 # 5. Directory role assignments
                 req_id_dir_roles = str(req_counter)
                 req_counter += 1
-                batch_requests.append({
+                v1_batch_requests.append({
                     "id": req_id_dir_roles,
                     "method": "GET",
-                    "url": f"/v1.0/roleManagement/directory/roleAssignments?$filter=principalId eq '{sp_id}'&$select=id,principalId,roleDefinitionId,directoryScopeId"
+                    "url": f"/roleManagement/directory/roleAssignments?$filter=principalId eq '{sp_id}'&$select=id,principalId,roleDefinitionId,directoryScopeId"
                 })
                 request_map[req_id_dir_roles] = (sp_id, "dir_roles")
                 
@@ -2709,12 +2716,22 @@ class OidSeeCollector:
                         "scopes_by_res": {},
                     }
             
-            # Execute batch request
+            # Execute batch requests (separate calls for beta and v1.0)
             try:
-                batch_responses = self.graph.batch(batch_requests)
+                all_responses = []
+                
+                # Execute beta batch if there are beta requests
+                if beta_batch_requests:
+                    beta_responses = self.graph.batch(beta_batch_requests, api_version="beta")
+                    all_responses.extend(beta_responses)
+                
+                # Execute v1.0 batch if there are v1.0 requests
+                if v1_batch_requests:
+                    v1_responses = self.graph.batch(v1_batch_requests, api_version="v1.0")
+                    all_responses.extend(v1_responses)
                 
                 # Process responses
-                for response in batch_responses:
+                for response in all_responses:
                     req_id = response.get("id")
                     status = response.get("status", 0)
                     body = response.get("body", {})
