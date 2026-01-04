@@ -58,6 +58,18 @@ function Risk({ risk }: { risk?: any }) {
   if (!risk) return null
   const level = risk.level ?? 'unknown'
   const score = typeof risk.score === 'number' ? risk.score : undefined
+  
+  // Find PRIVILEGE reason for tier breakdown
+  const privilegeReason = Array.isArray(risk.reasons) 
+    ? risk.reasons.find((r: any) => r.code === 'PRIVILEGE')
+    : null
+  
+  const hasTierBreakdown = privilegeReason && (
+    privilegeReason.rolesReachableTier0 > 0 ||
+    privilegeReason.rolesReachableTier1 > 0 ||
+    privilegeReason.rolesReachableTier2 > 0
+  )
+  
   return (
     <div className="block">
       <div className="block__title">Risk</div>
@@ -65,6 +77,56 @@ function Risk({ risk }: { risk?: any }) {
         <Badge>{level}</Badge>
         {score !== undefined && <span className="muted">score {score}</span>}
       </div>
+      
+      {/* Tier breakdown if present */}
+      {hasTierBreakdown && (
+        <div style={{ marginTop: '.8rem', marginBottom: '.8rem' }}>
+          <div style={{ fontSize: '.9rem', fontWeight: 'bold', marginBottom: '.4rem' }}>
+            Reachable Role Tiers
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+            {privilegeReason.rolesReachableTier0 > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '.3rem .5rem', background: 'rgba(255, 59, 48, 0.1)', borderRadius: '4px' }}>
+                <span>🔴 Tier 0 (Global Control)</span>
+                <span className="mono">{privilegeReason.rolesReachableTier0}</span>
+              </div>
+            )}
+            {privilegeReason.rolesReachableTier1 > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '.3rem .5rem', background: 'rgba(255, 149, 0, 0.1)', borderRadius: '4px' }}>
+                <span>🟠 Tier 1 (Critical Services)</span>
+                <span className="mono">{privilegeReason.rolesReachableTier1}</span>
+              </div>
+            )}
+            {privilegeReason.rolesReachableTier2 > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '.3rem .5rem', background: 'rgba(255, 204, 0, 0.1)', borderRadius: '4px' }}>
+                <span>🟡 Tier 2 (Scoped/Operational)</span>
+                <span className="mono">{privilegeReason.rolesReachableTier2}</span>
+              </div>
+            )}
+          </div>
+          
+          {/* Show top tier 0 roles if available */}
+          {privilegeReason.tierBreakdown && Array.isArray(privilegeReason.tierBreakdown) && (
+            <div style={{ marginTop: '.6rem' }}>
+              {privilegeReason.tierBreakdown
+                .filter((t: any) => t.tier === 'tier0' && t.roles && t.roles.length > 0)
+                .map((t: any) => (
+                  <div key={t.tier} style={{ marginTop: '.4rem' }}>
+                    <div style={{ fontSize: '.85rem', fontWeight: 'bold', marginBottom: '.2rem' }}>
+                      Top Tier 0 Roles:
+                    </div>
+                    <ul className="list" style={{ fontSize: '.85rem' }}>
+                      {t.roles.slice(0, 5).map((role: any, idx: number) => (
+                        <li key={idx}>{role.displayName}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+      
       {Array.isArray(risk.reasons) && risk.reasons.length > 0 && (
         <ul className="list">
           {risk.reasons.slice(0, 12).map((r: any, idx: number) => (

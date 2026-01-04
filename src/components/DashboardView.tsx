@@ -18,6 +18,17 @@ type Statistics = {
   avgRiskScore: number
   highRiskNodes: number
   criticalRiskNodes: number
+  tierExposure: {
+    tier0Count: number
+    tier1Count: number
+    tier2Count: number
+    spWithTier0: number
+    spWithTier1: number
+    spWithTier2: number
+    totalTier0Roles: number
+    totalTier1Roles: number
+    totalTier2Roles: number
+  }
 }
 
 export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps) {
@@ -73,6 +84,54 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
       .filter(n => (n.risk?.score ?? 0) > 0)
       .sort((a, b) => (b.risk?.score ?? 0) - (a.risk?.score ?? 0))
       .slice(0, 10)
+    
+    // Tier exposure metrics
+    const tierExposure = {
+      tier0Count: 0,
+      tier1Count: 0,
+      tier2Count: 0,
+      spWithTier0: 0,
+      spWithTier1: 0,
+      spWithTier2: 0,
+      totalTier0Roles: 0,
+      totalTier1Roles: 0,
+      totalTier2Roles: 0,
+    }
+    
+    // Count roles by tier
+    for (const node of nodes) {
+      if (node.type === 'Role') {
+        const tier = node.properties?.tier
+        if (tier === 'tier0') tierExposure.tier0Count++
+        else if (tier === 'tier1') tierExposure.tier1Count++
+        else if (tier === 'tier2') tierExposure.tier2Count++
+      }
+    }
+    
+    // Count service principals with reachable roles by tier
+    for (const node of nodes) {
+      if (node.type === 'ServicePrincipal') {
+        const privilegeReason = node.risk?.reasons?.find(r => r.code === 'PRIVILEGE')
+        if (privilegeReason) {
+          const tier0 = (privilegeReason as any).rolesReachableTier0 || 0
+          const tier1 = (privilegeReason as any).rolesReachableTier1 || 0
+          const tier2 = (privilegeReason as any).rolesReachableTier2 || 0
+          
+          if (tier0 > 0) {
+            tierExposure.spWithTier0++
+            tierExposure.totalTier0Roles += tier0
+          }
+          if (tier1 > 0) {
+            tierExposure.spWithTier1++
+            tierExposure.totalTier1Roles += tier1
+          }
+          if (tier2 > 0) {
+            tierExposure.spWithTier2++
+            tierExposure.totalTier2Roles += tier2
+          }
+        }
+      }
+    }
 
     return {
       totalNodes: nodes.length,
@@ -84,6 +143,7 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
       avgRiskScore,
       highRiskNodes: riskDistribution.high,
       criticalRiskNodes: riskDistribution.critical,
+      tierExposure,
     }
   }, [nodes, edges])
 
@@ -143,6 +203,60 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
           <div className="dashboard-card__content">
             <div className="dashboard-card__value">{stats.avgRiskScore.toFixed(1)}</div>
             <div className="dashboard-card__label">Average Risk Score</div>
+          </div>
+        </div>
+
+        {/* Privilege Tier Exposure */}
+        <div className="dashboard-section dashboard-section--span-2">
+          <h3>🔐 Privilege Tier Exposure</h3>
+          <p className="dashboard-section__subtitle">
+            Service principals with reachable directory roles by tier
+          </p>
+          <div className="dashboard-grid dashboard-grid--tier">
+            <div className="dashboard-card dashboard-card--tier0">
+              <div className="dashboard-card__header">
+                <div className="dashboard-card__icon">🔴</div>
+                <div className="dashboard-card__title">Tier 0</div>
+              </div>
+              <div className="dashboard-card__content">
+                <div className="dashboard-card__value">{stats.tierExposure.spWithTier0}</div>
+                <div className="dashboard-card__label">Service Principals</div>
+                <div className="dashboard-card__secondary">{stats.tierExposure.totalTier0Roles} role assignments</div>
+              </div>
+              <div className="dashboard-card__footer">
+                Horizontal/Global Control
+              </div>
+            </div>
+            
+            <div className="dashboard-card dashboard-card--tier1">
+              <div className="dashboard-card__header">
+                <div className="dashboard-card__icon">🟠</div>
+                <div className="dashboard-card__title">Tier 1</div>
+              </div>
+              <div className="dashboard-card__content">
+                <div className="dashboard-card__value">{stats.tierExposure.spWithTier1}</div>
+                <div className="dashboard-card__label">Service Principals</div>
+                <div className="dashboard-card__secondary">{stats.tierExposure.totalTier1Roles} role assignments</div>
+              </div>
+              <div className="dashboard-card__footer">
+                Critical Services
+              </div>
+            </div>
+            
+            <div className="dashboard-card dashboard-card--tier2">
+              <div className="dashboard-card__header">
+                <div className="dashboard-card__icon">🟡</div>
+                <div className="dashboard-card__title">Tier 2</div>
+              </div>
+              <div className="dashboard-card__content">
+                <div className="dashboard-card__value">{stats.tierExposure.spWithTier2}</div>
+                <div className="dashboard-card__label">Service Principals</div>
+                <div className="dashboard-card__secondary">{stats.tierExposure.totalTier2Roles} role assignments</div>
+              </div>
+              <div className="dashboard-card__footer">
+                Scoped/Operational
+              </div>
+            </div>
           </div>
         </div>
 

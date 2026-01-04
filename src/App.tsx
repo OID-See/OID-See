@@ -79,8 +79,16 @@ const PRESET_QUERIES: SavedQuery[] = [
   { name: 'Has App Roles', query: 'e.type=HAS_APP_ROLE' },
   { name: 'Has Directory Roles', query: 'e.type=HAS_ROLE' },
   { name: 'Privileged Scopes', query: 'e.type=HAS_PRIVILEGED_SCOPES' },
+  { name: 'ReadWrite.All Scopes', query: 'e.type=HAS_READWRITE_ALL_SCOPES' },
+  { name: 'Action Scopes', query: 'e.type=HAS_PRIVILEGED_ACTION_SCOPES' },
   { name: 'Too Many Scopes', query: 'e.type=HAS_TOO_MANY_SCOPES' },
   { name: 'Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
+  
+  // Tier-based role queries
+  { name: 'Has Tier 0 Roles', query: 'n.risk.reasons~PRIVILEGE n.type=ServicePrincipal' },
+  { name: 'Tier 0 Roles', query: 'n.type=Role n.properties.tier=tier0' },
+  { name: 'Tier 1 Roles', query: 'n.type=Role n.properties.tier=tier1' },
+  { name: 'Tier 2 Roles', query: 'n.type=Role n.properties.tier=tier2' },
   
   // Specific risk queries
   { name: 'Service Principals with Password Credentials', query: 'n.type=ServicePrincipal n.properties.credentialInsights.active_password_credentials>0' },

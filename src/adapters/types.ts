@@ -41,6 +41,8 @@ export type OidSeeEdgeType =
   | 'HAS_SCOPES'
   | 'HAS_PRIVILEGED_SCOPES'
   | 'HAS_TOO_MANY_SCOPES'
+  | 'HAS_READWRITE_ALL_SCOPES'
+  | 'HAS_PRIVILEGED_ACTION_SCOPES'
   | 'HAS_SCOPE' // legacy, keeping for backwards compat
   | 'MEMBER_OF'
   | 'HAS_ROLE'
