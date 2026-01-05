@@ -56,7 +56,19 @@ body{
 }
 .brand__name{ font-size: 1.25rem; font-weight: 800; }
 .brand__tag{ font-size: .9rem; color: rgba(234,242,255,0.86); margin-top: .05rem; font-weight: 600; }
-.brand__version{ font-size: .75rem; color: rgba(234,242,255,0.5); margin-top: .15rem; font-weight: 400; font-family: 'Courier New', monospace; }
+.brand__version-link{ 
+  display: inline-block; 
+  margin-top: .35rem; 
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.brand__version-link:hover{ 
+  opacity: 0.85; 
+  transform: translateY(-1px);
+}
+.brand__version-badge{ 
+  height: 18px; 
+  display: block;
+}
 
 .topbar__actions{ display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
 
