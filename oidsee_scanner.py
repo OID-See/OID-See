@@ -248,9 +248,9 @@ DEFAULT_SCORING_CONFIG = {
                 "attribution_ambiguity_weight": 5,
                 "attribution_ambiguity_description": "Attribution ambiguity: multiple distinct domains in reply URLs"
             },
-            "LEGACY": {
+            "CREATED_BEFORE_CONSENT_HARDENING": {
                 "weight": 10,
-                "description": "App created before July 2025",
+                "description": "Application created before July 2025, when consent to applications from unverified publishers began requiring administrative approval. These applications may have been onboarded under weaker consent controls.",
                 "cutoff_date": "2025-07-01T00:00:00Z"
             },
             "NO_OWNERS": {
@@ -629,6 +629,18 @@ def classify_app_role_value(name: Optional[str]) -> int:
     
     n = name.lower()
     
+    # Check readwrite.all (highest priority)
+    readwrite_all_markers = markers.get("readwrite_all", [])
+    readwrite_all_weight = weights.get("readwrite_all", 60)
+    if any(m in n for m in readwrite_all_markers):
+        return readwrite_all_weight
+    
+    # Check action privileged (second priority)
+    action_privileged_markers = markers.get("action_privileged", [])
+    action_privileged_weight = weights.get("action_privileged", 55)
+    if any(m in n for m in action_privileged_markers):
+        return action_privileged_weight
+    
     # Check high write markers
     high_write_markers = markers.get("high_write_markers", [])
     high_write_weight = weights.get("high_write_markers", 50)
@@ -645,47 +657,89 @@ def classify_app_role_value(name: Optional[str]) -> int:
 
 
 def classify_scopes(scopes: Set[str]) -> Dict[str, Any]:
-    """Classify scopes and determine appropriate edge type based on loaded configuration."""
+    """
+    Classify scopes and determine risk level based on loaded configuration with priority.
+    Returns edge type (always HAS_SCOPES) with metadata about risk class and weight.
+    """
     config = SCORING_CONFIG.get("classify_scopes", {})
     classifications = config.get("scope_classifications", {})
     
+    readwrite_all = []
+    action_privileged = []
     too_broad = []
-    privileged = []
+    write_privileged = []
     regular = []
+    
+    # Get action patterns from config
+    action_config = classifications.get("action_privileged", {})
+    action_patterns = action_config.get("patterns", [".action"])
     
     for scope in scopes:
         scope_lower = scope.lower()
-        # Check for too broadly scoped (.All)
-        if scope_lower.endswith(".all"):
+        
+        # Priority 1: ReadWrite.All (near-admin level)
+        if "readwrite.all" in scope_lower:
+            readwrite_all.append(scope)
+        # Priority 2: Action permissions (state-changing operations)
+        elif any(pattern in scope_lower for pattern in action_patterns):
+            action_privileged.append(scope)
+        # Priority 3: Too broadly scoped (.All)
+        elif scope_lower.endswith(".all"):
             too_broad.append(scope)
-        # Check for privileged (write/readwrite)
+        # Priority 4: Write privileged
         elif "write" in scope_lower or "readwrite" in scope_lower:
-            privileged.append(scope)
+            write_privileged.append(scope)
         else:
             regular.append(scope)
     
-    # Determine edge type based on classification using config
+    # Determine classification and risk weight based on highest priority present
+    readwrite_all_config = classifications.get("readwrite_all", {})
+    action_privileged_config = classifications.get("action_privileged", {})
     too_broad_config = classifications.get("too_broad", {})
-    privileged_config = classifications.get("privileged", {})
+    write_privileged_config = classifications.get("write_privileged", {})
     regular_config = classifications.get("regular", {})
     
-    if too_broad:
-        edge_type = too_broad_config.get("edge_type", "HAS_TOO_MANY_SCOPES")
+    if readwrite_all:
+        classification = readwrite_all_config.get("classification_label", "readwrite_all")
+        risk_weight = readwrite_all_config.get("risk_weight", 30)
+    elif action_privileged:
+        classification = action_privileged_config.get("classification_label", "action_privileged")
+        risk_weight = action_privileged_config.get("risk_weight", 25)
+    elif too_broad:
         classification = too_broad_config.get("classification_label", "too_broad")
-    elif privileged:
-        edge_type = privileged_config.get("edge_type", "HAS_PRIVILEGED_SCOPES")
-        classification = privileged_config.get("classification_label", "privileged")
+        risk_weight = too_broad_config.get("risk_weight", 15)
+    elif write_privileged:
+        classification = write_privileged_config.get("classification_label", "write_privileged")
+        risk_weight = write_privileged_config.get("risk_weight", 20)
     else:
-        edge_type = regular_config.get("edge_type", "HAS_SCOPES")
         classification = regular_config.get("classification_label", "regular")
+        risk_weight = regular_config.get("risk_weight", 0)
     
+    # Always use HAS_SCOPES edge type with metadata
     return {
-        "edge_type": edge_type,
+        "edge_type": "HAS_SCOPES",
         "classification": classification,
+        "risk_weight": risk_weight,
+        "readwrite_all": readwrite_all,
+        "action_privileged": action_privileged,
         "too_broad": too_broad,
-        "privileged": privileged,
+        "write_privileged": write_privileged,
         "regular": regular,
     }
+
+
+def get_role_tier(role_template_id: str) -> Optional[str]:
+    """Get the tier (tier0, tier1, tier2) for a role template ID."""
+    config = SCORING_CONFIG.get("role_tiering", {})
+    role_template_ids = config.get("role_template_ids", {})
+    return role_template_ids.get(role_template_id)
+
+
+def get_tier_config(tier: str) -> Dict[str, Any]:
+    """Get configuration for a specific tier (tier0, tier1, tier2)."""
+    config = SCORING_CONFIG.get("role_tiering", {})
+    tiers = config.get("tiers", {})
+    return tiers.get(tier, {})
 
 
 def _parse_iso_datetime(value: Optional[str]) -> Optional[dt.datetime]:
@@ -1799,8 +1853,6 @@ def compute_risk_for_sp(
     has_impersonation: bool,
     has_offline_access: bool,
     app_role_max_weight: int,
-    has_privileged_scopes: bool,
-    has_too_many_scopes: bool,
     delegated_scopes_by_resource: Dict[str, Set[str]],
     assignments: List[Dict[str, Any]],
     owners: List[Dict[str, Any]],
@@ -1814,6 +1866,7 @@ def compute_risk_for_sp(
     platform_signals: Optional[Dict[str, Any]] = None,
     reply_url_enrichment: Optional[Dict[str, Any]] = None,
     app_ownership: Optional[str] = None,
+    role_defs: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Compute risk score for service principal based on loaded configuration."""
     config = SCORING_CONFIG.get("compute_risk_for_sp", {})
@@ -1856,28 +1909,60 @@ def compute_risk_for_sp(
                 "weight": weight,
             })
 
-    # HAS_PRIVILEGED_SCOPES
-    if has_privileged_scopes:
+    # HAS_PRIVILEGED_SCOPES - unified scope risk based on classification
+    # Calculate max scope risk weight from delegated_scopes_by_resource
+    max_scope_risk_weight = 0
+    scope_risk_details = {
+        "readwrite_all_count": 0,
+        "action_privileged_count": 0,
+        "too_broad_count": 0,
+        "write_privileged_count": 0,
+        "max_risk_class": "regular"
+    }
+    
+    for resource_id, scopes in delegated_scopes_by_resource.items():
+        if scopes:
+            classification = classify_scopes(scopes)
+            risk_weight = classification.get("risk_weight", 0)
+            risk_class = classification.get("classification", "regular")
+            
+            if risk_weight > max_scope_risk_weight:
+                max_scope_risk_weight = risk_weight
+                scope_risk_details["max_risk_class"] = risk_class
+            
+            # Count scopes by risk class
+            scope_risk_details["readwrite_all_count"] += len(classification.get("readwrite_all", []))
+            scope_risk_details["action_privileged_count"] += len(classification.get("action_privileged", []))
+            scope_risk_details["too_broad_count"] += len(classification.get("too_broad", []))
+            scope_risk_details["write_privileged_count"] += len(classification.get("write_privileged", []))
+    
+    if max_scope_risk_weight > 0:
         privileged_config = contributors.get("HAS_PRIVILEGED_SCOPES", {})
-        weight = privileged_config.get("weight", 20)
+        base_weight = privileged_config.get("weight", 20)
+        # Use the higher of base weight or calculated risk weight
+        weight = max(base_weight, max_scope_risk_weight)
         description = privileged_config.get("description", "Privileged delegated scopes granted")
+        
+        # Build detailed message
+        risk_class = scope_risk_details["max_risk_class"]
+        if risk_class == "readwrite_all":
+            message = f"ReadWrite.All scopes granted ({scope_risk_details['readwrite_all_count']} scopes)"
+        elif risk_class == "action_privileged":
+            message = f"Action-style permissions granted ({scope_risk_details['action_privileged_count']} scopes)"
+        elif risk_class == "too_broad":
+            message = f"Overly broad .All scopes ({scope_risk_details['too_broad_count']} scopes)"
+        elif risk_class == "write_privileged":
+            message = f"Write-privileged scopes granted ({scope_risk_details['write_privileged_count']} scopes)"
+        else:
+            message = description
+        
         score += weight
         reasons.append({
             "code": "HAS_PRIVILEGED_SCOPES",
-            "message": description,
+            "message": message,
             "weight": weight,
-        })
-
-    # HAS_TOO_MANY_SCOPES
-    if has_too_many_scopes:
-        too_many_config = contributors.get("HAS_TOO_MANY_SCOPES", {})
-        weight = too_many_config.get("weight", 15)
-        description = too_many_config.get("description", "Delegated consent is overly broad")
-        score += weight
-        reasons.append({
-            "code": "HAS_TOO_MANY_SCOPES",
-            "message": description,
-            "weight": weight,
+            "scopeRiskClass": risk_class,
+            "scopeRiskDetails": scope_risk_details,
         })
 
     # OFFLINE_ACCESS_PERSISTENCE (offline_access)
@@ -1938,21 +2023,94 @@ def compute_risk_for_sp(
             "weight": weight,
         })
 
-    # PRIVILEGE (directory roles)
+    # PRIVILEGE (directory roles) - tier-aware scoring
     roles_reachable = len(dir_role_assignments or [])
     if roles_reachable > 0:
         privilege_config = contributors.get("PRIVILEGE", {})
-        base_weight = privilege_config.get("base_weight", 10)
-        per_role_weight = privilege_config.get("per_role_weight", 5)
-        max_weight = privilege_config.get("max_weight", 30)
-        weight = min(base_weight + per_role_weight * roles_reachable, max_weight)
-        description = privilege_config.get("description", "Directory roles reachable from app")
-        score += weight
-        reasons.append({
-            "code": "PRIVILEGE",
-            "message": f"Directory roles reachable from app ({roles_reachable} assignments)",
-            "weight": weight,
-        })
+        
+        # Initialize tier counters and role tracking
+        tier_counts = {"tier0": 0, "tier1": 0, "tier2": 0, "unknown": 0}
+        roles_by_tier = {"tier0": [], "tier1": [], "tier2": [], "unknown": []}
+        
+        # Classify roles by tier
+        role_defs_dict = role_defs or {}
+        for ra in dir_role_assignments:
+            role_def_id = ra.get("roleDefinitionId")
+            if not role_def_id:
+                continue
+            
+            tier = get_role_tier(role_def_id)
+            rd = role_defs_dict.get(role_def_id, {"id": role_def_id})
+            role_name = rd.get("displayName", "Unknown Role")
+            
+            if tier:
+                tier_counts[tier] += 1
+                roles_by_tier[tier].append({
+                    "roleDefinitionId": role_def_id,
+                    "displayName": role_name,
+                    "tier": tier
+                })
+            else:
+                tier_counts["unknown"] += 1
+                roles_by_tier["unknown"].append({
+                    "roleDefinitionId": role_def_id,
+                    "displayName": role_name,
+                    "tier": "unknown"
+                })
+        
+        # Calculate tier-based weights
+        total_weight = 0
+        tier_details = []
+        
+        # Process each tier (highest priority first)
+        for tier_name in ["tier0", "tier1", "tier2"]:
+            count = tier_counts[tier_name]
+            if count > 0:
+                tier_config = get_tier_config(tier_name)
+                base_weight = tier_config.get("base_weight", 0)
+                per_role_weight = tier_config.get("weight_per_role", 0)
+                max_weight = tier_config.get("max_weight", 0)
+                
+                tier_weight = min(base_weight + (per_role_weight * count), max_weight)
+                total_weight += tier_weight
+                
+                tier_details.append({
+                    "tier": tier_name,
+                    "count": count,
+                    "weight": tier_weight,
+                    "roles": roles_by_tier[tier_name][:5]  # Top 5 roles per tier
+                })
+        
+        # Fallback for unknown/unclassified roles
+        unknown_count = tier_counts["unknown"]
+        if unknown_count > 0:
+            legacy_fallback = privilege_config.get("legacy_fallback", {})
+            base_weight = legacy_fallback.get("base_weight", 10)
+            per_role_weight = legacy_fallback.get("per_role_weight", 5)
+            max_weight = legacy_fallback.get("max_weight", 30)
+            
+            unknown_weight = min(base_weight + (per_role_weight * unknown_count), max_weight)
+            total_weight += unknown_weight
+            
+            tier_details.append({
+                "tier": "unknown",
+                "count": unknown_count,
+                "weight": unknown_weight,
+                "roles": roles_by_tier["unknown"][:5]
+            })
+        
+        if total_weight > 0:
+            description = privilege_config.get("description", "Directory roles reachable from app")
+            score += total_weight
+            reasons.append({
+                "code": "PRIVILEGE",
+                "message": f"{description} ({roles_reachable} total assignments)",
+                "weight": total_weight,
+                "tierBreakdown": tier_details,
+                "rolesReachableTier0": tier_counts["tier0"],
+                "rolesReachableTier1": tier_counts["tier1"],
+                "rolesReachableTier2": tier_counts["tier2"],
+            })
 
     # UNVERIFIED_PUBLISHER
     # Skip for Internal apps (appOwnerOrganizationId == tenantId) as they don't need verification
@@ -2089,17 +2247,17 @@ def compute_risk_for_sp(
                 "outlier_domains": non_aligned_domains,
             })
 
-    # LEGACY
+    # CREATED_BEFORE_CONSENT_HARDENING
     created = _parse_iso_datetime(sp.get("createdDateTime"))
-    legacy_config = contributors.get("LEGACY", {})
-    cutoff_date_str = legacy_config.get("cutoff_date", "2025-07-01T00:00:00Z")
-    legacy_cutoff = _parse_iso_datetime(cutoff_date_str) or dt.datetime(2025, 7, 1, tzinfo=dt.timezone.utc)
-    if created and created < legacy_cutoff:
-        weight = legacy_config.get("weight", 10)
-        description = legacy_config.get("description", "App created before July 2025")
+    consent_hardening_config = contributors.get("CREATED_BEFORE_CONSENT_HARDENING", {})
+    cutoff_date_str = consent_hardening_config.get("cutoff_date", "2025-07-01T00:00:00Z")
+    consent_hardening_cutoff = _parse_iso_datetime(cutoff_date_str) or dt.datetime(2025, 7, 1, tzinfo=dt.timezone.utc)
+    if created and created < consent_hardening_cutoff:
+        weight = consent_hardening_config.get("weight", 10)
+        description = consent_hardening_config.get("description", "Application created before July 2025, when consent to applications from unverified publishers began requiring administrative approval. These applications may have been onboarded under weaker consent controls.")
         score += weight
         reasons.append({
-            "code": "LEGACY",
+            "code": "CREATED_BEFORE_CONSENT_HARDENING",
             "message": description,
             "weight": weight,
         })
@@ -3066,8 +3224,6 @@ class OidSeeCollector:
             # Aggregate flags for risk scoring
             has_impersonation = False
             has_offline_access = False
-            has_privileged_scopes = False
-            has_too_many_scopes = False
             app_role_max_weight = 0
             # App role weights from application permissions
             for a in app_perms_by_sp.get(sp_id, []):
@@ -3086,11 +3242,6 @@ class OidSeeCollector:
                     has_impersonation = True
                 if "offline_access" in lower_set:
                     has_offline_access = True
-                classified = classify_scopes(scopes)
-                if classified["classification"] == "privileged":
-                    has_privileged_scopes = True
-                if classified["classification"] == "too_broad":
-                    has_too_many_scopes = True
 
             has_app_roles = bool(app_perms_by_sp.get(sp_id))
             owners = owners_by_sp.get(sp_id, [])
@@ -3180,8 +3331,6 @@ class OidSeeCollector:
                 has_impersonation,
                 has_offline_access,
                 app_role_max_weight,
-                has_privileged_scopes,
-                has_too_many_scopes,
                 sp_delegated_scopes.get(sp_id, {}),
                 assigned_to_by_sp.get(sp_id, []),
                 owners,
@@ -3195,6 +3344,7 @@ class OidSeeCollector:
                 platform_signals,
                 reply_url_enrichment,
                 app_ownership,
+                self._role_defs,
             )
             
             # Check for identity laundering signals
@@ -3306,9 +3456,22 @@ class OidSeeCollector:
                     })
                 elif "directoryrole" in otype:
                     onid = node_id("role", oid, o_display)
-                    self.add_node(onid, "Role", o_display, {
-                        "roleTemplateId": od.get("roleTemplateId"),
-                    })
+                    role_template_id = od.get("roleTemplateId")
+                    
+                    # Get tier information for the role
+                    tier = get_role_tier(role_template_id) if role_template_id else None
+                    tier_config = get_tier_config(tier) if tier else {}
+                    tier_label = tier_config.get("label", "Unknown Tier") if tier else None
+                    
+                    role_props = {
+                        "roleTemplateId": role_template_id,
+                    }
+                    
+                    if tier:
+                        role_props["tier"] = tier
+                        role_props["tierLabel"] = tier_label
+                    
+                    self.add_node(onid, "Role", o_display, role_props)
                 else:
                     onid = node_id("dir", oid, o_display)
                     self.add_node(onid, "User", o_display, {
@@ -3339,19 +3502,27 @@ class OidSeeCollector:
                     app_role_ids=None
                 )
                 
-                # Classify scopes and emit appropriate edge
+                # Classify scopes and emit HAS_SCOPES edge with metadata
                 classification = classify_scopes(scopes)
                 edge_props = {
                     "scopes": sorted(scopes),
                     "permissionType": "delegated",
-                    "classification": classification["classification"],
+                    "scopeRiskClass": classification["classification"],
+                    "scopeRiskWeight": classification["risk_weight"],
                     "resourceAppId": permission_details.get("resource_app_id"),
                     "resourceDisplayName": permission_details.get("resource_display_name"),
                 }
-                if classification["too_broad"]:
+                # Add detailed scope breakdowns for analysis
+                if classification.get("readwrite_all"):
+                    edge_props["readwriteAllScopes"] = sorted(classification["readwrite_all"])
+                    edge_props["isAllWildcard"] = True
+                if classification.get("action_privileged"):
+                    edge_props["actionPrivilegedScopes"] = sorted(classification["action_privileged"])
+                if classification.get("too_broad"):
                     edge_props["tooBroadScopes"] = sorted(classification["too_broad"])
-                if classification["privileged"]:
-                    edge_props["privilegedScopes"] = sorted(classification["privileged"])
+                    edge_props["isAllWildcard"] = True
+                if classification.get("write_privileged"):
+                    edge_props["writePrivilegedScopes"] = sorted(classification["write_privileged"])
                 
                 self.add_edge(sp_nid, res_nid, classification["edge_type"], edge_props)
 
@@ -3461,11 +3632,23 @@ class OidSeeCollector:
                 rd = self._role_defs.get(rd_id, {"id": rd_id})
                 rd_display = rd.get("displayName") or "Unknown Role"
                 rnid = node_id("roledef", rd_id, rd_display)
-                self.add_node(rnid, "Role", rd_display, {
+                
+                # Get tier information for the role
+                tier = get_role_tier(rd_id)
+                tier_config = get_tier_config(tier) if tier else {}
+                tier_label = tier_config.get("label", "Unknown Tier") if tier else None
+                
+                role_props = {
                     "roleTemplateId": rd_id,
                     "description": rd.get("description"),
                     "isBuiltIn": rd.get("isBuiltIn"),
-                })
+                }
+                
+                if tier:
+                    role_props["tier"] = tier
+                    role_props["tierLabel"] = tier_label
+                
+                self.add_node(rnid, "Role", rd_display, role_props)
                 self.add_edge(sp_nid, rnid, "HAS_ROLE", {"directoryScopeId": ra.get("directoryScopeId")})
 
         # Final pass: apply governance offsets if any GOVERNS edges exist
@@ -3516,6 +3699,9 @@ class OidSeeCollector:
             "format": {
                 "name": "oidsee-graph",
                 "version": "1.1"
+            },
+            "scanner": {
+                "version": "1.0.0"
             },
             "generatedAt": utc_now_iso(),
             "tenant": {

@@ -78,9 +78,17 @@ const PRESET_QUERIES: SavedQuery[] = [
   { name: 'Can Impersonate', query: 'e.type=CAN_IMPERSONATE' },
   { name: 'Has App Roles', query: 'e.type=HAS_APP_ROLE' },
   { name: 'Has Directory Roles', query: 'e.type=HAS_ROLE' },
-  { name: 'Privileged Scopes', query: 'e.type=HAS_PRIVILEGED_SCOPES' },
-  { name: 'Too Many Scopes', query: 'e.type=HAS_TOO_MANY_SCOPES' },
+  { name: 'Privileged Scopes', query: 'e.type=HAS_SCOPES e.properties.scopeRiskClass~privileged' },
+  { name: 'ReadWrite.All Scopes', query: 'e.type=HAS_SCOPES e.properties.scopeRiskClass=readwrite_all' },
+  { name: 'Action Scopes', query: 'e.type=HAS_SCOPES e.properties.scopeRiskClass=action_privileged' },
+  { name: 'Too Many Scopes', query: 'e.type=HAS_SCOPES e.properties.scopeRiskClass=too_broad' },
   { name: 'Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
+  
+  // Tier-based role queries
+  { name: 'Has Tier 0 Roles', query: 'n.risk.reasons~PRIVILEGE n.type=ServicePrincipal' },
+  { name: 'Tier 0 Roles', query: 'n.type=Role n.properties.tier=tier0' },
+  { name: 'Tier 1 Roles', query: 'n.type=Role n.properties.tier=tier1' },
+  { name: 'Tier 2 Roles', query: 'n.type=Role n.properties.tier=tier2' },
   
   // Specific risk queries
   { name: 'Service Principals with Password Credentials', query: 'n.type=ServicePrincipal n.properties.credentialInsights.active_password_credentials>0' },
@@ -943,6 +951,18 @@ export default function App() {
           <div className="brand__text">
             <div className="brand__name">OID-See Viewer</div>
             <div className="brand__tag">Render OIDC/OAuth graphs from JSON</div>
+            <a 
+              href="https://github.com/OID-See/OID-See/tree/v1.0.0" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="brand__version-link"
+            >
+              <img 
+                src="https://img.shields.io/badge/version-1.0.0-blue.svg" 
+                alt="Version 1.0.0" 
+                className="brand__version-badge"
+              />
+            </a>
           </div>
         </div>
 

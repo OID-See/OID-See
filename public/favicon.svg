@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="30" fill="#0B0E12"/>
+  
+  <!-- Eye shape (outer ellipse) -->
+  <ellipse cx="32" cy="32" rx="24" ry="16" fill="#42E8E0" opacity="0.3"/>
+  
+  <!-- Eye iris (gradient circle) -->
+  <defs>
+    <radialGradient id="irisGradient">
+      <stop offset="0%" stop-color="#42E8E0"/>
+      <stop offset="70%" stop-color="#9B5CFF"/>
+      <stop offset="100%" stop-color="#42E8E0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="10" fill="url(#irisGradient)"/>
+  
+  <!-- Pupil (dark center) -->
+  <circle cx="32" cy="32" r="5" fill="#0B0E12"/>
+  
+  <!-- Eye highlight -->
+  <circle cx="34" cy="30" r="2" fill="#EAF2FF" opacity="0.8"/>
+</svg>
