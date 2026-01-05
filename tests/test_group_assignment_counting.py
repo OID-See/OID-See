@@ -10,7 +10,7 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from oidsee_scanner import compute_risk_for_sp, DirectoryCache
+from oidsee_scanner import compute_risk_for_sp
 
 
 class MockDirectoryCache:

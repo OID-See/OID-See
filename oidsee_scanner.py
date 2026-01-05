@@ -2715,28 +2715,62 @@ class OidSeeCollector:
             # The $count endpoint requires ConsistencyLevel=eventual header and returns plain text
             url = f"{GRAPH_V1}/groups/{group_id}/transitiveMembers/$count"
             
-            # Make the request with the special header for count queries
-            headers = self.graph._headers()
-            headers["ConsistencyLevel"] = "eventual"
+            # Use GraphClient's retry logic by making the request through it
+            # The $count endpoint returns plain text (not JSON), so we need special handling
+            last_err: Optional[str] = None
+            for attempt in range(self.graph.max_retries):
+                try:
+                    headers = self.graph._headers()
+                    headers["ConsistencyLevel"] = "eventual"
+                    
+                    response = requests.get(url, headers=headers, timeout=60)
+                    
+                    if response.status_code in (429, 503):
+                        # Throttle/backoff with Retry-After when present
+                        ra = response.headers.get("Retry-After")
+                        try:
+                            delay = float(ra) if ra is not None else (self.graph.base_delay * (2 ** attempt))
+                        except Exception:
+                            delay = self.graph.base_delay * (2 ** attempt)
+                        delay = max(delay, self.graph.base_delay) + random.uniform(0, 0.5)
+                        time.sleep(delay)
+                        continue
+                    
+                    if response.status_code == 404:
+                        # Group not found or doesn't exist
+                        print(f"⚠️  Group {group_id} not found", file=sys.stderr)
+                        return 0
+                    
+                    if response.status_code >= 400:
+                        last_err = f"HTTP {response.status_code}: {response.text[:500]}"
+                        # Retry other 5xx
+                        if 500 <= response.status_code < 600 and attempt < self.graph.max_retries - 1:
+                            delay = self.graph.base_delay * (2 ** attempt) + random.uniform(0, 0.3)
+                            time.sleep(delay)
+                            continue
+                        print(f"⚠️  Failed to fetch member count for group {group_id}: {last_err}", file=sys.stderr)
+                        return 0
+                    
+                    # Parse the plain text count
+                    count = int(response.text.strip())
+                    
+                    # Cache the result
+                    with self._group_member_count_cache_lock:
+                        self.group_member_count_cache[group_id] = count
+                    
+                    return count
+                    
+                except requests.RequestException as e:
+                    last_err = f"{type(e).__name__}: {e}"
+                    # Network/transient error -> backoff
+                    delay = self.graph.base_delay * (2 ** attempt) + random.uniform(0, 0.3)
+                    time.sleep(delay)
+                    continue
             
-            response = requests.get(url, headers=headers, timeout=60)
+            # If we exhausted retries
+            print(f"⚠️  Failed to fetch member count for group {group_id} after retries: {last_err}", file=sys.stderr)
+            return 0
             
-            if response.status_code == 404:
-                # Group not found or doesn't exist
-                print(f"⚠️  Group {group_id} not found", file=sys.stderr)
-                return 0
-            
-            if response.status_code >= 400:
-                print(f"⚠️  Failed to fetch member count for group {group_id}: HTTP {response.status_code}", file=sys.stderr)
-                return 0
-            
-            count = int(response.text.strip())
-            
-            # Cache the result
-            with self._group_member_count_cache_lock:
-                self.group_member_count_cache[group_id] = count
-            
-            return count
         except Exception as e:
             print(f"⚠️  Failed to fetch member count for group {group_id}: {e}", file=sys.stderr)
             # Return 0 on error rather than using the old hardcoded approximation
