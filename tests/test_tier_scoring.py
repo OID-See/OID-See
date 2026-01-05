@@ -74,7 +74,8 @@ def test_enhanced_scope_classification():
     scopes = {"User.ReadWrite.All", "User.Read.All"}
     result = classify_scopes(scopes)
     assert result["classification"] == "readwrite_all", f"Expected readwrite_all, got {result['classification']}"
-    assert result["edge_type"] == "HAS_READWRITE_ALL_SCOPES", f"Expected HAS_READWRITE_ALL_SCOPES, got {result['edge_type']}"
+    assert result["edge_type"] == "HAS_SCOPES", f"Expected HAS_SCOPES, got {result['edge_type']}"
+    assert result["risk_weight"] == 30, f"Expected risk_weight=30, got {result['risk_weight']}"
     assert "User.ReadWrite.All" in result["readwrite_all"]
     print("✓ ReadWrite.All correctly classified as highest priority")
     
@@ -82,21 +83,24 @@ def test_enhanced_scope_classification():
     scopes = {"Application.ReadWrite.Action", "User.Read.All"}
     result = classify_scopes(scopes)
     assert result["classification"] == "action_privileged", f"Expected action_privileged, got {result['classification']}"
-    assert result["edge_type"] == "HAS_PRIVILEGED_ACTION_SCOPES"
+    assert result["edge_type"] == "HAS_SCOPES"
+    assert result["risk_weight"] == 25, f"Expected risk_weight=25, got {result['risk_weight']}"
     print("✓ Action scopes correctly classified")
     
     # Test .All (third priority, without ReadWrite)
     scopes = {"User.Read.All", "Group.Read.All"}
     result = classify_scopes(scopes)
     assert result["classification"] == "too_broad", f"Expected too_broad, got {result['classification']}"
-    assert result["edge_type"] == "HAS_TOO_MANY_SCOPES"
+    assert result["edge_type"] == "HAS_SCOPES"
+    assert result["risk_weight"] == 15, f"Expected risk_weight=15, got {result['risk_weight']}"
     print("✓ .All scopes (without ReadWrite) correctly classified")
     
     # Test write scopes (fourth priority)
     scopes = {"User.Write", "Group.Read"}
     result = classify_scopes(scopes)
     assert result["classification"] == "write_privileged", f"Expected write_privileged, got {result['classification']}"
-    assert result["edge_type"] == "HAS_PRIVILEGED_SCOPES"
+    assert result["edge_type"] == "HAS_SCOPES"
+    assert result["risk_weight"] == 20, f"Expected risk_weight=20, got {result['risk_weight']}"
     print("✓ Write scopes correctly classified")
     
     # Test regular scopes
@@ -104,6 +108,7 @@ def test_enhanced_scope_classification():
     result = classify_scopes(scopes)
     assert result["classification"] == "regular", f"Expected regular, got {result['classification']}"
     assert result["edge_type"] == "HAS_SCOPES"
+    assert result["risk_weight"] == 0, f"Expected risk_weight=0, got {result['risk_weight']}"
     print("✓ Regular scopes correctly classified")
 
 
@@ -226,8 +231,8 @@ def test_tier_based_risk_scoring():
 
 
 def test_new_scope_scoring():
-    """Test new scope types in risk scoring."""
-    print("\n=== Testing New Scope Type Scoring ===")
+    """Test unified scope risk scoring with metadata."""
+    print("\n=== Testing Unified Scope Risk Scoring ===")
     
     class MockCache:
         def get(self, oid):
@@ -235,29 +240,26 @@ def test_new_scope_scoring():
     
     sp = {"verifiedPublisher": None, "replyUrls": [], "info": {}}
     
-    # Test ReadWrite.All scoring
+    # Test ReadWrite.All scoring (via delegated_scopes_by_resource)
     risk = compute_risk_for_sp(
         sp=sp,
         has_impersonation=False,
         has_offline_access=False,
         app_role_max_weight=0,
-        has_privileged_scopes=False,
-        has_too_many_scopes=False,
-        delegated_scopes_by_resource={},
+        delegated_scopes_by_resource={"resource1": {"User.ReadWrite.All", "User.Read"}},
         assignments=[],
         owners=[{"id": "owner1"}],
         requires_assignment=True,
         dir_role_assignments=[],
         sp_display="Test SP",
         dir_cache=MockCache(),
-        has_readwrite_all_scopes=True,
-        has_action_scopes=False,
     )
     
-    readwrite_reason = next((r for r in risk["reasons"] if r["code"] == "HAS_READWRITE_ALL_SCOPES"), None)
-    assert readwrite_reason is not None, "HAS_READWRITE_ALL_SCOPES reason should exist"
-    assert readwrite_reason["weight"] == 30, f"Expected weight=30, got {readwrite_reason['weight']}"
-    print(f"✓ ReadWrite.All scope scoring: weight={readwrite_reason['weight']}")
+    privileged_reason = next((r for r in risk["reasons"] if r["code"] == "HAS_PRIVILEGED_SCOPES"), None)
+    assert privileged_reason is not None, "HAS_PRIVILEGED_SCOPES reason should exist"
+    assert privileged_reason["weight"] == 30, f"Expected weight=30 for ReadWrite.All, got {privileged_reason['weight']}"
+    assert privileged_reason["scopeRiskClass"] == "readwrite_all", f"Expected scopeRiskClass=readwrite_all"
+    print(f"✓ ReadWrite.All scope scoring: weight={privileged_reason['weight']}, class={privileged_reason['scopeRiskClass']}")
     
     # Test Action scope scoring
     risk = compute_risk_for_sp(
@@ -265,23 +267,20 @@ def test_new_scope_scoring():
         has_impersonation=False,
         has_offline_access=False,
         app_role_max_weight=0,
-        has_privileged_scopes=False,
-        has_too_many_scopes=False,
-        delegated_scopes_by_resource={},
+        delegated_scopes_by_resource={"resource1": {"Application.ReadWrite.Action", "User.Read"}},
         assignments=[],
         owners=[{"id": "owner1"}],
         requires_assignment=True,
         dir_role_assignments=[],
         sp_display="Test SP",
         dir_cache=MockCache(),
-        has_readwrite_all_scopes=False,
-        has_action_scopes=True,
     )
     
-    action_reason = next((r for r in risk["reasons"] if r["code"] == "HAS_PRIVILEGED_ACTION_SCOPES"), None)
-    assert action_reason is not None, "HAS_PRIVILEGED_ACTION_SCOPES reason should exist"
-    assert action_reason["weight"] == 25, f"Expected weight=25, got {action_reason['weight']}"
-    print(f"✓ Action scope scoring: weight={action_reason['weight']}")
+    privileged_reason = next((r for r in risk["reasons"] if r["code"] == "HAS_PRIVILEGED_SCOPES"), None)
+    assert privileged_reason is not None, "HAS_PRIVILEGED_SCOPES reason should exist"
+    assert privileged_reason["weight"] == 25, f"Expected weight=25 for Action, got {privileged_reason['weight']}"
+    assert privileged_reason["scopeRiskClass"] == "action_privileged"
+    print(f"✓ Action scope scoring: weight={privileged_reason['weight']}, class={privileged_reason['scopeRiskClass']}")
 
 
 if __name__ == "__main__":

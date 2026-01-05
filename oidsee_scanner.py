@@ -657,7 +657,10 @@ def classify_app_role_value(name: Optional[str]) -> int:
 
 
 def classify_scopes(scopes: Set[str]) -> Dict[str, Any]:
-    """Classify scopes and determine appropriate edge type based on loaded configuration with priority."""
+    """
+    Classify scopes and determine risk level based on loaded configuration with priority.
+    Returns edge type (always HAS_SCOPES) with metadata about risk class and weight.
+    """
     config = SCORING_CONFIG.get("classify_scopes", {})
     classifications = config.get("scope_classifications", {})
     
@@ -667,14 +670,18 @@ def classify_scopes(scopes: Set[str]) -> Dict[str, Any]:
     write_privileged = []
     regular = []
     
+    # Get action patterns from config
+    action_config = classifications.get("action_privileged", {})
+    action_patterns = action_config.get("patterns", [".action"])
+    
     for scope in scopes:
         scope_lower = scope.lower()
         
-        # Priority 1: ReadWrite.All
+        # Priority 1: ReadWrite.All (near-admin level)
         if "readwrite.all" in scope_lower:
             readwrite_all.append(scope)
-        # Priority 2: Action permissions
-        elif ".action" in scope_lower or scope_lower.endswith(".action"):
+        # Priority 2: Action permissions (state-changing operations)
+        elif any(pattern in scope_lower for pattern in action_patterns):
             action_privileged.append(scope)
         # Priority 3: Too broadly scoped (.All)
         elif scope_lower.endswith(".all"):
@@ -685,7 +692,7 @@ def classify_scopes(scopes: Set[str]) -> Dict[str, Any]:
         else:
             regular.append(scope)
     
-    # Determine edge type based on highest priority classification present
+    # Determine classification and risk weight based on highest priority present
     readwrite_all_config = classifications.get("readwrite_all", {})
     action_privileged_config = classifications.get("action_privileged", {})
     too_broad_config = classifications.get("too_broad", {})
@@ -693,24 +700,26 @@ def classify_scopes(scopes: Set[str]) -> Dict[str, Any]:
     regular_config = classifications.get("regular", {})
     
     if readwrite_all:
-        edge_type = readwrite_all_config.get("edge_type", "HAS_READWRITE_ALL_SCOPES")
         classification = readwrite_all_config.get("classification_label", "readwrite_all")
+        risk_weight = readwrite_all_config.get("risk_weight", 30)
     elif action_privileged:
-        edge_type = action_privileged_config.get("edge_type", "HAS_PRIVILEGED_ACTION_SCOPES")
         classification = action_privileged_config.get("classification_label", "action_privileged")
+        risk_weight = action_privileged_config.get("risk_weight", 25)
     elif too_broad:
-        edge_type = too_broad_config.get("edge_type", "HAS_TOO_MANY_SCOPES")
         classification = too_broad_config.get("classification_label", "too_broad")
+        risk_weight = too_broad_config.get("risk_weight", 15)
     elif write_privileged:
-        edge_type = write_privileged_config.get("edge_type", "HAS_PRIVILEGED_SCOPES")
         classification = write_privileged_config.get("classification_label", "write_privileged")
+        risk_weight = write_privileged_config.get("risk_weight", 20)
     else:
-        edge_type = regular_config.get("edge_type", "HAS_SCOPES")
         classification = regular_config.get("classification_label", "regular")
+        risk_weight = regular_config.get("risk_weight", 0)
     
+    # Always use HAS_SCOPES edge type with metadata
     return {
-        "edge_type": edge_type,
+        "edge_type": "HAS_SCOPES",
         "classification": classification,
+        "risk_weight": risk_weight,
         "readwrite_all": readwrite_all,
         "action_privileged": action_privileged,
         "too_broad": too_broad,
@@ -1844,8 +1853,6 @@ def compute_risk_for_sp(
     has_impersonation: bool,
     has_offline_access: bool,
     app_role_max_weight: int,
-    has_privileged_scopes: bool,
-    has_too_many_scopes: bool,
     delegated_scopes_by_resource: Dict[str, Set[str]],
     assignments: List[Dict[str, Any]],
     owners: List[Dict[str, Any]],
@@ -1860,8 +1867,6 @@ def compute_risk_for_sp(
     reply_url_enrichment: Optional[Dict[str, Any]] = None,
     app_ownership: Optional[str] = None,
     role_defs: Optional[Dict[str, Dict[str, Any]]] = None,
-    has_readwrite_all_scopes: bool = False,
-    has_action_scopes: bool = False,
 ) -> Dict[str, Any]:
     """Compute risk score for service principal based on loaded configuration."""
     config = SCORING_CONFIG.get("compute_risk_for_sp", {})
@@ -1904,52 +1909,60 @@ def compute_risk_for_sp(
                 "weight": weight,
             })
 
-    # HAS_PRIVILEGED_SCOPES
-    if has_privileged_scopes:
+    # HAS_PRIVILEGED_SCOPES - unified scope risk based on classification
+    # Calculate max scope risk weight from delegated_scopes_by_resource
+    max_scope_risk_weight = 0
+    scope_risk_details = {
+        "readwrite_all_count": 0,
+        "action_privileged_count": 0,
+        "too_broad_count": 0,
+        "write_privileged_count": 0,
+        "max_risk_class": "regular"
+    }
+    
+    for resource_id, scopes in delegated_scopes_by_resource.items():
+        if scopes:
+            classification = classify_scopes(scopes)
+            risk_weight = classification.get("risk_weight", 0)
+            risk_class = classification.get("classification", "regular")
+            
+            if risk_weight > max_scope_risk_weight:
+                max_scope_risk_weight = risk_weight
+                scope_risk_details["max_risk_class"] = risk_class
+            
+            # Count scopes by risk class
+            scope_risk_details["readwrite_all_count"] += len(classification.get("readwrite_all", []))
+            scope_risk_details["action_privileged_count"] += len(classification.get("action_privileged", []))
+            scope_risk_details["too_broad_count"] += len(classification.get("too_broad", []))
+            scope_risk_details["write_privileged_count"] += len(classification.get("write_privileged", []))
+    
+    if max_scope_risk_weight > 0:
         privileged_config = contributors.get("HAS_PRIVILEGED_SCOPES", {})
-        weight = privileged_config.get("weight", 20)
+        base_weight = privileged_config.get("weight", 20)
+        # Use the higher of base weight or calculated risk weight
+        weight = max(base_weight, max_scope_risk_weight)
         description = privileged_config.get("description", "Privileged delegated scopes granted")
+        
+        # Build detailed message
+        risk_class = scope_risk_details["max_risk_class"]
+        if risk_class == "readwrite_all":
+            message = f"ReadWrite.All scopes granted ({scope_risk_details['readwrite_all_count']} scopes)"
+        elif risk_class == "action_privileged":
+            message = f"Action-style permissions granted ({scope_risk_details['action_privileged_count']} scopes)"
+        elif risk_class == "too_broad":
+            message = f"Overly broad .All scopes ({scope_risk_details['too_broad_count']} scopes)"
+        elif risk_class == "write_privileged":
+            message = f"Write-privileged scopes granted ({scope_risk_details['write_privileged_count']} scopes)"
+        else:
+            message = description
+        
         score += weight
         reasons.append({
             "code": "HAS_PRIVILEGED_SCOPES",
-            "message": description,
+            "message": message,
             "weight": weight,
-        })
-
-    # HAS_TOO_MANY_SCOPES
-    if has_too_many_scopes:
-        too_many_config = contributors.get("HAS_TOO_MANY_SCOPES", {})
-        weight = too_many_config.get("weight", 15)
-        description = too_many_config.get("description", "Delegated consent is overly broad")
-        score += weight
-        reasons.append({
-            "code": "HAS_TOO_MANY_SCOPES",
-            "message": description,
-            "weight": weight,
-        })
-    
-    # HAS_READWRITE_ALL_SCOPES (near-admin level permissions)
-    if has_readwrite_all_scopes:
-        readwrite_all_config = contributors.get("HAS_READWRITE_ALL_SCOPES", {})
-        weight = readwrite_all_config.get("weight", 30)
-        description = readwrite_all_config.get("description", "ReadWrite.All scopes granted")
-        score += weight
-        reasons.append({
-            "code": "HAS_READWRITE_ALL_SCOPES",
-            "message": description,
-            "weight": weight,
-        })
-    
-    # HAS_PRIVILEGED_ACTION_SCOPES (state-changing operations)
-    if has_action_scopes:
-        action_config = contributors.get("HAS_PRIVILEGED_ACTION_SCOPES", {})
-        weight = action_config.get("weight", 25)
-        description = action_config.get("description", "Action-style permissions granted")
-        score += weight
-        reasons.append({
-            "code": "HAS_PRIVILEGED_ACTION_SCOPES",
-            "message": description,
-            "weight": weight,
+            "scopeRiskClass": risk_class,
+            "scopeRiskDetails": scope_risk_details,
         })
 
     # OFFLINE_ACCESS_PERSISTENCE (offline_access)
@@ -3211,10 +3224,6 @@ class OidSeeCollector:
             # Aggregate flags for risk scoring
             has_impersonation = False
             has_offline_access = False
-            has_privileged_scopes = False
-            has_too_many_scopes = False
-            has_readwrite_all_scopes = False
-            has_action_scopes = False
             app_role_max_weight = 0
             # App role weights from application permissions
             for a in app_perms_by_sp.get(sp_id, []):
@@ -3233,16 +3242,6 @@ class OidSeeCollector:
                     has_impersonation = True
                 if "offline_access" in lower_set:
                     has_offline_access = True
-                classified = classify_scopes(scopes)
-                # Check for specific classifications
-                if classified["classification"] == "readwrite_all":
-                    has_readwrite_all_scopes = True
-                elif classified["classification"] == "action_privileged":
-                    has_action_scopes = True
-                elif classified["classification"] == "too_broad":
-                    has_too_many_scopes = True
-                elif classified["classification"] == "write_privileged":
-                    has_privileged_scopes = True
 
             has_app_roles = bool(app_perms_by_sp.get(sp_id))
             owners = owners_by_sp.get(sp_id, [])
@@ -3332,8 +3331,6 @@ class OidSeeCollector:
                 has_impersonation,
                 has_offline_access,
                 app_role_max_weight,
-                has_privileged_scopes,
-                has_too_many_scopes,
                 sp_delegated_scopes.get(sp_id, {}),
                 assigned_to_by_sp.get(sp_id, []),
                 owners,
@@ -3348,8 +3345,6 @@ class OidSeeCollector:
                 reply_url_enrichment,
                 app_ownership,
                 self._role_defs,
-                has_readwrite_all_scopes,
-                has_action_scopes,
             )
             
             # Check for identity laundering signals
@@ -3507,21 +3502,25 @@ class OidSeeCollector:
                     app_role_ids=None
                 )
                 
-                # Classify scopes and emit appropriate edge
+                # Classify scopes and emit HAS_SCOPES edge with metadata
                 classification = classify_scopes(scopes)
                 edge_props = {
                     "scopes": sorted(scopes),
                     "permissionType": "delegated",
-                    "classification": classification["classification"],
+                    "scopeRiskClass": classification["classification"],
+                    "scopeRiskWeight": classification["risk_weight"],
                     "resourceAppId": permission_details.get("resource_app_id"),
                     "resourceDisplayName": permission_details.get("resource_display_name"),
                 }
+                # Add detailed scope breakdowns for analysis
                 if classification.get("readwrite_all"):
                     edge_props["readwriteAllScopes"] = sorted(classification["readwrite_all"])
+                    edge_props["isAllWildcard"] = True
                 if classification.get("action_privileged"):
                     edge_props["actionPrivilegedScopes"] = sorted(classification["action_privileged"])
                 if classification.get("too_broad"):
                     edge_props["tooBroadScopes"] = sorted(classification["too_broad"])
+                    edge_props["isAllWildcard"] = True
                 if classification.get("write_privileged"):
                     edge_props["writePrivilegedScopes"] = sorted(classification["write_privileged"])
                 

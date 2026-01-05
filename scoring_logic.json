@@ -98,31 +98,49 @@
     "scope_classifications": {
       "readwrite_all": {
         "condition": "scope contains 'ReadWrite.All' (case insensitive)",
-        "edge_type": "HAS_READWRITE_ALL_SCOPES",
+        "edge_type": "HAS_SCOPES",
         "classification_label": "readwrite_all",
+        "risk_weight": 30,
         "priority": 1
       },
       "action_privileged": {
         "condition": "scope contains '.Action' or ends with '.Action' (case insensitive)",
-        "edge_type": "HAS_PRIVILEGED_ACTION_SCOPES",
+        "edge_type": "HAS_SCOPES",
         "classification_label": "action_privileged",
-        "priority": 2
+        "risk_weight": 25,
+        "priority": 2,
+        "patterns": [
+          ".action",
+          ".manage.",
+          ".send.",
+          ".accessasuser.all",
+          ".full_access",
+          "full_access_as_app",
+          ".importexport",
+          ".backup",
+          ".restore",
+          ".update",
+          ".delete"
+        ]
       },
       "too_broad": {
         "condition": "scope ends with '.All'",
-        "edge_type": "HAS_TOO_MANY_SCOPES",
+        "edge_type": "HAS_SCOPES",
         "classification_label": "too_broad",
+        "risk_weight": 15,
         "priority": 3
       },
       "write_privileged": {
         "condition": "scope contains 'Write' or 'ReadWrite' (case insensitive)",
-        "edge_type": "HAS_PRIVILEGED_SCOPES",
+        "edge_type": "HAS_SCOPES",
         "classification_label": "write_privileged",
+        "risk_weight": 20,
         "priority": 4
       },
       "regular": {
         "edge_type": "HAS_SCOPES",
         "classification_label": "regular",
+        "risk_weight": 0,
         "priority": 5
       }
     }
@@ -139,19 +157,13 @@
       },
       "HAS_PRIVILEGED_SCOPES": {
         "weight": 20,
-        "description": "Privileged delegated scopes granted (Write/ReadWrite permissions)"
-      },
-      "HAS_READWRITE_ALL_SCOPES": {
-        "weight": 30,
-        "description": "ReadWrite.All scopes granted (near-admin level permissions)"
-      },
-      "HAS_PRIVILEGED_ACTION_SCOPES": {
-        "weight": 25,
-        "description": "Action-style permissions granted (state-changing operations)"
+        "description": "Privileged delegated scopes granted",
+        "details": "Applies when scopes contain write/modify permissions. Weight can be adjusted based on scope risk class (readwrite_all: +30, action_privileged: +25, write_privileged: +20, too_broad: +15) stored in edge metadata."
       },
       "HAS_TOO_MANY_SCOPES": {
         "weight": 15,
-        "description": "Delegated consent is overly broad"
+        "description": "Delegated consent is overly broad (.All scopes)",
+        "details": "Legacy contributor for backward compatibility. Scope risk is now primarily assessed via scopeRiskClass edge metadata."
       },
       "ASSIGNED_TO": {
         "reachable_users_thresholds": [

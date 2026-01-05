@@ -78,10 +78,10 @@ const PRESET_QUERIES: SavedQuery[] = [
   { name: 'Can Impersonate', query: 'e.type=CAN_IMPERSONATE' },
   { name: 'Has App Roles', query: 'e.type=HAS_APP_ROLE' },
   { name: 'Has Directory Roles', query: 'e.type=HAS_ROLE' },
-  { name: 'Privileged Scopes', query: 'e.type=HAS_PRIVILEGED_SCOPES' },
-  { name: 'ReadWrite.All Scopes', query: 'e.type=HAS_READWRITE_ALL_SCOPES' },
-  { name: 'Action Scopes', query: 'e.type=HAS_PRIVILEGED_ACTION_SCOPES' },
-  { name: 'Too Many Scopes', query: 'e.type=HAS_TOO_MANY_SCOPES' },
+  { name: 'Privileged Scopes', query: 'e.type=HAS_SCOPES e.properties.scopeRiskClass~privileged' },
+  { name: 'ReadWrite.All Scopes', query: 'e.type=HAS_SCOPES e.properties.scopeRiskClass=readwrite_all' },
+  { name: 'Action Scopes', query: 'e.type=HAS_SCOPES e.properties.scopeRiskClass=action_privileged' },
+  { name: 'Too Many Scopes', query: 'e.type=HAS_SCOPES e.properties.scopeRiskClass=too_broad' },
   { name: 'Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
   
   // Tier-based role queries

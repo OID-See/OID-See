@@ -206,15 +206,23 @@ def _extract_metrics(export_data: Dict[str, Any]) -> Dict[str, Any]:
                             'role_name': role.get('displayName', 'Unknown')
                         })
     
-    # Scope privilege metrics
+    # Scope privilege metrics (based on unified HAS_PRIVILEGED_SCOPES reason with scopeRiskClass)
     sps_with_readwrite_all = sum(
         1 for sp in service_principals
-        if any(r.get('code') == 'HAS_READWRITE_ALL_SCOPES' for r in sp.get('risk', {}).get('reasons', []))
+        if any(
+            r.get('code') == 'HAS_PRIVILEGED_SCOPES' and 
+            r.get('scopeRiskClass') == 'readwrite_all'
+            for r in sp.get('risk', {}).get('reasons', [])
+        )
     )
     
     sps_with_action_scopes = sum(
         1 for sp in service_principals
-        if any(r.get('code') == 'HAS_PRIVILEGED_ACTION_SCOPES' for r in sp.get('risk', {}).get('reasons', []))
+        if any(
+            r.get('code') == 'HAS_PRIVILEGED_SCOPES' and 
+            r.get('scopeRiskClass') == 'action_privileged'
+            for r in sp.get('risk', {}).get('reasons', [])
+        )
     )
     
     return {
