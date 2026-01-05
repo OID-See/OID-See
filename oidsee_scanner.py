@@ -1867,6 +1867,7 @@ def compute_risk_for_sp(
     reply_url_enrichment: Optional[Dict[str, Any]] = None,
     app_ownership: Optional[str] = None,
     role_defs: Optional[Dict[str, Dict[str, Any]]] = None,
+    group_member_count_cache: Optional[Dict[str, int]] = None,
 ) -> Dict[str, Any]:
     """Compute risk score for service principal based on loaded configuration."""
     config = SCORING_CONFIG.get("compute_risk_for_sp", {})
@@ -1979,6 +1980,9 @@ def compute_risk_for_sp(
 
     # ASSIGNED_TO (reachable users)
     reachable_users = 0
+    if group_member_count_cache is None:
+        group_member_count_cache = {}
+    
     for a in assignments:
         pid = a.get("principalId")
         pobj = dir_cache.get(pid) if pid else None
@@ -1986,7 +1990,9 @@ def compute_risk_for_sp(
         if "user" in otype:
             reachable_users += 1
         elif "group" in otype:
-            reachable_users += 5
+            # Use actual group member count from cache instead of hardcoded approximation
+            group_count = group_member_count_cache.get(pid, 0)
+            reachable_users += group_count
     
     if reachable_users > 0:
         assigned_config = contributors.get("ASSIGNED_TO", {})
@@ -2008,7 +2014,7 @@ def compute_risk_for_sp(
         score += weight
         reasons.append({
             "code": "ASSIGNED_TO",
-            "message": f"App is assigned to principals approximating ~{reachable_users} users",
+            "message": f"App is assigned to principals reaching {reachable_users} users",
             "weight": weight,
         })
     elif requires_assignment is False:
@@ -2519,6 +2525,7 @@ class OidSeeCollector:
         self.sp_by_appid: Dict[str, Dict[str, Any]] = {}     # by appId (best-effort)
         self.app_cache_by_appid: Dict[str, Dict[str, Any]] = {}  # in-tenant applications by appId
         self.owners_cache: Dict[str, List[Dict[str, Any]]] = {}  # owners by SP id (cache to avoid redundant calls)
+        self.group_member_count_cache: Dict[str, int] = {}  # group member counts by group id
 
         self._resource_sp_needed: Set[str] = set()
         self._principal_ids_needed: Set[str] = set()
@@ -2530,6 +2537,7 @@ class OidSeeCollector:
         self._sp_cache_lock = Lock()
         self._role_defs_lock = Lock()
         self._owners_cache_lock = Lock()
+        self._group_member_count_cache_lock = Lock()
         self._id_collection_lock = Lock()  # For _resource_sp_needed, _principal_ids_needed, _role_def_ids_needed
 
     # ---- add nodes with de-dupe
@@ -2689,6 +2697,51 @@ class OidSeeCollector:
         select = "id,principalId,roleDefinitionId,directoryScopeId"
         url = f"{GRAPH_V1}/roleManagement/directory/roleAssignments?$filter=principalId eq '{principal_id}'&$select={select}"
         return self.graph.get_paged(url)
+    
+    def fetch_group_member_count(self, group_id: str) -> int:
+        """
+        Fetch the member count for a group using $count endpoint.
+        Returns the actual number of transitive members (users and nested groups expanded).
+        Caches results to avoid redundant API calls.
+        """
+        # Check cache first
+        with self._group_member_count_cache_lock:
+            if group_id in self.group_member_count_cache:
+                return self.group_member_count_cache[group_id]
+        
+        try:
+            # Use transitive members endpoint with $count to get accurate count
+            # This includes nested group memberships
+            # The $count endpoint requires ConsistencyLevel=eventual header and returns plain text
+            url = f"{GRAPH_V1}/groups/{group_id}/transitiveMembers/$count"
+            
+            # Make the request with the special header for count queries
+            headers = self.graph._headers()
+            headers["ConsistencyLevel"] = "eventual"
+            
+            response = requests.get(url, headers=headers, timeout=60)
+            
+            if response.status_code == 404:
+                # Group not found or doesn't exist
+                print(f"⚠️  Group {group_id} not found", file=sys.stderr)
+                return 0
+            
+            if response.status_code >= 400:
+                print(f"⚠️  Failed to fetch member count for group {group_id}: HTTP {response.status_code}", file=sys.stderr)
+                return 0
+            
+            count = int(response.text.strip())
+            
+            # Cache the result
+            with self._group_member_count_cache_lock:
+                self.group_member_count_cache[group_id] = count
+            
+            return count
+        except Exception as e:
+            print(f"⚠️  Failed to fetch member count for group {group_id}: {e}", file=sys.stderr)
+            # Return 0 on error rather than using the old hardcoded approximation
+            # This ensures we don't inflate counts on errors
+            return 0
 
     def fetch_all_data_for_sp(self, sp: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -3212,6 +3265,31 @@ class OidSeeCollector:
         stage_start = time.time()
         self.fetch_role_definitions(self._role_def_ids_needed)
         print(f"  ✓ Completed in {time.time() - stage_start:.2f}s", file=sys.stderr)
+        
+        # Fetch group member counts for assigned groups
+        print("→ Fetching group member counts for assigned groups...", file=sys.stderr)
+        stage_start = time.time()
+        group_ids_to_fetch = set()
+        for assignments in assigned_to_by_sp.values():
+            for a in assignments:
+                pid = a.get("principalId")
+                if pid:
+                    pobj = self.dir_cache.get(pid)
+                    if pobj:
+                        otype = (pobj.get("@odata.type") or "").lower()
+                        if "group" in otype:
+                            group_ids_to_fetch.add(pid)
+        
+        if group_ids_to_fetch:
+            # Fetch group member counts in parallel
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                future_to_group = {executor.submit(self.fetch_group_member_count, gid): gid for gid in group_ids_to_fetch}
+                for future in as_completed(future_to_group):
+                    # Results are cached in the method, no need to store here
+                    pass
+            print(f"  ✓ Fetched member counts for {len(group_ids_to_fetch)} groups in {time.time() - stage_start:.2f}s", file=sys.stderr)
+        else:
+            print(f"  ✓ No groups assigned, skipping group member count fetch", file=sys.stderr)
 
         # Second pass: emit nodes and edges
         print("→ Emitting nodes and edges...", file=sys.stderr)
@@ -3345,6 +3423,7 @@ class OidSeeCollector:
                 reply_url_enrichment,
                 app_ownership,
                 self._role_defs,
+                self.group_member_count_cache,
             )
             
             # Check for identity laundering signals
