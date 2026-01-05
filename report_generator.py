@@ -856,6 +856,10 @@ def _generate_html(metrics: Dict[str, Any], export_data: Dict[str, Any]) -> str:
                     <div class="meta-label">Service Principals</div>
                     <div class="meta-value">{total_sps}</div>
                 </div>
+                <div class="meta-item">
+                    <div class="meta-label">Scanner Version</div>
+                    <div class="meta-value">{export_data.get('scanner', {}).get('version', '1.0.0')}</div>
+                </div>
             </div>
         </div>
         

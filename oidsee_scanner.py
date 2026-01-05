@@ -3700,6 +3700,9 @@ class OidSeeCollector:
                 "name": "oidsee-graph",
                 "version": "1.1"
             },
+            "scanner": {
+                "version": "1.0.0"
+            },
             "generatedAt": utc_now_iso(),
             "tenant": {
                 "tenantId": tenant.get("tenantId"),

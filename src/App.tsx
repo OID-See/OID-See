@@ -951,6 +951,7 @@ export default function App() {
           <div className="brand__text">
             <div className="brand__name">OID-See Viewer</div>
             <div className="brand__tag">Render OIDC/OAuth graphs from JSON</div>
+            <div className="brand__version">v1.0.0</div>
           </div>
         </div>
 

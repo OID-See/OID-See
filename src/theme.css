@@ -56,6 +56,7 @@ body{
 }
 .brand__name{ font-size: 1.25rem; font-weight: 800; }
 .brand__tag{ font-size: .9rem; color: rgba(234,242,255,0.86); margin-top: .05rem; font-weight: 600; }
+.brand__version{ font-size: .75rem; color: rgba(234,242,255,0.5); margin-top: .15rem; font-weight: 400; font-family: 'Courier New', monospace; }
 
 .topbar__actions{ display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
 

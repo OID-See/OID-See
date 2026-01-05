@@ -270,22 +270,6 @@ If using pre-beta versions:
 2. Update any custom scoring configurations
 3. Re-scan tenant for full tier metadata
 
-## What's Next?
-
-### Planned for v1.1
-
-- PIM (Privileged Identity Management) eligible role detection
-- Custom role tier classification
-- Additional action pattern library
-- Per-resource scope risk aggregation
-
-### Planned for v2.0
-
-- Conditional Access policy integration
-- Service principal lifecycle tracking
-- Risk trend analysis over time
-- Multi-tenant comparison
-
 ## Community & Support
 
 ### Getting Help
@@ -313,8 +297,6 @@ Special thanks to:
 ## Conclusion
 
 OID-See v1.0 represents a significant milestone in identity security tooling. By intelligently distinguishing between privilege levels and permission patterns, organizations can now focus their security efforts where they matter most: protecting Tier 0 assets and eliminating near-admin permissions.
-
-We're excited to see how the community uses these capabilities to improve their security posture!
 
 ---
 

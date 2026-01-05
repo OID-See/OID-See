@@ -7,7 +7,7 @@
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/OID-See/OID-See)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
-[![Production Ready](https://img.shields.io/badge/status-production%20ready-brightgreen.svg)](RELEASE_NOTES_v1.0.md)
+[![Status](https://img.shields.io/badge/status-stable-brightgreen.svg)](RELEASE_NOTES_v1.0.md)
 
 **Visualize and assess security risks in your Microsoft Entra ID tenant's third-party and multi-tenant applications.**
 
