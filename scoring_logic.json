@@ -231,9 +231,9 @@
         "implicit_flow_description": "Implicit flow enabled (access token or ID token issuance)",
         "details": "Public clients and implicit flow cannot securely store secrets, relying solely on redirect URIs for security. This increases risk of token interception and misuse."
       },
-      "LEGACY": {
+      "CREATED_BEFORE_CONSENT_HARDENING": {
         "weight": 10,
-        "description": "App created before July 2025"
+        "description": "Application created before July 2025, when consent to applications from unverified publishers began requiring administrative approval. These applications may have been onboarded under weaker consent controls."
       },
       "NO_OWNERS": {
         "weight": 15,

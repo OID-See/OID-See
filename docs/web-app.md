@@ -539,11 +539,11 @@ n.risk.reasons~ASSIGNED_TO n.risk.reasons~weight>=15
 ```
 Apps assigned to 20+ users/groups.
 
-**Legacy Applications**:
+**Applications Created Before Consent Hardening**:
 ```
-n.risk.reasons~LEGACY
+n.risk.reasons~CREATED_BEFORE_CONSENT_HARDENING
 ```
-Apps created before July 2024 security baseline.
+Apps created before July 2025, when consent to applications from unverified publishers began requiring administrative approval.
 
 ### Combined Advanced Queries
 

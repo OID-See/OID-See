@@ -248,9 +248,9 @@ DEFAULT_SCORING_CONFIG = {
                 "attribution_ambiguity_weight": 5,
                 "attribution_ambiguity_description": "Attribution ambiguity: multiple distinct domains in reply URLs"
             },
-            "LEGACY": {
+            "CREATED_BEFORE_CONSENT_HARDENING": {
                 "weight": 10,
-                "description": "App created before July 2025",
+                "description": "Application created before July 2025, when consent to applications from unverified publishers began requiring administrative approval. These applications may have been onboarded under weaker consent controls.",
                 "cutoff_date": "2025-07-01T00:00:00Z"
             },
             "NO_OWNERS": {
@@ -2247,17 +2247,17 @@ def compute_risk_for_sp(
                 "outlier_domains": non_aligned_domains,
             })
 
-    # LEGACY
+    # CREATED_BEFORE_CONSENT_HARDENING
     created = _parse_iso_datetime(sp.get("createdDateTime"))
-    legacy_config = contributors.get("LEGACY", {})
-    cutoff_date_str = legacy_config.get("cutoff_date", "2025-07-01T00:00:00Z")
-    legacy_cutoff = _parse_iso_datetime(cutoff_date_str) or dt.datetime(2025, 7, 1, tzinfo=dt.timezone.utc)
-    if created and created < legacy_cutoff:
-        weight = legacy_config.get("weight", 10)
-        description = legacy_config.get("description", "App created before July 2025")
+    consent_hardening_config = contributors.get("CREATED_BEFORE_CONSENT_HARDENING", {})
+    cutoff_date_str = consent_hardening_config.get("cutoff_date", "2025-07-01T00:00:00Z")
+    consent_hardening_cutoff = _parse_iso_datetime(cutoff_date_str) or dt.datetime(2025, 7, 1, tzinfo=dt.timezone.utc)
+    if created and created < consent_hardening_cutoff:
+        weight = consent_hardening_config.get("weight", 10)
+        description = consent_hardening_config.get("description", "Application created before July 2025, when consent to applications from unverified publishers began requiring administrative approval. These applications may have been onboarded under weaker consent controls.")
         score += weight
         reasons.append({
-            "code": "LEGACY",
+            "code": "CREATED_BEFORE_CONSENT_HARDENING",
             "message": description,
             "weight": weight,
         })

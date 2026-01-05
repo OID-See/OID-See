@@ -305,7 +305,7 @@ flowchart TD
     
     V --> T
     T --> W{Created Before July 2024?}
-    W -->|Yes| X[+10 LEGACY]
+    W -->|Yes| X[+10 CREATED_BEFORE_CONSENT_HARDENING]
     W -->|No| Y[End]
 ```
 
@@ -412,13 +412,13 @@ Marketing URL: https://fabrikam.com
 
 **Risk Rationale**: Password secrets are easier to exfiltrate and misuse than certificates. Higher risk than key credentials alone.
 
-#### LEGACY (+10)
+#### CREATED_BEFORE_CONSENT_HARDENING (+10)
 
-**Description**: Application was created before a security baseline date
+**Description**: Application created before consent hardening security baseline
 
-**Detection**: `createdDateTime` before July 2024
+**Detection**: `createdDateTime` before July 2025
 
-**Risk Rationale**: Older apps may not follow modern security practices, may lack security reviews, or may be orphaned.
+**Risk Rationale**: Applications created before July 2025, when consent to applications from unverified publishers began requiring administrative approval, may have been onboarded under weaker consent controls. These older apps may not follow modern security practices or may lack proper governance.
 
 ### 4. Credential Hygiene
 
