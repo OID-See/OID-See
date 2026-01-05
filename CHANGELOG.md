@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **App Assignment Enumeration**: Fixed incorrect count of assigned users when groups are assigned to service principals. The scanner now fetches actual transitive member counts from Microsoft Graph API instead of using a hardcoded approximation of 5 users per group. This ensures accurate reporting of reachable users in risk scoring and exports.
+  - Added `fetch_group_member_count()` method to query Microsoft Graph's `transitiveMembers/$count` endpoint
+  - Added caching for group member counts to avoid redundant API calls
+  - Updated risk scoring to use actual member counts in `ASSIGNED_TO` contributor
+  - Changed risk reason message from "approximating ~N users" to "reaching N users" for accuracy
+  - Group member counts are fetched in parallel after resolving principals for optimal performance
+
 ## [1.0.0] - 2026-01-05
 
 ### 🎉 Major Release - v1.0 GA
