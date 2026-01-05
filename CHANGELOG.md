@@ -7,6 +7,145 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-01-05
+
+### 🎉 Major Release - v1.0 GA
+
+This is the first production-ready release of OID-See, incorporating comprehensive Entra directory role tiering, privileged scope classification, and metadata-driven risk scoring.
+
+### Added - Entra Role Tiering System
+
+#### Role Tiering Framework
+- **Tier 0 (Horizontal/Global Control)**: Roles that control identity, authentication, or policy for entire tenant
+  - Global Administrator, Privileged Role Administrator, Security Administrator, Conditional Access Administrator
+  - Base weight: 15, Per-role weight: 25, Max weight: 75
+  - Risk score impact: 6x higher than Tier 2 roles
+- **Tier 1 (Vertical/Critical Services)**: Roles controlling critical workloads or platforms
+  - Cloud Application Administrator, Application Administrator, Azure DevOps Administrator
+  - Base weight: 8, Per-role weight: 10, Max weight: 40
+- **Tier 2 (Scoped/Operational)**: Roles scoped to specific services with limited blast radius
+  - Security Reader, Reports Reader, License Administrator
+  - Base weight: 3, Per-role weight: 3, Max weight: 15
+- 27 Entra role template IDs mapped to tiers in `scoring_logic.json`
+
+#### Tier-Aware Risk Scoring
+- `PRIVILEGE` contributor now calculates tier-based weights that accumulate across tiers
+- Risk reasons include `tierBreakdown` array with counts and top roles per tier
+- Service principal nodes include `rolesReachableTier0/1/2` counts for explainability
+- Role nodes enriched with `tier` and `tierLabel` properties for visualization
+
+### Added - Privileged Scope Classification
+
+#### Priority-Based Scope Classification
+- **ReadWrite.All** (Priority 1, Weight 30): Near-admin level permissions
+- **Action Privileged** (Priority 2, Weight 25): State-changing operations with deterministic patterns
+  - Patterns: `.action`, `.manage.`, `.send.`, `.accessasuser.all`, `.full_access`, `.importexport`, `.backup`, `.restore`, `.update`, `.delete`
+- **Too Broad** (Priority 3, Weight 15): Permissions ending with `.All`
+- **Write Privileged** (Priority 4, Weight 20): Write or ReadWrite permissions
+- **Regular** (Priority 5, Weight 0): Standard read-only permissions
+
+#### Metadata-Based Edge Approach
+- All scope edges use `HAS_SCOPES` edge type with metadata properties:
+  - `scopeRiskClass`: Classification label (readwrite_all, action_privileged, too_broad, write_privileged, regular)
+  - `scopeRiskWeight`: Numeric risk weight (30, 25, 15, 20, or 0)
+  - `isAllWildcard`: Boolean flag for .All scopes
+- Unified `HAS_PRIVILEGED_SCOPES` risk contributor calculates max scope risk across all resources
+- Preserves schema stability (no new edge types required)
+
+#### App Role Classification
+- **ReadWrite.All** (Weight 60): Highest privilege app roles
+- **Action** (Weight 55): State-changing app role operations
+- High write markers (Weight 50) for Directory.ReadWrite and similar
+- Config-driven patterns extensible for future additions
+
+### Added - Viewer Enhancements
+
+#### Dashboard - Privilege Tier Exposure Section
+- Visual tier cards showing service principal counts by tier (0/1/2)
+- Total role assignments per tier with color-coded badges (red/orange/yellow)
+- Tier descriptions: Horizontal/Global Control, Critical Services, Scoped/Operational
+- Responsive layout: 3-column on desktop, single-column on mobile (<900px)
+
+#### Details Panel
+- Tier breakdown visualization with color-coded badges
+- List of top Tier 0 roles with display names
+- Scope privilege breakdown showing ReadWrite.All, Action, and .All counts
+- Risk reason details include `scopeRiskClass` and `scopeRiskDetails`
+
+#### Preset Queries
+- "Has Tier 0 Roles": Filter service principals with Tier 0 reachable roles
+- "ReadWrite.All Scopes": Filter by `e.properties.scopeRiskClass=readwrite_all`
+- "Action Scopes": Filter by `e.properties.scopeRiskClass=action_privileged`
+- "Tier 0/1/2 Roles": Filter role nodes by tier property
+- "Privileged Scopes": Filter by `e.properties.scopeRiskClass~privileged`
+
+### Added - HTML Report Generator
+
+#### Tier Exposure Section
+- Visual tier cards with counts and descriptions (mirroring dashboard)
+- Top Tier 0 role assignments table showing service principal and role name
+- Tier meaning explanations (security-focused descriptions)
+- ReadWrite.All and Action scope metrics with counts
+
+#### Enhanced Recommendations
+- **Critical Priority**: Tier 0 role reachability recommendations
+  - "Reduce Tier 0 role reachability; review app assignments/grants; consider CA / PIM / access reviews"
+- **High Priority**: ReadWrite.All scope recommendations
+  - "Replace with least-privilege scopes; review necessity; consider application roles + constrained permissions"
+- **High Priority**: Action scope recommendations
+  - "Review Action-style permissions for state-changing operations"
+
+### Changed - Configuration & Architecture
+
+#### Scoring Logic (scoring_logic.json)
+- Added `role_tiering` section with `tiers` and `role_template_ids` mappings
+- Updated `classify_scopes.scope_classifications` with `risk_weight` and `patterns`
+- Enhanced `compute_risk_for_sp.scoring_contributors` with tier-aware PRIVILEGE
+- Action patterns moved from code to config for extensibility
+
+#### Scanner (oidsee_scanner.py)
+- `classify_scopes()` returns metadata with `risk_weight` instead of separate edge types
+- `compute_risk_for_sp()` accepts `role_defs` parameter for tier lookup
+- `get_role_tier()` and `get_tier_config()` helper functions for tier mapping
+- Edge properties include `scopeRiskClass`, `scopeRiskWeight`, `isAllWildcard`
+- Removed separate boolean flags (`has_readwrite_all_scopes`, `has_action_scopes`)
+
+#### Viewer (React/TypeScript)
+- Edge type enums reduced (no HAS_READWRITE_ALL_SCOPES/HAS_PRIVILEGED_ACTION_SCOPES)
+- Preset queries use `e.properties.scopeRiskClass` metadata filtering
+- CSS styling for tier cards with gradients and proper text wrapping
+
+### Fixed - Dashboard Layout
+- Tier cards now use full width with `repeat(3, 1fr)` grid layout
+- Text wrapping fixed with `word-wrap: break-word` and reduced font size (0.75rem)
+- Dashboard sections span full width with `grid-column: 1 / -1`
+- Responsive behavior at 900px breakpoint for single-column on narrow screens
+
+### Testing
+- Comprehensive test suite (`test_tier_scoring.py`) with 6 test functions
+- Tests validate: role tier mapping, tier config retrieval, scope classification priority, tier-based scoring
+- All tests pass (100% success rate)
+- CodeQL security scan: 0 vulnerabilities
+- Build validation: TypeScript/Vite, Python syntax checks
+
+### Performance
+- No performance degradation from tier-based scoring
+- Metadata-based edges avoid schema proliferation
+- Config-driven patterns enable runtime extensibility
+
+### Documentation
+- Updated inline code documentation for tier functions
+- Enhanced scoring_logic.json with detailed descriptions
+- Test coverage documents expected behavior
+
+### Breaking Changes
+- None. Changes are additive and backward compatible with existing exports
+
+### Upgrade Notes
+- Existing OID-See exports will work without modification
+- New tier metadata automatically populated on next scan
+- Scope edges use same HAS_SCOPES type with added metadata
+
 ## [private-beta-2] - 2026-01-04
 
 ### Changed - Scanner Performance Optimizations

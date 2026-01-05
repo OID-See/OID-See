@@ -5,18 +5,33 @@
 
 # OID-See
 
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/OID-See/OID-See)
+[![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
+[![Production Ready](https://img.shields.io/badge/status-production%20ready-brightgreen.svg)](RELEASE_NOTES_v1.0.md)
+
 **Visualize and assess security risks in your Microsoft Entra ID tenant's third-party and multi-tenant applications.**
 
 OID-See is a comprehensive security analysis tool for Microsoft Entra ID (Azure AD) that helps you discover, analyze, and visualize risky third-party applications. The scanner collects data using Microsoft Graph, performs optional enrichment, and generates an interactive graph visualization that runs entirely in your browser—no telemetry, no servers, completely private.
+
+## 🎉 Version 1.0 Released!
+
+OID-See v1.0 introduces intelligent **Entra Role Tiering** and **Privileged Scope Classification** for production-grade security analysis:
+
+- ✅ **Role Tiering**: Differentiates Tier 0 (Global Admin) from Tier 2 (Security Reader) - 6x risk differential
+- ✅ **Scope Analysis**: Identifies ReadWrite.All (near-admin), Action scopes (state-changing), and .All patterns
+- ✅ **Explainable Security**: Detailed tier breakdowns and scope classifications in every risk score
+- ✅ **Production Ready**: Metadata-driven architecture, comprehensive testing, zero vulnerabilities
+
+[📖 Read the full v1.0 Release Notes →](RELEASE_NOTES_v1.0.md)
 
 ## 🎯 What is OID-See?
 
 OID-See provides:
 - **Scanner**: Python tool that queries Microsoft Graph to collect application and permission data from your tenant
 - **Enrichment**: Optional DNS, RDAP, and WHOIS lookups to identify outliers and reduce false positives  
-- **HTML Report**: Executive summary with risk distribution, key metrics, and actionable recommendations
+- **HTML Report**: Executive summary with risk distribution, tier exposure, key metrics, and actionable recommendations
 - **Visualization**: Browser-based interactive graph viewer for exploring relationships and risks
-- **Risk Scoring**: Automated security assessment based on permissions, exposure, governance, and credential hygiene
+- **Risk Scoring**: Automated security assessment based on role tiers, scope privileges, permissions, exposure, governance, and credential hygiene
 
 **Perfect for**: Security teams, IT administrators, and compliance officers who need to understand third-party application risks in their Entra ID tenant.
 
@@ -42,9 +57,10 @@ python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --out scan-results.json
 
 If you used `--generate-report`, open `scan-results-report.html` in your browser to see:
 - Risk distribution across your tenant
+- **Privilege Tier Exposure** (NEW in v1.0) - Tier 0/1/2 role reachability
 - Top risk contributors and security metrics
 - List of high-risk applications requiring attention
-- Actionable security recommendations
+- Actionable security recommendations prioritized by tier and scope risk
 
 ### 3. Visualize Results
 
