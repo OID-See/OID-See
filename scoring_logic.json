@@ -278,7 +278,7 @@
       "EXTERNAL_IDENTITY_POSTURE_AMPLIFIER": {
         "weight": 8,
         "description": "Permissive external identity posture amplifies discovery and blast radius for already-risky apps",
-        "details": "Applied only when tenant has permissive guest/external collaboration posture AND the app already exhibits high-risk indicators (broad reachability, assignment-not-required, first-party reachability, unverified publisher with privileged access). This posture reduces attacker cost for external identity abuse. Does NOT claim exploitability. Language: 'amplifies discovery/blast radius' and 'reduces attacker cost', never 'allows escalation'.",
+        "details": "Applied only when tenant has permissive guest/external collaboration posture AND the app already exhibits high-risk indicators (broad reachability, assignment-not-required, first-party reachability, unverified publisher with privileged access). This posture reduces attacker cost for external identity abuse. Does NOT claim exploitability. Language: 'amplifies discovery/blast radius' and 'reduces attacker cost'.",
         "gating": "Only applied when: (1) tenant posture is 'permissive', AND (2) app has at least one of: BROAD_REACHABILITY, GOVERNANCE, UNVERIFIED_PUBLISHER with privileged scopes/app roles, or is first-party-reachable."
       }
     },
