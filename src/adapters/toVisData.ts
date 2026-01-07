@@ -23,7 +23,7 @@ export function toVisDataLightweight(input: any): VisData {
     const exp = input as OidSeeExport
     console.log('[toVisData] 🚀 Lightweight conversion for alternative views:', {
       nodes: exp.nodes.length,
-      edges: exp.edges.length
+      edges: exp.edges?.length || 0
     })
     
     // Create minimal node objects - just id and __oidsee
@@ -34,7 +34,8 @@ export function toVisDataLightweight(input: any): VisData {
     }))
     
     // Create minimal edge objects - just id and __oidsee
-    const visEdges = exp.edges.map(e => ({
+    // Handle case where edges might be undefined or null
+    const visEdges = (exp.edges || []).map(e => ({
       id: e.id,
       __oidsee: e
     }))
