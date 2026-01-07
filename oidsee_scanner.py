@@ -32,6 +32,7 @@ Output:
 from __future__ import annotations
 
 import argparse
+import base64
 import datetime as dt
 import json
 import os
@@ -140,6 +141,100 @@ def classify_app_ownership(app_id: str, app_owner_org_id: Optional[str],
     
     # Otherwise it's 3rd Party
     return "3rd Party"
+
+
+# -----------------------------
+# JWT token introspection helpers
+# -----------------------------
+
+def parse_jwt_payload(access_token: str) -> dict:
+    """
+    Safely decode JWT payload without signature validation.
+    
+    Args:
+        access_token: JWT bearer token string
+        
+    Returns:
+        Decoded payload as dict, or empty dict on error
+    """
+    try:
+        # JWT structure: header.payload.signature
+        parts = access_token.split('.')
+        if len(parts) != 3:
+            return {}
+        
+        # Decode payload (second part)
+        payload_encoded = parts[1]
+        
+        # Add padding if needed for base64url decode
+        padding = len(payload_encoded) % 4
+        if padding:
+            payload_encoded += '=' * (4 - padding)
+        
+        # Base64url decode
+        payload_bytes = base64.urlsafe_b64decode(payload_encoded)
+        payload = json.loads(payload_bytes.decode('utf-8'))
+        
+        return payload
+    except Exception as e:
+        print(f"⚠️  JWT parsing failed: {e}", file=sys.stderr)
+        return {}
+
+
+def get_token_permissions(access_token: str) -> dict:
+    """
+    Evaluate token type and check for Policy.Read.All permission.
+    
+    Args:
+        access_token: JWT bearer token string
+        
+    Returns:
+        Dict with:
+        - tokenType: 'delegated' or 'app-only' or 'unknown'
+        - hasPolicyReadAll: bool
+        - scopes: list of delegated scopes (if delegated)
+        - roles: list of app roles (if app-only)
+    """
+    payload = parse_jwt_payload(access_token)
+    if not payload:
+        return {
+            'tokenType': 'unknown',
+            'hasPolicyReadAll': False,
+            'scopes': [],
+            'roles': []
+        }
+    
+    # Check for delegated token (scp claim)
+    scp = payload.get('scp', '')
+    if scp:
+        scopes = [s.strip() for s in scp.split(' ') if s.strip()]
+        has_policy_read = 'Policy.Read.All' in scopes or 'Policy.ReadWrite.All' in scopes
+        return {
+            'tokenType': 'delegated',
+            'hasPolicyReadAll': has_policy_read,
+            'scopes': scopes,
+            'roles': []
+        }
+    
+    # Check for app-only token (roles claim)
+    roles = payload.get('roles', [])
+    if roles:
+        has_policy_read = 'Policy.Read.All' in roles or 'Policy.ReadWrite.All' in roles
+        return {
+            'tokenType': 'app-only',
+            'hasPolicyReadAll': has_policy_read,
+            'scopes': [],
+            'roles': roles
+        }
+    
+    # Unknown token type
+    return {
+        'tokenType': 'unknown',
+        'hasPolicyReadAll': False,
+        'scopes': [],
+        'roles': []
+    }
+
 
 # -----------------------------
 # Scoring configuration loader
@@ -357,6 +452,10 @@ class GraphClient:
         # tok.expires_on is epoch seconds (azure-identity)
         self._token_expires = float(tok.expires_on) if getattr(tok, "expires_on", None) else (now + 3000)
         return self._token
+    
+    def get_access_token(self) -> str:
+        """Expose the current access token for introspection."""
+        return self._get_token()
 
     def _headers(self) -> Dict[str, str]:
         return {"Authorization": f"Bearer {self._get_token()}", "Content-Type": "application/json"}
@@ -1867,6 +1966,7 @@ def compute_risk_for_sp(
     reply_url_enrichment: Optional[Dict[str, Any]] = None,
     app_ownership: Optional[str] = None,
     role_defs: Optional[Dict[str, Dict[str, Any]]] = None,
+    tenant_posture: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Compute risk score for service principal based on loaded configuration."""
     config = SCORING_CONFIG.get("compute_risk_for_sp", {})
@@ -2463,6 +2563,35 @@ def compute_risk_for_sp(
                 "subtype": "implicit_flow",
             })
 
+    # EXTERNAL_IDENTITY_POSTURE_AMPLIFIER (opportunistic)
+    # Only apply if tenant posture is permissive AND app already has high-risk indicators
+    if tenant_posture and tenant_posture.get('postureRating') == 'permissive':
+        # Check if app has any of the gating conditions
+        has_broad_reachability = any(r.get('code') == 'BROAD_REACHABILITY' for r in reasons)
+        has_governance_risk = any(r.get('code') in ('GOVERNANCE', 'GOVERNANCE_UNKNOWN') for r in reasons)
+        has_unverified_with_privilege = (
+            any(r.get('code') == 'UNVERIFIED_PUBLISHER' for r in reasons) and
+            (app_role_max_weight > 0 or any(r.get('code') in ('HAS_PRIVILEGED_SCOPES', 'HAS_APP_ROLE') for r in reasons))
+        )
+        is_first_party_reachable = (
+            app_ownership == '1st Party' and total_urls > 0
+        )
+        
+        if has_broad_reachability or has_governance_risk or has_unverified_with_privilege or is_first_party_reachable:
+            amplifier_config = contributors.get("EXTERNAL_IDENTITY_POSTURE_AMPLIFIER", {})
+            weight = amplifier_config.get("weight", 8)
+            description = amplifier_config.get("description", "Permissive external identity posture amplifies discovery and blast radius")
+            score += weight
+            reasons.append({
+                "code": "EXTERNAL_IDENTITY_POSTURE_AMPLIFIER",
+                "message": f"{description} (tenant posture: {tenant_posture.get('postureRating')})",
+                "weight": weight,
+                "postureDetails": {
+                    "guestAccess": tenant_posture.get('guestAccess'),
+                    "crossTenantDefaultStance": tenant_posture.get('crossTenantDefaultStance'),
+                },
+            })
+
     # Apply min/max clamping
     clamping = final_score_config.get("min_max_clamping", {})
     min_score = clamping.get("minimum_allowed_score", 0)
@@ -2553,6 +2682,133 @@ class OidSeeCollector:
             "tenantType": o.get("tenantType"),
             "defaultDomain": verified_domains[0] if verified_domains else None,
         }
+
+    def collect_external_identity_posture(self, access_token: str) -> Dict[str, Any]:
+        """
+        Opportunistically collect tenant-level external identity and guest posture.
+        
+        Only attempts collection if the current token has Policy.Read.All permission.
+        Returns posture data with conservative risk derivation.
+        
+        Args:
+            access_token: The current Graph API access token
+            
+        Returns:
+            Dict with posture data including:
+            - collectionAttempted: bool
+            - skippedReason: str (if not attempted)
+            - guestAccess: str (if collected)
+            - crossTenantDefaultStance: str (if collected)
+            - postureRating: str (if collected)
+            - rawPolicies: dict (if collected)
+            - error: str (if collection failed)
+        """
+        result = {
+            'collectionAttempted': False,
+            'skippedReason': None,
+            'guestAccess': None,
+            'crossTenantDefaultStance': None,
+            'postureRating': 'unknown',
+            'rawPolicies': {},
+            'error': None,
+        }
+        
+        # Check token permissions
+        token_perms = get_token_permissions(access_token)
+        if not token_perms.get('hasPolicyReadAll'):
+            result['skippedReason'] = f"Token lacks Policy.Read.All (type: {token_perms.get('tokenType', 'unknown')})"
+            print(f"  ℹ️  Skipping external identity posture collection: {result['skippedReason']}", file=sys.stderr)
+            return result
+        
+        result['collectionAttempted'] = True
+        print("  → Collecting external identity posture (opportunistic)...", file=sys.stderr)
+        
+        # Attempt to collect policies
+        policies = {}
+        
+        # 1. Authorization Policy (guest settings)
+        try:
+            auth_policy = self.graph.get(f"{GRAPH_BETA}/policies/authorizationPolicy")
+            policies['authorizationPolicy'] = auth_policy
+        except Exception as e:
+            error_msg = str(e)
+            if 'Forbidden' in error_msg or '403' in error_msg or 'Insufficient privileges' in error_msg:
+                result['error'] = f"Policy.Read.All present but Graph denied access: {error_msg[:200]}"
+                print(f"  ⚠️  {result['error']}", file=sys.stderr)
+                return result
+            print(f"  ⚠️  Failed to fetch authorizationPolicy: {error_msg[:200]}", file=sys.stderr)
+        
+        # 2. Cross-Tenant Access Policy
+        try:
+            cross_tenant = self.graph.get(f"{GRAPH_BETA}/policies/crossTenantAccessPolicy")
+            policies['crossTenantAccessPolicy'] = cross_tenant
+        except Exception as e:
+            print(f"  ⚠️  Failed to fetch crossTenantAccessPolicy: {str(e)[:200]}", file=sys.stderr)
+        
+        # 3. External Identities Policy (if available)
+        try:
+            external_ids = self.graph.get(f"{GRAPH_BETA}/policies/externalIdentitiesPolicy")
+            policies['externalIdentitiesPolicy'] = external_ids
+        except Exception as e:
+            # May not exist in all tenants, only log at debug level
+            pass
+        
+        result['rawPolicies'] = policies
+        
+        # Derive posture fields conservatively
+        auth_policy = policies.get('authorizationPolicy', {})
+        cross_tenant = policies.get('crossTenantAccessPolicy', {})
+        
+        # Guest access level
+        guest_user_role = auth_policy.get('guestUserRoleId', '')
+        allow_invites = auth_policy.get('allowInvitesFrom', '')
+        
+        if guest_user_role == '2af84b1e-32c8-42b7-82bc-daa82404023b':
+            # Restricted guest access
+            guest_access = 'restricted'
+        elif guest_user_role == '10dae51f-b6af-4016-8d66-8c2a99b929b3':
+            # Limited guest access (default)
+            guest_access = 'limited'
+        elif allow_invites == 'adminsAndGuestInviters' or allow_invites == 'everyone':
+            guest_access = 'permissive'
+        else:
+            guest_access = 'unknown'
+        
+        result['guestAccess'] = guest_access
+        
+        # Cross-tenant default stance
+        default_settings = cross_tenant.get('default', {})
+        b2b_inbound = default_settings.get('b2bCollaborationInbound', {})
+        b2b_outbound = default_settings.get('b2bCollaborationOutbound', {})
+        
+        inbound_blocked = b2b_inbound.get('usersAndGroups', {}).get('accessType', '') == 'blocked'
+        outbound_blocked = b2b_outbound.get('usersAndGroups', {}).get('accessType', '') == 'blocked'
+        
+        if inbound_blocked and outbound_blocked:
+            cross_tenant_stance = 'restrictive'
+        elif inbound_blocked or outbound_blocked:
+            cross_tenant_stance = 'moderate'
+        else:
+            cross_tenant_stance = 'permissive'
+        
+        result['crossTenantDefaultStance'] = cross_tenant_stance
+        
+        # Derive overall posture rating (conservative)
+        if guest_access == 'restricted' and cross_tenant_stance == 'restrictive':
+            rating = 'hardened'
+        elif guest_access in ('restricted', 'limited') and cross_tenant_stance in ('restrictive', 'moderate'):
+            rating = 'moderate'
+        elif guest_access == 'permissive' or cross_tenant_stance == 'permissive':
+            rating = 'permissive'
+        else:
+            rating = 'unknown'
+        
+        result['postureRating'] = rating
+        
+        print(f"  ✓ External identity posture: {rating} (guest: {guest_access}, cross-tenant: {cross_tenant_stance})", file=sys.stderr)
+        
+        return result
+
 
     def list_service_principals(self) -> List[Dict[str, Any]]:
         # Pull a fairly wide selection; avoid exploding payload.
@@ -3097,6 +3353,13 @@ class OidSeeCollector:
         if not tenant_id:
             raise RuntimeError("Could not determine tenantId from /organization")
         print(f"  ✓ Completed in {time.time() - stage_start:.2f}s", file=sys.stderr)
+        
+        # Opportunistically collect external identity posture
+        print("→ Collecting external identity posture (opportunistic)...", file=sys.stderr)
+        stage_start = time.time()
+        access_token = self.graph.get_access_token()
+        external_identity_posture = self.collect_external_identity_posture(access_token)
+        print(f"  ✓ Completed in {time.time() - stage_start:.2f}s", file=sys.stderr)
 
         print("→ Listing service principals...", file=sys.stderr)
         stage_start = time.time()
@@ -3345,6 +3608,7 @@ class OidSeeCollector:
                 reply_url_enrichment,
                 app_ownership,
                 self._role_defs,
+                external_identity_posture,
             )
             
             # Check for identity laundering signals
@@ -3692,6 +3956,27 @@ class OidSeeCollector:
                 }
         if governs_by_sp:
             print(f"→ Applied governance deductions to {len(governs_by_sp)} apps", file=sys.stderr)
+
+        # Add TenantPolicy node for external identity posture if collected
+        if external_identity_posture.get('collectionAttempted'):
+            tenant_policy_nid = "tenantpolicy:externalIdentityPosture"
+            self.add_node(
+                tenant_policy_nid,
+                "TenantPolicy",
+                "External Identity & Guest Posture",
+                {
+                    "policyType": "externalIdentityPosture",
+                    "collectionAttempted": external_identity_posture.get('collectionAttempted'),
+                    "skippedReason": external_identity_posture.get('skippedReason'),
+                    "guestAccess": external_identity_posture.get('guestAccess'),
+                    "crossTenantDefaultStance": external_identity_posture.get('crossTenantDefaultStance'),
+                    "postureRating": external_identity_posture.get('postureRating'),
+                    "error": external_identity_posture.get('error'),
+                    # Store raw policies for transparency (but could be large)
+                    "rawPolicies": external_identity_posture.get('rawPolicies', {}),
+                }
+            )
+            print(f"  ✓ Added TenantPolicy node for external identity posture", file=sys.stderr)
 
         print(f"  ✓ Emitted {len(self.nodes)} nodes and {len(self.edges)} edges in {time.time() - stage_start:.2f}s", file=sys.stderr)
 
