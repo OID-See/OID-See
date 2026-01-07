@@ -132,8 +132,6 @@ export function toVisData(input: any): VisData {
   throw new Error('Unsupported JSON format. Expected an OID-See export (format.name="oidsee-graph") or a {nodes, edges} object.')
 }
 
-export type ProgressCallback = (message: string) => void
-
 /**
  * Async version of toVisData that processes nodes/edges in batches to avoid blocking UI
  * @param input The OID-See export data
