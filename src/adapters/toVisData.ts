@@ -149,10 +149,15 @@ export function toVisData(input: any): VisData {
 export async function toVisDataAsync(input: any, onProgress?: ProgressCallback, signal?: AbortSignal): Promise<VisData> {
   if (isOidSeeExport(input)) {
     const exp = input as OidSeeExport
-    // Reduced batch size for more frequent UI updates
-    const BATCH_SIZE = 1000
-    // Increased yield delay for better UI responsiveness
-    const YIELD_DELAY_MS = 10
+    // Very small batch size for maximum UI responsiveness with large datasets
+    // For 29k nodes, this means 580 batches, yielding every 50 nodes
+    // This prevents the "message handler took 55165ms" error by yielding frequently
+    const BATCH_SIZE = 50
+    // Slightly longer yield delay to give browser more time between batches
+    const YIELD_DELAY_MS = 15
+    // Throttle progress updates to avoid excessive re-renders
+    // Update UI at most every 200ms to balance feedback and performance
+    const PROGRESS_UPDATE_INTERVAL_MS = 200
 
     console.log('[toVisData] 🔄 Processing nodes in batches...', {
       totalNodes: exp.nodes.length,
@@ -160,6 +165,7 @@ export async function toVisDataAsync(input: any, onProgress?: ProgressCallback, 
       batchSize: BATCH_SIZE
     })
     const visNodes: any[] = []
+    let lastProgressUpdate = 0
     
     // Process nodes in batches
     for (let i = 0; i < exp.nodes.length; i += BATCH_SIZE) {
@@ -175,9 +181,11 @@ export async function toVisDataAsync(input: any, onProgress?: ProgressCallback, 
       const processed = i + batch.length
       console.log(`[toVisData] 📦 Processing node batch ${batchNum}/${totalBatches} (${i + 1}-${processed})`)
       
-      // Report progress to UI
-      if (onProgress) {
+      // Report progress to UI (throttled to avoid excessive re-renders)
+      const now = Date.now()
+      if (onProgress && (now - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL_MS || processed === exp.nodes.length)) {
         onProgress(formatProgress('nodes', processed, exp.nodes.length))
+        lastProgressUpdate = now
       }
       
       for (const n of batch) {
@@ -221,6 +229,7 @@ export async function toVisDataAsync(input: any, onProgress?: ProgressCallback, 
 
     console.log('[toVisData] 🔗 Processing edges in batches...')
     const visEdges: any[] = []
+    lastProgressUpdate = 0 // Reset for edges
     
     // Process edges in batches
     for (let i = 0; i < exp.edges.length; i += BATCH_SIZE) {
@@ -236,9 +245,11 @@ export async function toVisDataAsync(input: any, onProgress?: ProgressCallback, 
       const processed = i + batch.length
       console.log(`[toVisData] 🔗 Processing edge batch ${batchNum}/${totalBatches} (${i + 1}-${processed})`)
       
-      // Report progress to UI
-      if (onProgress) {
+      // Report progress to UI (throttled to avoid excessive re-renders)
+      const now = Date.now()
+      if (onProgress && (now - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL_MS || processed === exp.edges.length)) {
         onProgress(formatProgress('edges', processed, exp.edges.length))
+        lastProgressUpdate = now
       }
       
       for (const e of batch) {
