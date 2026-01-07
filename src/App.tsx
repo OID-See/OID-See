@@ -543,16 +543,12 @@ export default function App() {
         duration: `${totalTime.toFixed(0)}ms`
       })
       
-      // Convert to JSON string for raw editor
-      // Note: This re-serialization is a trade-off for code simplicity
-      // The main benefit is that file reading and initial parsing happen off-thread
-      // Future enhancement: Pass parsed object directly to render logic
+      // Set raw text for editor (formatted JSON)
       const text = JSON.stringify(parsed, null, 2)
       setRaw(text)
       
-      // Call the existing render function with parsed JSON as string
-      // This reuses existing rendering logic without major refactoring
-      await render(text)
+      // Process the parsed data directly without re-parsing
+      await processGraphData(parsed)
     } catch (e: any) {
       console.error('[OID-See] ❌ File read/parse error:', e)
       setError(e?.message || 'Failed to read or parse file')
@@ -594,6 +590,49 @@ export default function App() {
 
   async function render(input: string) {
     console.log('[OID-See] 🔄 Starting render process...')
+    
+    setLoading(true)
+    setLoadingProgress('Initializing...')
+    setError(null)
+    
+    try {
+      // Small delay to allow loading overlay to render
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Parse JSON in worker to avoid blocking main thread
+      setLoadingProgress(`Parsing JSON (${(input.length / 1024 / 1024).toFixed(1)} MB)...`)
+      console.log('[OID-See] 🔍 Parsing JSON in worker...')
+      
+      const parsed = await fileParserWorkerRef.current!.execute<any>(
+        'parseText',
+        { text: input },
+        (stage, progress, message) => {
+          console.log(`[OID-See] Parser: ${message}`)
+          setLoadingProgress(message)
+        }
+      )
+      
+      console.log('[OID-See] ✅ JSON parse complete')
+      
+      // Process the parsed data
+      await processGraphData(parsed)
+    } catch (e: any) {
+      console.error('[OID-See] ❌ Render error:', e)
+      setData(null)
+      setOriginalData(null)
+      setViewsReady(new Set())
+      setSelection(null)
+      if (e?.message !== 'Processing cancelled' && e?.message !== 'Task cancelled') {
+        setError(e?.message ?? String(e))
+      }
+      setLoading(false)
+      setLoadingProgress('')
+      setShowCancelButton(false)
+    }
+  }
+
+  async function processGraphData(parsed: any) {
+    console.log('[OID-See] 🎨 Processing graph data...')
     const renderStartTime = performance.now()
     
     // Cancel any pending graph conversion from previous render
@@ -612,9 +651,6 @@ export default function App() {
     abortControllerRef.current = new AbortController()
     const signal = abortControllerRef.current.signal
     
-    setLoading(true)
-    setLoadingProgress('Initializing...')
-    setError(null)
     setSelection(null)
     setLargeGraphWarning(null)
     setShowCancelButton(false)
@@ -633,21 +669,6 @@ export default function App() {
       console.log(`[OID-See] ⏱️  Waiting ${RENDER_DELAY_MS}ms for UI to update...`)
       await new Promise(resolve => setTimeout(resolve, RENDER_DELAY_MS))
       
-      setLoadingProgress(`Parsing JSON (${(input.length / 1024 / 1024).toFixed(1)} MB)...`)
-      console.log('[OID-See] 🔍 Parsing JSON in worker...')
-      
-      // Parse JSON in worker to avoid blocking main thread
-      const parsed = await fileParserWorkerRef.current!.execute<any>(
-        'parseText',
-        { text: input },
-        (stage, progress, message) => {
-          console.log(`[OID-See] Parser: ${message}`)
-          setLoadingProgress(message)
-        }
-      )
-      
-      console.log('[OID-See] ✅ JSON parse complete')
-      
       // Yield to event loop after parsing large JSON
       await new Promise(resolve => setTimeout(resolve, 0))
       
@@ -658,6 +679,173 @@ export default function App() {
         nodes: nodeCount.toLocaleString(),
         edges: edgeCount.toLocaleString()
       })
+      
+      const isLargeGraph = nodeCount >= LARGE_GRAPH_THRESHOLD || edgeCount >= LARGE_GRAPH_THRESHOLD
+      console.log('[OID-See] 🎯 Large graph detection:', {
+        isLarge: isLargeGraph,
+        threshold: LARGE_GRAPH_THRESHOLD
+      })
+      
+      // Check if graph exceeds renderable limits
+      const exceedsLimits = nodeCount > MAX_RENDERABLE_NODES || edgeCount > MAX_RENDERABLE_EDGES
+      console.log('[OID-See] 🚧 Render limit check:', {
+        exceedsLimits,
+        maxNodes: MAX_RENDERABLE_NODES,
+        maxEdges: MAX_RENDERABLE_EDGES
+      })
+      
+      // IMPORTANT: Do NOT truncate here! Dashboard needs full data immediately.
+      // Truncation will happen in background when converting for graph view.
+      
+      if (exceedsLimits) {
+        console.log('[OID-See] ℹ️  Graph exceeds limits - will truncate ONLY for graph view in background')
+        console.log('[OID-See] ℹ️  Alternative views (Table, Tree, Matrix, Dashboard) will use full dataset')
+        
+        // Warn user about truncation for graph view only
+        setLargeGraphWarning(
+          `⚠️ Graph view will be truncated to ${MAX_RENDERABLE_NODES.toLocaleString()} highest-risk nodes (dataset: ${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges). ` +
+          `Use Table, Tree, Matrix, or Dashboard views to see the full dataset. Physics disabled for performance.`
+        )
+        
+        // Disable physics for truncated graphs
+        console.log('[OID-See] ⚙️  Disabling physics for large graph...')
+        const physicsDisabled = createDisabledPhysicsConfig()
+        setPhysicsConfig(physicsDisabled)
+        savePhysicsConfig(physicsDisabled)
+      } else if (isLargeGraph) {
+        console.log('[OID-See] ⚙️  Disabling physics for large graph...')
+        // For large graphs, disable physics by default to prevent UI blocking
+        const physicsDisabled = createDisabledPhysicsConfig()
+        setPhysicsConfig(physicsDisabled)
+        savePhysicsConfig(physicsDisabled)
+        setLargeGraphWarning(
+          `Large graph detected (${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges). ` +
+          `Physics disabled by default for better performance. You can enable physics in the graph controls if needed.`
+        )
+      }
+      
+      // PRIORITY 1: Convert dataset for alternative views (dashboard, table, tree, matrix)
+      // Use lightweight conversion that only creates {id, __oidsee} objects
+      // Alternative views extract OidSee data from __oidsee, don't need vis-network properties
+      console.log('[OID-See] 🎨 Preparing data for dashboard and alternative views...')
+      setLoadingProgress('Preparing dashboard view...')
+      await yieldToEventLoop()
+      
+      const originalVisStartTime = performance.now()
+      // Use lightweight conversion for alternative views - much faster!
+      // Only creates minimal {id, __oidsee} objects instead of full vis-network format
+      const originalVis = toVisDataLightweight(parsed)
+      const originalVisTime = performance.now() - originalVisStartTime
+      console.log('[OID-See] ✅ Alternative views data ready:', {
+        duration: `${originalVisTime.toFixed(0)}ms`,
+        nodes: originalVis.nodes.length.toLocaleString(),
+        edges: originalVis.edges.length.toLocaleString()
+      })
+      
+      // Set original data immediately for dashboard/table/tree/matrix views
+      setOriginalData(originalVis)
+      setViewsReady(new Set(['dashboard', 'table', 'tree', 'matrix']))
+      
+      console.log('[OID-See] ✅ Dashboard and alternative views ready!')
+      
+      const dashboardTime = performance.now() - renderStartTime
+      console.log('[OID-See] 🎉 Dashboard ready in:', `${dashboardTime.toFixed(0)}ms`)
+      
+      // HIDE LOADING DIALOG NOW - Dashboard is ready and user can interact
+      setLoading(false)
+      setLoadingProgress('')
+      setShowCancelButton(false)
+      
+      // Clear cancel button timeout since we're done with the main loading
+      if (cancelButtonTimeoutRef.current !== null) {
+        clearTimeout(cancelButtonTimeoutRef.current)
+        cancelButtonTimeoutRef.current = null
+      }
+      
+      // PRIORITY 2: Truncate and convert data for graph view in TRUE BACKGROUND
+      // Use setTimeout to move this completely off the main render flow
+      // Store timeout ID for cleanup
+      // Capture the start time for accurate background task measurement
+      const graphConversionStartTime = performance.now()
+      graphConversionTimeoutRef.current = window.setTimeout(async () => {
+        try {
+          console.log('[OID-See] 🎨 Starting background graph view preparation...')
+          
+          // Truncate if needed (do this in background, not in main render flow!)
+          let graphParsed = parsed
+          if (exceedsLimits) {
+            console.log('[OID-See] ✂️  Truncating data for graph view (background)...')
+            const truncateStartTime = performance.now()
+            
+            // Clone to avoid mutating original
+            graphParsed = { ...parsed, nodes: [...parsed.nodes], edges: [...(parsed.edges || [])] }
+            
+            // Create indices array for sorting
+            console.log('[OID-See] 📋 Creating index array for sorting...')
+            const indices = Array.from({ length: graphParsed.nodes.length }, (_, i) => i)
+            
+            // Sort indices by risk score (highest first)
+            console.log('[OID-See] 📋 Sorting nodes by risk score...')
+            indices.sort((aIdx, bIdx) => {
+              const a = graphParsed.nodes[aIdx]
+              const b = graphParsed.nodes[bIdx]
+              const scoreA = a?.risk?.score ?? 0
+              const scoreB = b?.risk?.score ?? 0
+              return scoreB - scoreA
+            })
+            const sortTime = performance.now() - truncateStartTime
+            console.log('[OID-See] ✅ Sort complete:', `${sortTime.toFixed(0)}ms`)
+            
+            // Take top N highest-risk nodes
+            console.log(`[OID-See] ✂️  Selecting top ${MAX_RENDERABLE_NODES.toLocaleString()} risk nodes...`)
+            const truncatedNodes = indices.slice(0, MAX_RENDERABLE_NODES).map(i => graphParsed.nodes[i])
+            const nodeIds = new Set(truncatedNodes.map((n: OidSeeNode) => n.id))
+            
+            // Filter edges
+            console.log('[OID-See] 🔗 Filtering edges...')
+            const truncatedEdges = (graphParsed.edges || [])
+              .filter((e: OidSeeEdge) => nodeIds.has(e.from) && nodeIds.has(e.to))
+              .slice(0, MAX_RENDERABLE_EDGES)
+            
+            graphParsed.nodes = truncatedNodes
+            graphParsed.edges = truncatedEdges
+            
+            const truncateTime = performance.now() - truncateStartTime
+            console.log('[OID-See] ✅ Truncation complete:', {
+              duration: `${truncateTime.toFixed(0)}ms`,
+              graphViewNodes: truncatedNodes.length.toLocaleString(),
+              graphViewEdges: truncatedEdges.length.toLocaleString()
+            })
+          }
+          
+          console.log('[OID-See] 🎨 Converting data to vis-network format for graph view...')
+          const visStartTime = performance.now()
+          // Use sync for small datasets, async for larger ones to prevent UI blocking
+          // Note: Background task - progress updates won't show in UI but will log to console
+          const graphTotalItems = graphParsed.nodes.length + (graphParsed.edges?.length || 0)
+          const vis = graphTotalItems >= 500
+            ? await toVisDataAsync(graphParsed, (progress) => console.log(`[OID-See] ${progress}`), signal)
+            : toVisData(graphParsed)
+          const visTime = performance.now() - visStartTime
+          console.log('[OID-See] ✅ Graph view data ready:', {
+            duration: `${visTime.toFixed(0)}ms`,
+            nodes: vis.nodes.length.toLocaleString(),
+            edges: vis.edges.length.toLocaleString()
+          })
+          
+          // Set graph data
+          setData(vis)
+          setViewsReady(prev => new Set([...prev, 'graph']))
+          
+          const totalTime = performance.now() - renderStartTime
+          const graphTaskTime = performance.now() - graphConversionStartTime
+          console.log(`[OID-See] ✅ All views ready! Dashboard: ${dashboardTime.toFixed(0)}ms, Graph: ${graphTaskTime.toFixed(0)}ms, Total: ${totalTime.toFixed(0)}ms`)
+        } catch (e: any) {
+          console.error('[OID-See] ❌ Background graph conversion error:', e)
+          // Graph view fails silently - other views still work
+        }
+      }, 100) // Small delay to ensure dashboard renders first
+      
     } catch (e: any) {
       console.error('[OID-See] ❌ Render error:', e)
       setData(null)
@@ -665,7 +853,7 @@ export default function App() {
       setViewsReady(new Set())
       setSelection(null)
       // Don't show error if it was a user cancellation
-      if (e?.message !== 'Processing cancelled' && e?.message !== 'Task cancelled') {
+      if (e?.message !== 'Processing cancelled') {
         setError(e?.message ?? String(e))
       }
       // Only set loading false if it hasn't been set already
