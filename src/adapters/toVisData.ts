@@ -2,6 +2,7 @@
 import { isOidSeeExport, OidSeeExport } from './types'
 
 export type VisData = { nodes: any[]; edges: any[] }
+export type ProgressCallback = (message: string) => void
 
 // Custom double-circle renderer for group nodes
 function doubleCircleRenderer({ ctx, x, y, state, style }: any) {
@@ -131,13 +132,21 @@ export function toVisData(input: any): VisData {
   throw new Error('Unsupported JSON format. Expected an OID-See export (format.name="oidsee-graph") or a {nodes, edges} object.')
 }
 
+export type ProgressCallback = (message: string) => void
+
 /**
  * Async version of toVisData that processes nodes/edges in batches to avoid blocking UI
+ * @param input The OID-See export data
+ * @param onProgress Optional callback to report progress updates
+ * @param signal Optional AbortSignal to cancel processing
  */
-export async function toVisDataAsync(input: any): Promise<VisData> {
+export async function toVisDataAsync(input: any, onProgress?: ProgressCallback, signal?: AbortSignal): Promise<VisData> {
   if (isOidSeeExport(input)) {
     const exp = input as OidSeeExport
-    const BATCH_SIZE = 5000
+    // Reduced batch size for more frequent UI updates
+    const BATCH_SIZE = 1000
+    // Increased yield delay for better UI responsiveness
+    const YIELD_DELAY_MS = 10
 
     console.log('[toVisData] 🔄 Processing nodes in batches...', {
       totalNodes: exp.nodes.length,
@@ -148,10 +157,22 @@ export async function toVisDataAsync(input: any): Promise<VisData> {
     
     // Process nodes in batches
     for (let i = 0; i < exp.nodes.length; i += BATCH_SIZE) {
+      // Check for cancellation
+      if (signal?.aborted) {
+        console.log('[toVisData] ⚠️ Processing cancelled by user')
+        throw new Error('Processing cancelled')
+      }
+      
       const batch = exp.nodes.slice(i, Math.min(i + BATCH_SIZE, exp.nodes.length))
       const batchNum = Math.floor(i / BATCH_SIZE) + 1
       const totalBatches = Math.ceil(exp.nodes.length / BATCH_SIZE)
-      console.log(`[toVisData] 📦 Processing node batch ${batchNum}/${totalBatches} (${i + 1}-${i + batch.length})`)
+      const processed = i + batch.length
+      console.log(`[toVisData] 📦 Processing node batch ${batchNum}/${totalBatches} (${i + 1}-${processed})`)
+      
+      // Report progress to UI
+      if (onProgress) {
+        onProgress(`Processing nodes: ${processed.toLocaleString()} / ${exp.nodes.length.toLocaleString()}`)
+      }
       
       for (const n of batch) {
         try {
@@ -188,10 +209,8 @@ export async function toVisDataAsync(input: any): Promise<VisData> {
         }
       }
       
-      // Yield to event loop every batch
-      if (i + BATCH_SIZE < exp.nodes.length) {
-        await new Promise(resolve => setTimeout(resolve, 0))
-      }
+      // Yield to event loop every batch with a longer delay
+      await new Promise(resolve => setTimeout(resolve, YIELD_DELAY_MS))
     }
 
     console.log('[toVisData] 🔗 Processing edges in batches...')
@@ -199,10 +218,22 @@ export async function toVisDataAsync(input: any): Promise<VisData> {
     
     // Process edges in batches
     for (let i = 0; i < exp.edges.length; i += BATCH_SIZE) {
+      // Check for cancellation
+      if (signal?.aborted) {
+        console.log('[toVisData] ⚠️ Processing cancelled by user')
+        throw new Error('Processing cancelled')
+      }
+      
       const batch = exp.edges.slice(i, Math.min(i + BATCH_SIZE, exp.edges.length))
       const batchNum = Math.floor(i / BATCH_SIZE) + 1
       const totalBatches = Math.ceil(exp.edges.length / BATCH_SIZE)
-      console.log(`[toVisData] 🔗 Processing edge batch ${batchNum}/${totalBatches} (${i + 1}-${i + batch.length})`)
+      const processed = i + batch.length
+      console.log(`[toVisData] 🔗 Processing edge batch ${batchNum}/${totalBatches} (${i + 1}-${processed})`)
+      
+      // Report progress to UI
+      if (onProgress) {
+        onProgress(`Processing edges: ${processed.toLocaleString()} / ${exp.edges.length.toLocaleString()}`)
+      }
       
       for (const e of batch) {
         const label = e.type
@@ -235,10 +266,8 @@ export async function toVisDataAsync(input: any): Promise<VisData> {
         })
       }
       
-      // Yield to event loop every batch
-      if (i + BATCH_SIZE < exp.edges.length) {
-        await new Promise(resolve => setTimeout(resolve, 0))
-      }
+      // Yield to event loop every batch with a longer delay
+      await new Promise(resolve => setTimeout(resolve, YIELD_DELAY_MS))
     }
 
     console.log('[toVisData] ✅ Conversion complete:', {
