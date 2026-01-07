@@ -472,9 +472,13 @@ export default function App() {
     })
     const startTime = performance.now()
     
-    // Show loading overlay immediately
+    // Show loading overlay immediately with file size info
     setLoading(true)
+    setLoadingProgress(`Reading file (${(file.size / 1024 / 1024).toFixed(1)} MB)...`)
     setError(null)
+    
+    // Yield to allow progress message to render before blocking file read
+    await new Promise(resolve => setTimeout(resolve, 100))
     
     try {
       console.log('[OID-See] 📖 Reading file content...')
@@ -555,7 +559,7 @@ export default function App() {
       console.log(`[OID-See] ⏱️  Waiting ${RENDER_DELAY_MS}ms for UI to update...`)
       await new Promise(resolve => setTimeout(resolve, RENDER_DELAY_MS))
       
-      setLoadingProgress('Parsing JSON data...')
+      setLoadingProgress(`Parsing JSON (${(input.length / 1024 / 1024).toFixed(1)} MB)...`)
       console.log('[OID-See] 🔍 Parsing JSON...')
       // Yield to allow progress message to render
       await yieldToEventLoop()
