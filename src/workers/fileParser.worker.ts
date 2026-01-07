@@ -83,6 +83,8 @@ async function parseFile(taskId: string, file: File): Promise<any> {
 
     // Use FileReaderSync for synchronous reading in worker
     // This is much faster than async FileReader
+    // Note: FileReaderSync is only available in workers and has limited browser support
+    // For better compatibility, we fall back to file.text() for smaller files
     const startReadTime = performance.now()
     let text: string
     
@@ -93,10 +95,16 @@ async function parseFile(taskId: string, file: File): Promise<any> {
     } else {
       // Use FileReaderSync for very large files
       // Note: FileReaderSync is only available in workers
-      const reader = new FileReaderSync()
-      const buffer = reader.readAsArrayBuffer(file)
-      const decoder = new TextDecoder('utf-8')
-      text = decoder.decode(buffer)
+      try {
+        const reader = new FileReaderSync()
+        const buffer = reader.readAsArrayBuffer(file)
+        const decoder = new TextDecoder('utf-8')
+        text = decoder.decode(buffer)
+      } catch (e) {
+        // Fallback to async file.text() if FileReaderSync is not available
+        console.warn('[FileParserWorker] FileReaderSync not available, falling back to file.text()')
+        text = await file.text()
+      }
     }
     
     const readDuration = performance.now() - startReadTime

@@ -394,33 +394,22 @@ export default function App() {
   useEffect(() => {
     console.log('[OID-See] Initializing web workers...')
     
-    // Initialize FileParser worker
+    // Initialize FileParser worker with pre-created worker instance
     const fileParserWorker = new WorkerManager({
-      workerUrl: '', // Will be set by Vite worker plugin
+      worker: new FileParserWorker(),
       onProgress: (stage, progress, message) => {
         setLoadingProgress(message)
       }
     })
-    
-    // Create worker directly using Vite's worker import
-    fileParserWorker['worker'] = new FileParserWorker()
-    fileParserWorker['worker'].onmessage = (event) => {
-      fileParserWorker['handleMessage'](event.data)
-    }
     fileParserWorkerRef.current = fileParserWorker
     
-    // Initialize Filter worker
+    // Initialize Filter worker with pre-created worker instance
     const filterWorker = new WorkerManager({
-      workerUrl: '', // Will be set by Vite worker plugin
+      worker: new FilterWorker(),
       onProgress: (stage, progress, message) => {
         setLoadingProgress(message)
       }
     })
-    
-    filterWorker['worker'] = new FilterWorker()
-    filterWorker['worker'].onmessage = (event) => {
-      filterWorker['handleMessage'](event.data)
-    }
     filterWorkerRef.current = filterWorker
     
     console.log('[OID-See] Workers initialized')

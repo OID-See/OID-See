@@ -12,7 +12,7 @@ export type WorkerMessageType =
   | 'error'
 
 // Base worker message structure
-export interface WorkerMessage<T = any> {
+export interface WorkerMessage<T = unknown> {
   type: WorkerMessageType
   id: string // unique message ID for tracking requests/responses
   payload?: T
@@ -31,7 +31,7 @@ export interface ProgressMessage {
 }
 
 // Complete message
-export interface CompleteMessage<T = any> {
+export interface CompleteMessage<T = unknown> {
   type: 'complete'
   id: string
   payload: T
@@ -64,7 +64,7 @@ export function isErrorMessage(msg: WorkerMessage): msg is ErrorMessage {
 export type WorkerTaskStatus = 'pending' | 'running' | 'completed' | 'error' | 'cancelled'
 
 // Worker task
-export interface WorkerTask<T = any> {
+export interface WorkerTask<T = unknown> {
   id: string
   status: WorkerTaskStatus
   result?: T

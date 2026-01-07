@@ -16,7 +16,8 @@ import {
 export type ProgressCallback = (stage: string, progress: number, message: string) => void
 
 export interface WorkerManagerOptions {
-  workerUrl: string
+  worker?: Worker // Optional pre-created worker instance
+  workerUrl?: string // Optional worker URL (for manual creation)
   onProgress?: ProgressCallback
 }
 
@@ -27,30 +28,45 @@ export class WorkerManager {
   private worker: Worker | null = null
   private tasks: Map<string, WorkerTask> = new Map()
   private callbacks: Map<string, {
-    resolve: (result: any) => void
+    resolve: (result: unknown) => void
     reject: (error: Error) => void
     onProgress?: ProgressCallback
   }> = new Map()
   private taskIdCounter = 0
-  private workerUrl: string
+  private workerUrl?: string
   private globalProgressCallback?: ProgressCallback
 
   constructor(options: WorkerManagerOptions) {
     this.workerUrl = options.workerUrl
     this.globalProgressCallback = options.onProgress
+    
+    // If a worker instance is provided, use it directly
+    if (options.worker) {
+      this.worker = options.worker
+      this.worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
+        this.handleMessage(event.data)
+      }
+      this.worker.onerror = (error) => {
+        console.error('[WorkerManager] Worker error:', error)
+      }
+    }
   }
 
   /**
-   * Initialize the worker
+   * Initialize the worker (only needed if worker was not provided in constructor)
    */
   async initialize(): Promise<void> {
     if (this.worker) {
       return // Already initialized
     }
 
+    if (!this.workerUrl) {
+      throw new Error('Cannot initialize worker: no worker or workerUrl provided')
+    }
+
     return new Promise((resolve, reject) => {
       try {
-        this.worker = new Worker(this.workerUrl, { type: 'module' })
+        this.worker = new Worker(this.workerUrl!, { type: 'module' })
         
         this.worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
           this.handleMessage(event.data)
