@@ -620,19 +620,17 @@ export default function App() {
         )
       }
       
-      // PRIORITY 1: Convert full dataset for alternative views (dashboard, table, tree, matrix)
-      // These views don't need vis-network format, they work directly with OidSee format
+      // PRIORITY 1: Prepare full dataset for alternative views (dashboard, table, tree, matrix)
+      // These views work directly with OidSee format - NO conversion needed!
+      // This eliminates the expensive toVisData conversion for 29k+ nodes
       console.log('[OID-See] 🎨 Preparing data for dashboard and alternative views...')
       setLoadingProgress('Preparing dashboard view...')
       await yieldToEventLoop()
       
       const originalVisStartTime = performance.now()
-      // Use sync for small datasets (< 500 items), async for larger ones
-      // This keeps small files fast while enabling progress/cancellation for large files
-      const totalItems = nodeCount + edgeCount
-      const originalVis = totalItems >= 500
-        ? await toVisDataAsync(parsed, (progress) => setLoadingProgress(progress), signal)
-        : toVisData(parsed)
+      // Alternative views use the original OidSee format directly - no conversion needed!
+      // This is much faster than converting 29k nodes to vis-network format
+      const originalVis = { nodes: parsed.nodes, edges: parsed.edges || [] }
       const originalVisTime = performance.now() - originalVisStartTime
       console.log('[OID-See] ✅ Alternative views data ready:', {
         duration: `${originalVisTime.toFixed(0)}ms`,
