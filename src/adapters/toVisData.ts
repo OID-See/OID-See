@@ -152,7 +152,9 @@ export async function toVisDataAsync(input: any, onProgress?: ProgressCallback, 
     
     // Adaptive batch sizing based on dataset size for optimal performance
     // Small datasets: Larger batches, minimal yielding (fast)
-    // Large datasets: Smaller batches, more yielding (responsive)
+    // Medium datasets: Moderate batches, balanced yielding
+    // Large datasets: Smaller batches, frequent yielding (responsive)
+    // Very large datasets: Very small batches, very frequent yielding (maximum responsiveness)
     const totalItems = exp.nodes.length + (exp.edges?.length || 0)
     let BATCH_SIZE: number
     let YIELD_DELAY_MS: number
@@ -161,13 +163,18 @@ export async function toVisDataAsync(input: any, onProgress?: ProgressCallback, 
       // Small datasets: process quickly without much overhead
       BATCH_SIZE = 500
       YIELD_DELAY_MS = 1
-    } else if (totalItems < 10000) {
+    } else if (totalItems < 5000) {
       // Medium datasets: balance speed and responsiveness
       BATCH_SIZE = 250
       YIELD_DELAY_MS = 5
+    } else if (totalItems < 15000) {
+      // Large datasets: prioritize responsiveness
+      BATCH_SIZE = 150
+      YIELD_DELAY_MS = 8
     } else {
-      // Large datasets (10k+ items): prioritize UI responsiveness
-      BATCH_SIZE = 200
+      // Very large datasets (15k+ items): maximum responsiveness
+      // For 29k nodes: 193 yields with 1.93s overhead
+      BATCH_SIZE = 100
       YIELD_DELAY_MS = 10
     }
     
