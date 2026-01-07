@@ -511,7 +511,7 @@ export default function App() {
     setLoading(false)
     setLoadingProgress('')
     setShowCancelButton(false)
-    setError('Loading cancelled by user')
+    // Don't set error for user cancellations - handled in catch block
   }
 
   async function render(input: string) {

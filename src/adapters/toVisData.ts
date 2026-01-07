@@ -4,6 +4,14 @@ import { isOidSeeExport, OidSeeExport } from './types'
 export type VisData = { nodes: any[]; edges: any[] }
 export type ProgressCallback = (message: string) => void
 
+// Constants for async processing
+const CANCELLED_ERROR_MESSAGE = 'Processing cancelled'
+
+// Helper function to format progress messages
+function formatProgress(type: string, processed: number, total: number): string {
+  return `Processing ${type}: ${processed.toLocaleString()} / ${total.toLocaleString()}`
+}
+
 // Custom double-circle renderer for group nodes
 function doubleCircleRenderer({ ctx, x, y, state, style }: any) {
   try {
@@ -158,7 +166,7 @@ export async function toVisDataAsync(input: any, onProgress?: ProgressCallback, 
       // Check for cancellation
       if (signal?.aborted) {
         console.log('[toVisData] ⚠️ Processing cancelled by user')
-        throw new Error('Processing cancelled')
+        throw new Error(CANCELLED_ERROR_MESSAGE)
       }
       
       const batch = exp.nodes.slice(i, Math.min(i + BATCH_SIZE, exp.nodes.length))
@@ -169,7 +177,7 @@ export async function toVisDataAsync(input: any, onProgress?: ProgressCallback, 
       
       // Report progress to UI
       if (onProgress) {
-        onProgress(`Processing nodes: ${processed.toLocaleString()} / ${exp.nodes.length.toLocaleString()}`)
+        onProgress(formatProgress('nodes', processed, exp.nodes.length))
       }
       
       for (const n of batch) {
@@ -219,7 +227,7 @@ export async function toVisDataAsync(input: any, onProgress?: ProgressCallback, 
       // Check for cancellation
       if (signal?.aborted) {
         console.log('[toVisData] ⚠️ Processing cancelled by user')
-        throw new Error('Processing cancelled')
+        throw new Error(CANCELLED_ERROR_MESSAGE)
       }
       
       const batch = exp.edges.slice(i, Math.min(i + BATCH_SIZE, exp.edges.length))
@@ -230,7 +238,7 @@ export async function toVisDataAsync(input: any, onProgress?: ProgressCallback, 
       
       // Report progress to UI
       if (onProgress) {
-        onProgress(`Processing edges: ${processed.toLocaleString()} / ${exp.edges.length.toLocaleString()}`)
+        onProgress(formatProgress('edges', processed, exp.edges.length))
       }
       
       for (const e of batch) {
