@@ -716,7 +716,7 @@ export default function App() {
           const visStartTime = performance.now()
           // Always use async version to prevent UI blocking
           // Note: Background task - progress updates won't show in UI but will log to console
-          const vis = await toVisDataAsync(graphParsed, (progress) => console.log(`[OID-See] ${progress}`))
+          const vis = await toVisDataAsync(graphParsed, (progress) => console.log(`[OID-See] ${progress}`), signal)
           const visTime = performance.now() - visStartTime
           console.log('[OID-See] ✅ Graph view data ready:', {
             duration: `${visTime.toFixed(0)}ms`,
