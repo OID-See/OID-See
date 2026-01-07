@@ -187,6 +187,35 @@ For detailed information about changes and releases:
 - **[CHANGELOG.md](CHANGELOG.md)** - Complete version history and changes
 - **[RELEASE_NOTES.md](RELEASE_NOTES.md)** - Detailed release documentation
 
+## ⚡ Performance & Architecture
+
+OID-See uses modern web technologies to handle large datasets efficiently:
+
+### Web Workers for Responsive UI
+
+Heavy computational tasks run in dedicated web workers to keep the UI responsive:
+
+- **File Reading & JSON Parsing**: Large files are read and parsed off the main thread using `FileReaderSync`
+- **Filtering Operations**: Query processing and filtering can handle thousands of nodes without blocking
+- **Layout Computation**: Graph layout calculations run in background workers
+- **Risk Analysis**: Statistics and risk computation execute in parallel
+
+See [`src/workers/README.md`](src/workers/README.md) for detailed worker architecture documentation.
+
+### Optimized Data Processing
+
+- **Batch Processing**: Large datasets are processed in batches with progress tracking
+- **Incremental Loading**: Dashboard and alternative views load first, graph view processes in background
+- **Cancellable Operations**: Long-running tasks can be cancelled by the user
+- **Progressive Enhancement**: UI remains interactive even during heavy computation
+
+### Scalability
+
+- **Graph View**: Optimized for up to 3,000 nodes with automatic truncation for larger datasets
+- **Table View**: Virtual scrolling handles 50,000+ nodes efficiently
+- **Dashboard View**: Statistical summaries load instantly regardless of dataset size
+- **Worker Pool**: Parallel processing using multiple CPU cores when available
+
 ## Deploy to Netlify
 
 **Official Deployment**: The OID-See visualizer is hosted at **https://oid-see.netlify.app/**
