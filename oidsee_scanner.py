@@ -2268,17 +2268,65 @@ def compute_risk_for_sp(
             "weight": weight,
         })
 
-    # NO_OWNERS
-    if owners is None or len(owners) == 0:
-        no_owners_config = contributors.get("NO_OWNERS", {})
-        weight = no_owners_config.get("weight", 15)
-        description = no_owners_config.get("description", "No owners found for application")
-        score += weight
-        reasons.append({
-            "code": "NO_OWNERS",
-            "message": description,
-            "weight": weight,
-        })
+    # HAS_OWNERS (ownership as risk factor)
+    # Ownership grants change authority over app/SP objects, increasing mutation risk
+    if owners and len(owners) > 0:
+        user_count = 0
+        sp_count = 0
+        unknown_count = 0
+        
+        # Categorize owners by type using directory cache
+        for owner in owners:
+            owner_id = owner.get("id")
+            if not owner_id:
+                unknown_count += 1
+                continue
+            
+            # Resolve owner object to get @odata.type
+            owner_obj = dir_cache.get(owner_id) if dir_cache else None
+            otype = (owner_obj.get("@odata.type") or "").lower() if owner_obj else ""
+            
+            if "user" in otype:
+                user_count += 1
+            elif "serviceprincipal" in otype:
+                sp_count += 1
+            else:
+                # Groups, directory roles, or unknown
+                unknown_count += 1
+        
+        # Add risk reasons based on owner types present
+        if user_count > 0:
+            user_config = contributors.get("HAS_OWNERS_USER", {})
+            weight = user_config.get("weight", 15)
+            description = user_config.get("description", "Application has user principal owners")
+            score += weight
+            reasons.append({
+                "code": "HAS_OWNERS_USER",
+                "message": f"{description} (count: {user_count})",
+                "weight": weight,
+            })
+        
+        if sp_count > 0:
+            sp_config = contributors.get("HAS_OWNERS_SP", {})
+            weight = sp_config.get("weight", 8)
+            description = sp_config.get("description", "Application has service principal owners")
+            score += weight
+            reasons.append({
+                "code": "HAS_OWNERS_SP",
+                "message": f"{description} (count: {sp_count})",
+                "weight": weight,
+            })
+        
+        if unknown_count > 0:
+            unknown_config = contributors.get("HAS_OWNERS_UNKNOWN", {})
+            weight = unknown_config.get("weight", 5)
+            description = unknown_config.get("description", "Application has owners of unknown or other types")
+            score += weight
+            reasons.append({
+                "code": "HAS_OWNERS_UNKNOWN",
+                "message": f"{description} (count: {unknown_count})",
+                "weight": weight,
+            })
 
     # GOVERNANCE
     if requires_assignment is False:
@@ -3623,6 +3671,36 @@ class OidSeeCollector:
             password_creds_value = sp.get("passwordCredentials")
             password_creds_safe = password_creds_value if isinstance(password_creds_value, list) else []
             
+            # Compute ownership insights
+            ownership_insights = None
+            if owners:
+                user_owners = 0
+                sp_owners = 0
+                unknown_owners = 0
+                
+                for owner in owners:
+                    owner_id = owner.get("id")
+                    if not owner_id:
+                        unknown_owners += 1
+                        continue
+                    
+                    owner_obj = self.dir_cache.get(owner_id)
+                    otype = (owner_obj.get("@odata.type") or "").lower() if owner_obj else ""
+                    
+                    if "user" in otype:
+                        user_owners += 1
+                    elif "serviceprincipal" in otype:
+                        sp_owners += 1
+                    else:
+                        unknown_owners += 1
+                
+                ownership_insights = {
+                    "totalOwners": len(owners),
+                    "userOwners": user_owners,
+                    "spOwners": sp_owners,
+                    "unknownOwners": unknown_owners,
+                }
+            
             props = {
                 "servicePrincipalId": sp_id,
                 "appId": sp.get("appId"),
@@ -3654,6 +3732,7 @@ class OidSeeCollector:
                 "publicClientIndicators": public_client_indicators,
                 "platformSignals": platform_signals,
                 "trustSignals": trust_signals,
+                "ownershipInsights": ownership_insights,
                 # Non-Graph data placeholders (WHOIS/DNS - not populated by Graph-only scanner)
                 "domainWhois": None,
                 "dnsRecords": None,

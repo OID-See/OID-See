@@ -94,7 +94,7 @@ const PRESET_QUERIES: SavedQuery[] = [
   { name: 'Service Principals with Password Credentials', query: 'n.type=ServicePrincipal n.properties.credentialInsights.active_password_credentials>0' },
   { name: 'Service Principals with Key Credentials', query: 'n.type=ServicePrincipal n.properties.credentialInsights.active_key_credentials>0' },
   { name: 'Unverified Publishers', query: 'n.type=ServicePrincipal n.properties.verifiedPublisher.displayName=null' },
-  { name: 'Service Principals Without Owners', query: 'n.risk.reasons~NO_OWNERS' },
+  { name: 'Service Principals with Owners (Change Authority)', query: 'n.risk.reasons~HAS_OWNERS' },
   { name: 'Broad Reachability Service Principals', query: 'n.risk.reasons~BROAD_REACHABILITY' },
   { name: 'Identity Laundering Suspected', query: 'n.properties.trustSignals.identityLaunderingSuspected=true' },
   { name: 'Service Principals Not Requiring Assignment', query: 'n.type=ServicePrincipal n.properties.requiresAssignment=false' },

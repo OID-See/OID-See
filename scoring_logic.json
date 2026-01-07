@@ -236,8 +236,20 @@
         "description": "Application created before July 2025, when consent to applications from unverified publishers began requiring administrative approval. These applications may have been onboarded under weaker consent controls."
       },
       "NO_OWNERS": {
+        "weight": 0,
+        "description": "DEPRECATED: No longer penalizes applications without owners. Ownership represents change authority, not security hygiene."
+      },
+      "HAS_OWNERS_USER": {
         "weight": 15,
-        "description": "No owners found for application"
+        "description": "Application has user principal owners. Ownership grants principals change authority over the app/SP object and can increase risk. User owners represent higher mutation risk than service principals. (See Glenn Van Rymenant's analysis: https://www.appgovscore.com/blog/entra-id-application-ownership-risks-problems)"
+      },
+      "HAS_OWNERS_SP": {
+        "weight": 8,
+        "description": "Application has service principal owners. Ownership grants change authority over the app/SP object, though service principal owners present lower risk than user owners."
+      },
+      "HAS_OWNERS_UNKNOWN": {
+        "weight": 5,
+        "description": "Application has owners of unknown or other types (e.g., groups). Ownership grants change authority over the app/SP object."
       },
       "GOVERNANCE": {
         "weight": 5,
