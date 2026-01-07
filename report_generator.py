@@ -209,13 +209,6 @@ def _extract_metrics(export_data: Dict[str, Any]) -> Dict[str, Any]:
         if node.get('type') == 'TenantPolicy' and node.get('properties', {}).get('policyType') == 'externalIdentityPosture':
             tenant_posture = node.get('properties', {})
             break
-            for tier_detail in privilege_reason['tierBreakdown']:
-                if tier_detail.get('tier') == 'tier0' and tier_detail.get('roles'):
-                    for role in tier_detail['roles'][:3]:  # Top 3 roles per SP
-                        top_tier0_roles.append({
-                            'sp_name': sp.get('displayName', 'Unknown'),
-                            'role_name': role.get('displayName', 'Unknown')
-                        })
     
     # Scope privilege metrics (based on unified HAS_PRIVILEGED_SCOPES reason with scopeRiskClass)
     sps_with_readwrite_all = sum(

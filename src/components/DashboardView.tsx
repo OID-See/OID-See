@@ -183,6 +183,10 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
     return 'risk-none'
   }
 
+  const capitalize = (str: string) => {
+    return str.charAt(0).toUpperCase() + str.slice(1)
+  }
+
   return (
     <div className="dashboard-view">
       <div className="dashboard-view__header">
@@ -245,15 +249,12 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
             </div>
             <div className="dashboard-card__content">
               <div className="dashboard-card__value">
-                {(stats.tenantPosture.postureRating || 'unknown').charAt(0).toUpperCase() + 
-                 (stats.tenantPosture.postureRating || 'unknown').slice(1)}
+                {capitalize(stats.tenantPosture.postureRating || 'unknown')}
               </div>
               <div className="dashboard-card__label">External Identity Posture</div>
               <div className="dashboard-card__sublabel">
-                Guest: {(stats.tenantPosture.guestAccess || 'unknown').charAt(0).toUpperCase() + 
-                        (stats.tenantPosture.guestAccess || 'unknown').slice(1)} | 
-                Cross-Tenant: {(stats.tenantPosture.crossTenantDefaultStance || 'unknown').charAt(0).toUpperCase() + 
-                               (stats.tenantPosture.crossTenantDefaultStance || 'unknown').slice(1)}
+                Guest: {capitalize(stats.tenantPosture.guestAccess || 'unknown')} | 
+                Cross-Tenant: {capitalize(stats.tenantPosture.crossTenantDefaultStance || 'unknown')}
               </div>
             </div>
           </div>

@@ -8,6 +8,7 @@ Tests JWT parsing, token permission gating, and risk amplifier logic.
 import sys
 import os
 import json
+import base64
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -23,7 +24,6 @@ def test_jwt_parsing_delegated():
     # Format: header.payload.signature (we only parse payload)
     # Payload: {"scp": "User.Read Policy.Read.All Directory.Read.All", "appid": "test"}
     payload_json = '{"scp": "User.Read Policy.Read.All Directory.Read.All", "appid": "test"}'
-    import base64
     payload_b64 = base64.urlsafe_b64encode(payload_json.encode()).decode().rstrip('=')
     test_token = f"eyJhbGciOiJSUzI1NiJ9.{payload_b64}.signature"
     
@@ -49,7 +49,6 @@ def test_jwt_parsing_app_only():
     # Create a test JWT with app roles including Policy.Read.All
     # Payload: {"roles": ["Directory.Read.All", "Policy.Read.All"], "appid": "test"}
     payload_json = '{"roles": ["Directory.Read.All", "Policy.Read.All"], "appid": "test"}'
-    import base64
     payload_b64 = base64.urlsafe_b64encode(payload_json.encode()).decode().rstrip('=')
     test_token = f"eyJhbGciOiJSUzI1NiJ9.{payload_b64}.signature"
     
@@ -70,7 +69,6 @@ def test_jwt_parsing_without_policy_read():
     # Create a test JWT without Policy.Read.All
     # Payload: {"scp": "User.Read Directory.Read.All", "appid": "test"}
     payload_json = '{"scp": "User.Read Directory.Read.All", "appid": "test"}'
-    import base64
     payload_b64 = base64.urlsafe_b64encode(payload_json.encode()).decode().rstrip('=')
     test_token = f"eyJhbGciOiJSUzI1NiJ9.{payload_b64}.signature"
     
