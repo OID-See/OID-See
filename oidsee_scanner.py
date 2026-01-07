@@ -1867,6 +1867,7 @@ def compute_risk_for_sp(
     reply_url_enrichment: Optional[Dict[str, Any]] = None,
     app_ownership: Optional[str] = None,
     role_defs: Optional[Dict[str, Dict[str, Any]]] = None,
+    group_member_count_cache: Optional[Dict[str, int]] = None,
 ) -> Dict[str, Any]:
     """Compute risk score for service principal based on loaded configuration."""
     config = SCORING_CONFIG.get("compute_risk_for_sp", {})
@@ -1979,6 +1980,9 @@ def compute_risk_for_sp(
 
     # ASSIGNED_TO (reachable users)
     reachable_users = 0
+    if group_member_count_cache is None:
+        group_member_count_cache = {}
+    
     for a in assignments:
         pid = a.get("principalId")
         pobj = dir_cache.get(pid) if pid else None
@@ -1986,7 +1990,9 @@ def compute_risk_for_sp(
         if "user" in otype:
             reachable_users += 1
         elif "group" in otype:
-            reachable_users += 5
+            # Use actual group member count from cache instead of hardcoded approximation
+            group_count = group_member_count_cache.get(pid, 0)
+            reachable_users += group_count
     
     if reachable_users > 0:
         assigned_config = contributors.get("ASSIGNED_TO", {})
@@ -2008,7 +2014,7 @@ def compute_risk_for_sp(
         score += weight
         reasons.append({
             "code": "ASSIGNED_TO",
-            "message": f"App is assigned to principals approximating ~{reachable_users} users",
+            "message": f"App is assigned to principals reaching {reachable_users} users",
             "weight": weight,
         })
     elif requires_assignment is False:
@@ -2519,6 +2525,7 @@ class OidSeeCollector:
         self.sp_by_appid: Dict[str, Dict[str, Any]] = {}     # by appId (best-effort)
         self.app_cache_by_appid: Dict[str, Dict[str, Any]] = {}  # in-tenant applications by appId
         self.owners_cache: Dict[str, List[Dict[str, Any]]] = {}  # owners by SP id (cache to avoid redundant calls)
+        self.group_member_count_cache: Dict[str, int] = {}  # group member counts by group id
 
         self._resource_sp_needed: Set[str] = set()
         self._principal_ids_needed: Set[str] = set()
@@ -2530,6 +2537,7 @@ class OidSeeCollector:
         self._sp_cache_lock = Lock()
         self._role_defs_lock = Lock()
         self._owners_cache_lock = Lock()
+        self._group_member_count_cache_lock = Lock()
         self._id_collection_lock = Lock()  # For _resource_sp_needed, _principal_ids_needed, _role_def_ids_needed
 
     # ---- add nodes with de-dupe
@@ -2689,6 +2697,229 @@ class OidSeeCollector:
         select = "id,principalId,roleDefinitionId,directoryScopeId"
         url = f"{GRAPH_V1}/roleManagement/directory/roleAssignments?$filter=principalId eq '{principal_id}'&$select={select}"
         return self.graph.get_paged(url)
+    
+    def fetch_group_member_count(self, group_id: str) -> int:
+        """
+        Fetch the member count for a group using $count endpoint.
+        Returns the actual number of transitive members (users and nested groups expanded).
+        Caches results to avoid redundant API calls.
+        """
+        # Check cache first
+        with self._group_member_count_cache_lock:
+            if group_id in self.group_member_count_cache:
+                return self.group_member_count_cache[group_id]
+        
+        try:
+            # Use transitive members endpoint with $count to get accurate count
+            # This includes nested group memberships
+            # The $count endpoint requires ConsistencyLevel=eventual header and returns plain text
+            url = f"{GRAPH_V1}/groups/{group_id}/transitiveMembers/$count"
+            
+            # Use GraphClient's retry logic by making the request through it
+            # The $count endpoint returns plain text (not JSON), so we need special handling
+            last_err: Optional[str] = None
+            for attempt in range(self.graph.max_retries):
+                try:
+                    headers = self.graph._headers()
+                    headers["ConsistencyLevel"] = "eventual"
+                    
+                    response = requests.get(url, headers=headers, timeout=60)
+                    
+                    if response.status_code in (429, 503):
+                        # Throttle/backoff with Retry-After when present
+                        ra = response.headers.get("Retry-After")
+                        try:
+                            delay = float(ra) if ra is not None else (self.graph.base_delay * (2 ** attempt))
+                        except Exception:
+                            delay = self.graph.base_delay * (2 ** attempt)
+                        delay = max(delay, self.graph.base_delay) + random.uniform(0, 0.5)
+                        time.sleep(delay)
+                        continue
+                    
+                    if response.status_code == 404:
+                        # Group not found or doesn't exist
+                        print(f"⚠️  Group {group_id} not found", file=sys.stderr)
+                        return 0
+                    
+                    if response.status_code >= 400:
+                        last_err = f"HTTP {response.status_code}: {response.text[:500]}"
+                        # Retry other 5xx
+                        if 500 <= response.status_code < 600 and attempt < self.graph.max_retries - 1:
+                            delay = self.graph.base_delay * (2 ** attempt) + random.uniform(0, 0.3)
+                            time.sleep(delay)
+                            continue
+                        print(f"⚠️  Failed to fetch member count for group {group_id}: {last_err}", file=sys.stderr)
+                        return 0
+                    
+                    # Parse the plain text count
+                    count = int(response.text.strip())
+                    
+                    # Cache the result
+                    with self._group_member_count_cache_lock:
+                        self.group_member_count_cache[group_id] = count
+                    
+                    return count
+                    
+                except requests.RequestException as e:
+                    last_err = f"{type(e).__name__}: {e}"
+                    # Network/transient error -> backoff
+                    delay = self.graph.base_delay * (2 ** attempt) + random.uniform(0, 0.3)
+                    time.sleep(delay)
+                    continue
+            
+            # If we exhausted retries
+            print(f"⚠️  Failed to fetch member count for group {group_id} after retries: {last_err}", file=sys.stderr)
+            return 0
+            
+        except Exception as e:
+            print(f"⚠️  Failed to fetch member count for group {group_id}: {e}", file=sys.stderr)
+            # Return 0 on error rather than using the old hardcoded approximation
+            # This ensures we don't inflate counts on errors
+            return 0
+    
+    def fetch_group_member_counts_batched(self, group_ids: List[str]) -> Dict[str, int]:
+        """
+        Fetch member counts for multiple groups using Graph API batching.
+        This is significantly faster than individual requests as it combines up to 20 requests
+        into a single HTTP call.
+        
+        Uses multi-threading to execute batches in parallel for maximum performance.
+        
+        Args:
+            group_ids: List of group IDs to fetch member counts for
+            
+        Returns:
+            Dict mapping group_id to member count
+        """
+        # Filter out already cached groups
+        uncached_groups = [gid for gid in group_ids if gid not in self.group_member_count_cache]
+        
+        if not uncached_groups:
+            # All groups are cached, return only the requested ones
+            return {gid: self.group_member_count_cache.get(gid, 0) for gid in group_ids}
+        
+        results = {}
+        results_lock = Lock()
+        
+        # Batch API supports up to 20 requests per batch
+        batch_size = 20
+        batches = [uncached_groups[i:i+batch_size] for i in range(0, len(uncached_groups), batch_size)]
+        
+        print(f"  Using Graph API batching: {len(batches)} batches of up to {batch_size} groups each", file=sys.stderr)
+        
+        def process_batch(batch_idx: int, group_batch: List[str]) -> Dict[str, int]:
+            """Process a single batch of group member count requests."""
+            batch_results = {}
+            
+            # Build batch requests for $count endpoint
+            batch_requests = []
+            for idx, group_id in enumerate(group_batch):
+                batch_requests.append({
+                    "id": str(idx + 1),
+                    "method": "GET",
+                    "url": f"/groups/{group_id}/transitiveMembers/$count",
+                    "headers": {
+                        "ConsistencyLevel": "eventual"
+                    }
+                })
+            
+            try:
+                # Execute batch request using v1.0 API
+                responses = self.graph.batch(batch_requests, api_version="v1.0")
+                
+                # Process responses
+                for response in responses:
+                    req_id = response.get("id")
+                    status = response.get("status", 0)
+                    
+                    # Map request ID back to group ID
+                    idx = int(req_id) - 1
+                    if idx < 0 or idx >= len(group_batch):
+                        continue
+                    
+                    group_id = group_batch[idx]
+                    
+                    # Handle successful responses
+                    if status == 200:
+                        # The $count endpoint returns plain text in the body
+                        body = response.get("body", "")
+                        try:
+                            # The batch API wraps the plain text response
+                            if isinstance(body, str):
+                                count = int(body.strip())
+                            elif isinstance(body, (int, float)):
+                                count = int(body)
+                            elif isinstance(body, dict):
+                                # Unexpected dict response - log for debugging
+                                print(f"⚠️  Unexpected dict response for group {group_id}: {body}", file=sys.stderr)
+                                batch_results[group_id] = 0
+                                continue
+                            else:
+                                # Other unexpected types
+                                print(f"⚠️  Unexpected body type {type(body)} for group {group_id}: {body}", file=sys.stderr)
+                                batch_results[group_id] = 0
+                                continue
+                            
+                            batch_results[group_id] = count
+                        except (ValueError, TypeError) as e:
+                            print(f"⚠️  Failed to parse count for group {group_id}: {e}, body: {body}", file=sys.stderr)
+                            batch_results[group_id] = 0
+                    elif status == 404:
+                        # Group not found
+                        batch_results[group_id] = 0
+                    else:
+                        # Other errors - log and use 0
+                        body = response.get("body", {})
+                        error_msg = body.get("error", {}).get("message", "Unknown error") if isinstance(body, dict) else str(body)
+                        print(f"⚠️  Batch request for group {group_id} failed with status {status}: {error_msg}", file=sys.stderr)
+                        batch_results[group_id] = 0
+                        
+            except Exception as e:
+                print(f"⚠️  Batch {batch_idx + 1}/{len(batches)} failed: {e}, falling back to individual requests", file=sys.stderr)
+                # Fallback to individual requests for this batch
+                for group_id in group_batch:
+                    try:
+                        count = self.fetch_group_member_count(group_id)
+                        batch_results[group_id] = count
+                    except Exception as e2:
+                        print(f"⚠️  Failed to fetch count for group {group_id}: {e2}", file=sys.stderr)
+                        batch_results[group_id] = 0
+            
+            return batch_results
+        
+        # Process batches in parallel using ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            future_to_batch = {
+                executor.submit(process_batch, batch_idx, group_batch): (batch_idx, group_batch)
+                for batch_idx, group_batch in enumerate(batches)
+            }
+            
+            for future in as_completed(future_to_batch):
+                batch_idx, group_batch = future_to_batch[future]
+                try:
+                    batch_results = future.result()
+                    
+                    # Update results and cache with thread safety
+                    with results_lock:
+                        results.update(batch_results)
+                    
+                    with self._group_member_count_cache_lock:
+                        self.group_member_count_cache.update(batch_results)
+                        
+                except Exception as e:
+                    print(f"⚠️  Unexpected error processing batch {batch_idx + 1}: {e}", file=sys.stderr)
+        
+        # Merge results with cached values to return all requested group_ids
+        final_results = {}
+        for gid in group_ids:
+            if gid in results:
+                final_results[gid] = results[gid]
+            elif gid in self.group_member_count_cache:
+                final_results[gid] = self.group_member_count_cache[gid]
+            else:
+                final_results[gid] = 0
+        
+        return final_results
 
     def fetch_all_data_for_sp(self, sp: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -3212,6 +3443,27 @@ class OidSeeCollector:
         stage_start = time.time()
         self.fetch_role_definitions(self._role_def_ids_needed)
         print(f"  ✓ Completed in {time.time() - stage_start:.2f}s", file=sys.stderr)
+        
+        # Fetch group member counts for assigned groups
+        print("→ Fetching group member counts for assigned groups...", file=sys.stderr)
+        stage_start = time.time()
+        group_ids_to_fetch = set()
+        for assignments in assigned_to_by_sp.values():
+            for a in assignments:
+                pid = a.get("principalId")
+                if pid:
+                    pobj = self.dir_cache.get(pid)
+                    if pobj:
+                        otype = (pobj.get("@odata.type") or "").lower()
+                        if "group" in otype:
+                            group_ids_to_fetch.add(pid)
+        
+        if group_ids_to_fetch:
+            # Fetch group member counts using batched API (up to 20 per batch) with multi-threading
+            self.fetch_group_member_counts_batched(list(group_ids_to_fetch))
+            print(f"  ✓ Fetched member counts for {len(group_ids_to_fetch)} groups in {time.time() - stage_start:.2f}s", file=sys.stderr)
+        else:
+            print(f"  ✓ No groups assigned, skipping group member count fetch", file=sys.stderr)
 
         # Second pass: emit nodes and edges
         print("→ Emitting nodes and edges...", file=sys.stderr)
@@ -3345,6 +3597,7 @@ class OidSeeCollector:
                 reply_url_enrichment,
                 app_ownership,
                 self._role_defs,
+                self.group_member_count_cache,
             )
             
             # Check for identity laundering signals
