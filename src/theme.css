@@ -2268,6 +2268,37 @@ body{
   background: linear-gradient(135deg, rgba(255,204,0,0.08) 0%, rgba(255,204,0,0.02) 100%);
 }
 
+.dashboard-card--posture {
+  grid-column: span 2;
+}
+
+.dashboard-card--posture-hardened {
+  border-color: rgba(40,167,69,0.4);
+  background: linear-gradient(135deg, rgba(40,167,69,0.08) 0%, rgba(40,167,69,0.02) 100%);
+}
+
+.dashboard-card--posture-moderate {
+  border-color: rgba(23,162,184,0.4);
+  background: linear-gradient(135deg, rgba(23,162,184,0.08) 0%, rgba(23,162,184,0.02) 100%);
+}
+
+.dashboard-card--posture-permissive {
+  border-color: rgba(255,193,7,0.4);
+  background: linear-gradient(135deg, rgba(255,193,7,0.08) 0%, rgba(255,193,7,0.02) 100%);
+}
+
+.dashboard-card--posture-unknown {
+  border-color: rgba(108,117,125,0.4);
+  background: linear-gradient(135deg, rgba(108,117,125,0.08) 0%, rgba(108,117,125,0.02) 100%);
+}
+
+.dashboard-card__sublabel {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+
 .dashboard-card__header {
   display: flex;
   align-items: center;

@@ -8,6 +8,15 @@ type DashboardViewProps = {
   onSelection?: (selection: Selection) => void
 }
 
+type TenantPosture = {
+  collectionAttempted: boolean
+  skippedReason?: string
+  guestAccess?: string
+  crossTenantDefaultStance?: string
+  postureRating?: string
+  error?: string
+}
+
 type Statistics = {
   totalNodes: number
   totalEdges: number
@@ -18,6 +27,7 @@ type Statistics = {
   avgRiskScore: number
   highRiskNodes: number
   criticalRiskNodes: number
+  tenantPosture: TenantPosture | null
   tierExposure: {
     tier0Count: number
     tier1Count: number
@@ -133,6 +143,23 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
       }
     }
 
+    // Extract tenant posture if available
+    let tenantPosture: TenantPosture | null = null
+    for (const node of nodes) {
+      if (node.type === 'TenantPolicy' && 
+          node.properties?.policyType === 'externalIdentityPosture') {
+        tenantPosture = {
+          collectionAttempted: node.properties.collectionAttempted ?? false,
+          skippedReason: node.properties.skippedReason,
+          guestAccess: node.properties.guestAccess,
+          crossTenantDefaultStance: node.properties.crossTenantDefaultStance,
+          postureRating: node.properties.postureRating,
+          error: node.properties.error,
+        }
+        break
+      }
+    }
+
     return {
       totalNodes: nodes.length,
       totalEdges: edges.length,
@@ -143,6 +170,7 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
       avgRiskScore,
       highRiskNodes: riskDistribution.high,
       criticalRiskNodes: riskDistribution.critical,
+      tenantPosture,
       tierExposure,
     }
   }, [nodes, edges])
@@ -205,6 +233,31 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
             <div className="dashboard-card__label">Average Risk Score</div>
           </div>
         </div>
+
+        {/* Tenant Posture Card */}
+        {stats.tenantPosture && stats.tenantPosture.collectionAttempted && (
+          <div className={`dashboard-card dashboard-card--posture dashboard-card--posture-${stats.tenantPosture.postureRating || 'unknown'}`}>
+            <div className="dashboard-card__icon">
+              {stats.tenantPosture.postureRating === 'hardened' && '🛡️'}
+              {stats.tenantPosture.postureRating === 'moderate' && '⚖️'}
+              {stats.tenantPosture.postureRating === 'permissive' && '⚠️'}
+              {!stats.tenantPosture.postureRating && '❓'}
+            </div>
+            <div className="dashboard-card__content">
+              <div className="dashboard-card__value">
+                {(stats.tenantPosture.postureRating || 'unknown').charAt(0).toUpperCase() + 
+                 (stats.tenantPosture.postureRating || 'unknown').slice(1)}
+              </div>
+              <div className="dashboard-card__label">External Identity Posture</div>
+              <div className="dashboard-card__sublabel">
+                Guest: {(stats.tenantPosture.guestAccess || 'unknown').charAt(0).toUpperCase() + 
+                        (stats.tenantPosture.guestAccess || 'unknown').slice(1)} | 
+                Cross-Tenant: {(stats.tenantPosture.crossTenantDefaultStance || 'unknown').charAt(0).toUpperCase() + 
+                               (stats.tenantPosture.crossTenantDefaultStance || 'unknown').slice(1)}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Privilege Tier Exposure */}
         <div className="dashboard-section dashboard-section--span-2">
