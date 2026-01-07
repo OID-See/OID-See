@@ -2776,6 +2776,132 @@ class OidSeeCollector:
             # Return 0 on error rather than using the old hardcoded approximation
             # This ensures we don't inflate counts on errors
             return 0
+    
+    def fetch_group_member_counts_batched(self, group_ids: List[str]) -> Dict[str, int]:
+        """
+        Fetch member counts for multiple groups using Graph API batching.
+        This is significantly faster than individual requests as it combines up to 20 requests
+        into a single HTTP call.
+        
+        Uses multi-threading to execute batches in parallel for maximum performance.
+        
+        Args:
+            group_ids: List of group IDs to fetch member counts for
+            
+        Returns:
+            Dict mapping group_id to member count
+        """
+        # Filter out already cached groups
+        uncached_groups = [gid for gid in group_ids if gid not in self.group_member_count_cache]
+        
+        if not uncached_groups:
+            return self.group_member_count_cache
+        
+        results = {}
+        results_lock = Lock()
+        
+        # Batch API supports up to 20 requests per batch
+        batch_size = 20
+        batches = [uncached_groups[i:i+batch_size] for i in range(0, len(uncached_groups), batch_size)]
+        
+        print(f"  Using Graph API batching: {len(batches)} batches of up to {batch_size} groups each", file=sys.stderr)
+        
+        def process_batch(batch_idx: int, group_batch: List[str]) -> Dict[str, int]:
+            """Process a single batch of group member count requests."""
+            batch_results = {}
+            
+            # Build batch requests for $count endpoint
+            batch_requests = []
+            for idx, group_id in enumerate(group_batch):
+                batch_requests.append({
+                    "id": str(idx + 1),
+                    "method": "GET",
+                    "url": f"/groups/{group_id}/transitiveMembers/$count",
+                    "headers": {
+                        "ConsistencyLevel": "eventual"
+                    }
+                })
+            
+            try:
+                # Execute batch request using v1.0 API
+                responses = self.graph.batch(batch_requests, api_version="v1.0")
+                
+                # Process responses
+                for response in responses:
+                    req_id = response.get("id")
+                    status = response.get("status", 0)
+                    
+                    # Map request ID back to group ID
+                    idx = int(req_id) - 1
+                    if idx < 0 or idx >= len(group_batch):
+                        continue
+                    
+                    group_id = group_batch[idx]
+                    
+                    # Handle successful responses
+                    if status == 200:
+                        # The $count endpoint returns plain text in the body
+                        body = response.get("body", "")
+                        try:
+                            # The batch API wraps the plain text response
+                            if isinstance(body, str):
+                                count = int(body.strip())
+                            elif isinstance(body, (int, float)):
+                                count = int(body)
+                            else:
+                                # If body is a dict, it might have the count in a field
+                                count = int(str(body).strip())
+                            
+                            batch_results[group_id] = count
+                        except (ValueError, TypeError) as e:
+                            print(f"⚠️  Failed to parse count for group {group_id}: {e}, body: {body}", file=sys.stderr)
+                            batch_results[group_id] = 0
+                    elif status == 404:
+                        # Group not found
+                        batch_results[group_id] = 0
+                    else:
+                        # Other errors - log and use 0
+                        body = response.get("body", {})
+                        error_msg = body.get("error", {}).get("message", "Unknown error") if isinstance(body, dict) else str(body)
+                        print(f"⚠️  Batch request for group {group_id} failed with status {status}: {error_msg}", file=sys.stderr)
+                        batch_results[group_id] = 0
+                        
+            except Exception as e:
+                print(f"⚠️  Batch {batch_idx + 1}/{len(batches)} failed: {e}, falling back to individual requests", file=sys.stderr)
+                # Fallback to individual requests for this batch
+                for group_id in group_batch:
+                    try:
+                        count = self.fetch_group_member_count(group_id)
+                        batch_results[group_id] = count
+                    except Exception as e2:
+                        print(f"⚠️  Failed to fetch count for group {group_id}: {e2}", file=sys.stderr)
+                        batch_results[group_id] = 0
+            
+            return batch_results
+        
+        # Process batches in parallel using ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            future_to_batch = {
+                executor.submit(process_batch, batch_idx, group_batch): (batch_idx, group_batch)
+                for batch_idx, group_batch in enumerate(batches)
+            }
+            
+            for future in as_completed(future_to_batch):
+                batch_idx, group_batch = future_to_batch[future]
+                try:
+                    batch_results = future.result()
+                    
+                    # Update results and cache with thread safety
+                    with results_lock:
+                        results.update(batch_results)
+                    
+                    with self._group_member_count_cache_lock:
+                        self.group_member_count_cache.update(batch_results)
+                        
+                except Exception as e:
+                    print(f"⚠️  Unexpected error processing batch {batch_idx + 1}: {e}", file=sys.stderr)
+        
+        return results
 
     def fetch_all_data_for_sp(self, sp: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -3315,12 +3441,8 @@ class OidSeeCollector:
                             group_ids_to_fetch.add(pid)
         
         if group_ids_to_fetch:
-            # Fetch group member counts in parallel
-            with ThreadPoolExecutor(max_workers=10) as executor:
-                future_to_group = {executor.submit(self.fetch_group_member_count, gid): gid for gid in group_ids_to_fetch}
-                for future in as_completed(future_to_group):
-                    # Results are cached in the method, no need to store here
-                    pass
+            # Fetch group member counts using batched API (up to 20 per batch) with multi-threading
+            self.fetch_group_member_counts_batched(list(group_ids_to_fetch))
             print(f"  ✓ Fetched member counts for {len(group_ids_to_fetch)} groups in {time.time() - stage_start:.2f}s", file=sys.stderr)
         else:
             print(f"  ✓ No groups assigned, skipping group member count fetch", file=sys.stderr)
