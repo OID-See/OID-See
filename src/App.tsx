@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { GraphCanvas, Selection, GraphCanvasHandle, PhysicsConfig, DEFAULT_PHYSICS } from './components/GraphCanvas'
-import { toVisData, toVisDataAsync, VisData, ProgressCallback } from './adapters/toVisData'
+import { toVisData, toVisDataAsync, toVisDataLightweight, VisData, ProgressCallback } from './adapters/toVisData'
 import sampleObj from './samples/sample-oidsee-graph.json'
 import { DetailsPanel } from './components/DetailsPanel'
 import { FilterBar, Lens } from './components/FilterBar'
@@ -620,17 +620,17 @@ export default function App() {
         )
       }
       
-      // PRIORITY 1: Prepare full dataset for alternative views (dashboard, table, tree, matrix)
-      // These views work directly with OidSee format - NO conversion needed!
-      // This eliminates the expensive toVisData conversion for 29k+ nodes
+      // PRIORITY 1: Convert dataset for alternative views (dashboard, table, tree, matrix)
+      // Use lightweight conversion that only creates {id, __oidsee} objects
+      // Alternative views extract OidSee data from __oidsee, don't need vis-network properties
       console.log('[OID-See] 🎨 Preparing data for dashboard and alternative views...')
       setLoadingProgress('Preparing dashboard view...')
       await yieldToEventLoop()
       
       const originalVisStartTime = performance.now()
-      // Alternative views use the original OidSee format directly - no conversion needed!
-      // This is much faster than converting 29k nodes to vis-network format
-      const originalVis = { nodes: parsed.nodes, edges: parsed.edges || [] }
+      // Use lightweight conversion for alternative views - much faster!
+      // Only creates minimal {id, __oidsee} objects instead of full vis-network format
+      const originalVis = toVisDataLightweight(parsed)
       const originalVisTime = performance.now() - originalVisStartTime
       console.log('[OID-See] ✅ Alternative views data ready:', {
         duration: `${originalVisTime.toFixed(0)}ms`,

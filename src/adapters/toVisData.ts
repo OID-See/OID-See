@@ -12,6 +12,43 @@ function formatProgress(type: string, processed: number, total: number): string 
   return `Processing ${type}: ${processed.toLocaleString()} / ${total.toLocaleString()}`
 }
 
+/**
+ * Lightweight conversion for alternative views (dashboard, table, tree, matrix)
+ * Only creates minimal VisData objects with id and __oidsee
+ * Skips all vis-network specific properties since alternative views only use __oidsee
+ * This is much faster than full toVisData conversion for large datasets
+ */
+export function toVisDataLightweight(input: any): VisData {
+  if (isOidSeeExport(input)) {
+    const exp = input as OidSeeExport
+    console.log('[toVisData] 🚀 Lightweight conversion for alternative views:', {
+      nodes: exp.nodes.length,
+      edges: exp.edges.length
+    })
+    
+    // Create minimal node objects - just id and __oidsee
+    // Alternative views extract OidSee data from __oidsee property
+    const visNodes = exp.nodes.map(n => ({
+      id: n.id,
+      __oidsee: n
+    }))
+    
+    // Create minimal edge objects - just id and __oidsee
+    const visEdges = exp.edges.map(e => ({
+      id: e.id,
+      __oidsee: e
+    }))
+    
+    return { nodes: visNodes, edges: visEdges }
+  }
+  
+  if (input && typeof input === 'object' && Array.isArray((input as any).nodes) && Array.isArray((input as any).edges)) {
+    return { nodes: (input as any).nodes, edges: (input as any).edges }
+  }
+  
+  throw new Error('Unsupported JSON format. Expected an OID-See export (format.name="oidsee-graph") or a {nodes, edges} object.')
+}
+
 // Custom double-circle renderer for group nodes
 function doubleCircleRenderer({ ctx, x, y, state, style }: any) {
   try {
