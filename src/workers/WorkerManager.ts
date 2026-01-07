@@ -88,18 +88,39 @@ export class WorkerManager {
   /**
    * Execute a task in the worker
    */
-  async execute<T = any>(
+  async execute<T = unknown>(
     taskType: string, 
-    payload: any, 
+    payload: unknown, 
     onProgress?: ProgressCallback
   ): Promise<T> {
-    if (!this.worker) {
-      await this.initialize()
+    const { promise } = this.executeTracked<T>(taskType, payload, onProgress)
+    return promise
+  }
+
+  /**
+   * Execute a task in the worker and return both the promise and task ID
+   * Use this when you need to track or cancel the task
+   */
+  executeTracked<T = unknown>(
+    taskType: string, 
+    payload: unknown, 
+    onProgress?: ProgressCallback
+  ): { promise: Promise<T>; taskId: string } {
+    if (!this.worker && this.workerUrl) {
+      // Auto-initialize if we have a workerUrl
+      const initPromise = this.initialize().then(() => 
+        this.executeTracked<T>(taskType, payload, onProgress)
+      )
+      // Return a temporary task ID that will be replaced
+      return {
+        promise: initPromise.then(r => r.promise),
+        taskId: 'pending-init'
+      }
     }
 
     const taskId = this.generateTaskId()
     
-    return new Promise((resolve, reject) => {
+    const promise = new Promise<T>((resolve, reject) => {
       // Store callbacks
       this.callbacks.set(taskId, {
         resolve,
@@ -129,6 +150,8 @@ export class WorkerManager {
       // Update task status
       task.status = 'running'
     })
+    
+    return { promise, taskId }
   }
 
   /**

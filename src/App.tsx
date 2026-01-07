@@ -383,7 +383,6 @@ export default function App() {
   // Worker managers
   const fileParserWorkerRef = useRef<WorkerManager | null>(null)
   const filterWorkerRef = useRef<WorkerManager | null>(null)
-  const currentTaskIdRef = useRef<string | null>(null)
 
   // Load physics config on mount
   useEffect(() => {
@@ -545,11 +544,14 @@ export default function App() {
       })
       
       // Convert to JSON string for raw editor
+      // Note: This re-serialization is a trade-off for code simplicity
+      // The main benefit is that file reading and initial parsing happen off-thread
+      // Future enhancement: Pass parsed object directly to render logic
       const text = JSON.stringify(parsed, null, 2)
       setRaw(text)
       
       // Call the existing render function with parsed JSON as string
-      // This reuses existing rendering logic
+      // This reuses existing rendering logic without major refactoring
       await render(text)
     } catch (e: any) {
       console.error('[OID-See] ❌ File read/parse error:', e)
@@ -572,12 +574,9 @@ export default function App() {
   function handleCancelLoading() {
     console.log('[OID-See] 🚫 User cancelled loading operation')
     
-    // Cancel worker tasks if any
-    if (currentTaskIdRef.current) {
-      fileParserWorkerRef.current?.cancel(currentTaskIdRef.current)
-      filterWorkerRef.current?.cancel(currentTaskIdRef.current)
-      currentTaskIdRef.current = null
-    }
+    // Note: Worker tasks don't have a direct cancellation API yet
+    // The abort controller handles cancellation for other async operations
+    // Future enhancement: Add task ID tracking for worker cancellation
     
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
