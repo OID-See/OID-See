@@ -31,6 +31,11 @@ def mock_directory_cache_with_principals(principals: Dict[str, Dict[str, Any]]):
     return MockCache(principals)
 
 
+def get_scoring_weight(reason_code: str) -> int:
+    """Helper function to retrieve scoring weight for a reason code from config."""
+    return SCORING_CONFIG.get("compute_risk_for_sp", {}).get("scoring_contributors", {}).get(reason_code, {}).get("weight", 0)
+
+
 def test_no_owners_no_penalty():
     """Test that apps with no owners do not receive a risk penalty."""
     print("\n=== Testing NO OWNERS (No Penalty) ===")
@@ -118,7 +123,7 @@ def test_user_owners_adds_risk():
     user_owners_found = any(r["code"] == "HAS_OWNERS_USER" for r in risk_user_owners["reasons"])
     if user_owners_found:
         user_owners_weight = next(r["weight"] for r in risk_user_owners["reasons"] if r["code"] == "HAS_OWNERS_USER")
-        expected_weight = SCORING_CONFIG.get("compute_risk_for_sp", {}).get("scoring_contributors", {}).get("HAS_OWNERS_USER", {}).get("weight", 15)
+        expected_weight = get_scoring_weight("HAS_OWNERS_USER")
         if user_owners_weight == expected_weight:
             print(f"✓ PASS: HAS_OWNERS_USER adds {user_owners_weight} points")
         else:
@@ -174,7 +179,7 @@ def test_sp_owners_adds_lower_risk():
     sp_owners_found = any(r["code"] == "HAS_OWNERS_SP" for r in risk_sp_owners["reasons"])
     if sp_owners_found:
         sp_owners_weight = next(r["weight"] for r in risk_sp_owners["reasons"] if r["code"] == "HAS_OWNERS_SP")
-        expected_weight = SCORING_CONFIG.get("compute_risk_for_sp", {}).get("scoring_contributors", {}).get("HAS_OWNERS_SP", {}).get("weight", 8)
+        expected_weight = get_scoring_weight("HAS_OWNERS_SP")
         if sp_owners_weight == expected_weight:
             print(f"✓ PASS: HAS_OWNERS_SP adds {sp_owners_weight} points")
         else:
@@ -185,8 +190,8 @@ def test_sp_owners_adds_lower_risk():
         return False
     
     # Verify that SP owner weight is less than user owner weight
-    user_owner_weight = SCORING_CONFIG.get("compute_risk_for_sp", {}).get("scoring_contributors", {}).get("HAS_OWNERS_USER", {}).get("weight", 15)
-    sp_owner_weight = SCORING_CONFIG.get("compute_risk_for_sp", {}).get("scoring_contributors", {}).get("HAS_OWNERS_SP", {}).get("weight", 8)
+    user_owner_weight = get_scoring_weight("HAS_OWNERS_USER")
+    sp_owner_weight = get_scoring_weight("HAS_OWNERS_SP")
     if sp_owner_weight < user_owner_weight:
         print(f"✓ PASS: SP owner weight ({sp_owner_weight}) is less than user owner weight ({user_owner_weight})")
     else:
@@ -291,7 +296,7 @@ def test_unknown_owner_type():
     unknown_owners_found = any(r["code"] == "HAS_OWNERS_UNKNOWN" for r in risk_unknown_owner["reasons"])
     if unknown_owners_found:
         unknown_weight = next(r["weight"] for r in risk_unknown_owner["reasons"] if r["code"] == "HAS_OWNERS_UNKNOWN")
-        expected_weight = SCORING_CONFIG.get("compute_risk_for_sp", {}).get("scoring_contributors", {}).get("HAS_OWNERS_UNKNOWN", {}).get("weight", 5)
+        expected_weight = get_scoring_weight("HAS_OWNERS_UNKNOWN")
         if unknown_weight == expected_weight:
             print(f"✓ PASS: HAS_OWNERS_UNKNOWN adds {unknown_weight} points")
         else:

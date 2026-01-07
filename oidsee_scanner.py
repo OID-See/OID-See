@@ -1848,6 +1848,44 @@ def _create_enrichment_summary(enrichment_data: Optional[Dict[str, Any]], domain
     return summary
 
 
+def categorize_owners_by_type(owners: List[Dict[str, Any]], dir_cache) -> Dict[str, int]:
+    """
+    Categorize owners by principal type.
+    
+    Returns a dictionary with counts:
+    - 'user': Count of user principal owners
+    - 'sp': Count of service principal owners
+    - 'unknown': Count of other/unknown owner types
+    """
+    user_count = 0
+    sp_count = 0
+    unknown_count = 0
+    
+    for owner in owners:
+        owner_id = owner.get("id")
+        if not owner_id:
+            unknown_count += 1
+            continue
+        
+        # Resolve owner object to get @odata.type
+        owner_obj = dir_cache.get(owner_id) if dir_cache else None
+        otype = (owner_obj.get("@odata.type") or "").lower() if owner_obj else ""
+        
+        if "user" in otype:
+            user_count += 1
+        elif "serviceprincipal" in otype:
+            sp_count += 1
+        else:
+            # Groups, directory roles, or unknown
+            unknown_count += 1
+    
+    return {
+        'user': user_count,
+        'sp': sp_count,
+        'unknown': unknown_count
+    }
+
+
 def compute_risk_for_sp(
     sp: Dict[str, Any],
     has_impersonation: bool,
@@ -2271,28 +2309,11 @@ def compute_risk_for_sp(
     # HAS_OWNERS (ownership as risk factor)
     # Ownership grants change authority over app/SP objects, increasing mutation risk
     if owners and len(owners) > 0:
-        user_count = 0
-        sp_count = 0
-        unknown_count = 0
-        
-        # Categorize owners by type using directory cache
-        for owner in owners:
-            owner_id = owner.get("id")
-            if not owner_id:
-                unknown_count += 1
-                continue
-            
-            # Resolve owner object to get @odata.type
-            owner_obj = dir_cache.get(owner_id) if dir_cache else None
-            otype = (owner_obj.get("@odata.type") or "").lower() if owner_obj else ""
-            
-            if "user" in otype:
-                user_count += 1
-            elif "serviceprincipal" in otype:
-                sp_count += 1
-            else:
-                # Groups, directory roles, or unknown
-                unknown_count += 1
+        # Categorize owners by type using helper function
+        owner_counts = categorize_owners_by_type(owners, dir_cache)
+        user_count = owner_counts['user']
+        sp_count = owner_counts['sp']
+        unknown_count = owner_counts['unknown']
         
         # Add risk reasons based on owner types present
         if user_count > 0:
@@ -3674,31 +3695,12 @@ class OidSeeCollector:
             # Compute ownership insights
             ownership_insights = None
             if owners:
-                user_owners = 0
-                sp_owners = 0
-                unknown_owners = 0
-                
-                for owner in owners:
-                    owner_id = owner.get("id")
-                    if not owner_id:
-                        unknown_owners += 1
-                        continue
-                    
-                    owner_obj = self.dir_cache.get(owner_id)
-                    otype = (owner_obj.get("@odata.type") or "").lower() if owner_obj else ""
-                    
-                    if "user" in otype:
-                        user_owners += 1
-                    elif "serviceprincipal" in otype:
-                        sp_owners += 1
-                    else:
-                        unknown_owners += 1
-                
+                owner_counts = categorize_owners_by_type(owners, self.dir_cache)
                 ownership_insights = {
                     "totalOwners": len(owners),
-                    "userOwners": user_owners,
-                    "spOwners": sp_owners,
-                    "unknownOwners": unknown_owners,
+                    "userOwners": owner_counts['user'],
+                    "spOwners": owner_counts['sp'],
+                    "unknownOwners": owner_counts['unknown'],
                 }
             
             props = {
