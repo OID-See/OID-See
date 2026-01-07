@@ -1848,6 +1848,44 @@ def _create_enrichment_summary(enrichment_data: Optional[Dict[str, Any]], domain
     return summary
 
 
+def categorize_owners_by_type(owners: List[Dict[str, Any]], dir_cache) -> Dict[str, int]:
+    """
+    Categorize owners by principal type.
+    
+    Returns a dictionary with counts:
+    - 'user': Count of user principal owners
+    - 'sp': Count of service principal owners
+    - 'unknown': Count of other/unknown owner types
+    """
+    user_count = 0
+    sp_count = 0
+    unknown_count = 0
+    
+    for owner in owners:
+        owner_id = owner.get("id")
+        if not owner_id:
+            unknown_count += 1
+            continue
+        
+        # Resolve owner object to get @odata.type
+        owner_obj = dir_cache.get(owner_id) if dir_cache else None
+        otype = (owner_obj.get("@odata.type") or "").lower() if owner_obj else ""
+        
+        if "user" in otype:
+            user_count += 1
+        elif "serviceprincipal" in otype:
+            sp_count += 1
+        else:
+            # Groups, directory roles, or unknown
+            unknown_count += 1
+    
+    return {
+        'user': user_count,
+        'sp': sp_count,
+        'unknown': unknown_count
+    }
+
+
 def compute_risk_for_sp(
     sp: Dict[str, Any],
     has_impersonation: bool,
@@ -2268,17 +2306,48 @@ def compute_risk_for_sp(
             "weight": weight,
         })
 
-    # NO_OWNERS
-    if owners is None or len(owners) == 0:
-        no_owners_config = contributors.get("NO_OWNERS", {})
-        weight = no_owners_config.get("weight", 15)
-        description = no_owners_config.get("description", "No owners found for application")
-        score += weight
-        reasons.append({
-            "code": "NO_OWNERS",
-            "message": description,
-            "weight": weight,
-        })
+    # HAS_OWNERS (ownership as risk factor)
+    # Ownership grants change authority over app/SP objects, increasing mutation risk
+    if owners and len(owners) > 0:
+        # Categorize owners by type using helper function
+        owner_counts = categorize_owners_by_type(owners, dir_cache)
+        user_count = owner_counts['user']
+        sp_count = owner_counts['sp']
+        unknown_count = owner_counts['unknown']
+        
+        # Add risk reasons based on owner types present
+        if user_count > 0:
+            user_config = contributors.get("HAS_OWNERS_USER", {})
+            weight = user_config.get("weight", 15)
+            description = user_config.get("description", "Application has user principal owners")
+            score += weight
+            reasons.append({
+                "code": "HAS_OWNERS_USER",
+                "message": f"{description} (count: {user_count})",
+                "weight": weight,
+            })
+        
+        if sp_count > 0:
+            sp_config = contributors.get("HAS_OWNERS_SP", {})
+            weight = sp_config.get("weight", 8)
+            description = sp_config.get("description", "Application has service principal owners")
+            score += weight
+            reasons.append({
+                "code": "HAS_OWNERS_SP",
+                "message": f"{description} (count: {sp_count})",
+                "weight": weight,
+            })
+        
+        if unknown_count > 0:
+            unknown_config = contributors.get("HAS_OWNERS_UNKNOWN", {})
+            weight = unknown_config.get("weight", 5)
+            description = unknown_config.get("description", "Application has owners of unknown or other types")
+            score += weight
+            reasons.append({
+                "code": "HAS_OWNERS_UNKNOWN",
+                "message": f"{description} (count: {unknown_count})",
+                "weight": weight,
+            })
 
     # GOVERNANCE
     if requires_assignment is False:
@@ -3623,6 +3692,17 @@ class OidSeeCollector:
             password_creds_value = sp.get("passwordCredentials")
             password_creds_safe = password_creds_value if isinstance(password_creds_value, list) else []
             
+            # Compute ownership insights
+            ownership_insights = None
+            if owners:
+                owner_counts = categorize_owners_by_type(owners, self.dir_cache)
+                ownership_insights = {
+                    "totalOwners": len(owners),
+                    "userOwners": owner_counts['user'],
+                    "spOwners": owner_counts['sp'],
+                    "unknownOwners": owner_counts['unknown'],
+                }
+            
             props = {
                 "servicePrincipalId": sp_id,
                 "appId": sp.get("appId"),
@@ -3654,6 +3734,7 @@ class OidSeeCollector:
                 "publicClientIndicators": public_client_indicators,
                 "platformSignals": platform_signals,
                 "trustSignals": trust_signals,
+                "ownershipInsights": ownership_insights,
                 # Non-Graph data placeholders (WHOIS/DNS - not populated by Graph-only scanner)
                 "domainWhois": None,
                 "dnsRecords": None,

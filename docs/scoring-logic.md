@@ -5,7 +5,7 @@
 The OID-See scoring system provides comprehensive risk assessment for service principals and applications in your Entra ID tenant. Scores range from 0-100 and are mapped to risk levels: Info, Low, Medium, High, and Critical.
 
 **Risk Reason Codes**: Each service principal's risk score includes a `reasons` array with specific risk contributors. Each reason has:
-- `code`: The risk factor identifier (e.g., `NO_OWNERS`, `HAS_APP_ROLE`)
+- `code`: The risk factor identifier (e.g., `HAS_OWNERS_USER`, `HAS_APP_ROLE`)
 - `message`: Human-readable description
 - `weight`: Points contributed to the total score
 
@@ -271,12 +271,19 @@ Evaluates organizational factors and app lifecycle.
 ```mermaid
 flowchart TD
     A[Lifecycle Assessment] --> B{Has Owners?}
-    B -->|No| C[+15 NO_OWNERS]
-    B -->|Yes| D[Check Publisher]
+    B -->|Yes, User Owners| C[+15 HAS_OWNERS_USER]
+    B -->|Yes, SP Owners| D[+8 HAS_OWNERS_SP]
+    B -->|Yes, Unknown Owners| E[+5 HAS_OWNERS_UNKNOWN]
+    B -->|No| F[No Penalty]
     
-    D --> E{Verified Publisher?}
-    E -->|No| F[+6 UNVERIFIED_PUBLISHER]
-    E -->|Yes| G[Check Deception]
+    C --> G[Check Publisher]
+    D --> G
+    E --> G
+    F --> G
+    
+    G --> H{Verified Publisher?}
+    H -->|No| I[+6 UNVERIFIED_PUBLISHER]
+    H -->|Yes| J[Check Deception]
     
     F --> H{Name Mismatch?}
     H -->|Yes| I[+20 DECEPTION]
@@ -309,11 +316,29 @@ flowchart TD
     W -->|No| Y[End]
 ```
 
-#### NO_OWNERS (+15)
+#### HAS_OWNERS_USER (+15)
 
-**Description**: Application or service principal has no owners
+**Description**: Application or service principal has user principal owners
 
-**Risk Rationale**: Ownerless apps lack accountability and may be orphaned or forgotten. No one is responsible for lifecycle management, credential rotation, or security reviews.
+**Risk Rationale**: Ownership represents change authority over the application/service principal object. User owners introduce higher mutation risk than service principal owners or no owners, as users have broader access patterns and can modify the app configuration. This is based on Glenn Van Rymenant's analysis ([Entra ID Application Ownership Risks & Problems](https://www.appgovscore.com/blog/entra-id-application-ownership-risks-problems)) which explains that ownership is a risk factor, not a security control.
+
+#### HAS_OWNERS_SP (+8)
+
+**Description**: Application or service principal has service principal owners
+
+**Risk Rationale**: Service principal owners provide change authority but represent lower risk than user owners due to more constrained access patterns and typically better controlled lifecycle management.
+
+#### HAS_OWNERS_UNKNOWN (+5)
+
+**Description**: Application or service principal has owners of unknown or other types (groups, directory roles)
+
+**Risk Rationale**: Group or directory role owners introduce moderate change authority risk, though the actual risk depends on the membership and permissions of these principals.
+
+#### NO_OWNERS (DEPRECATED, +0)
+
+**Description**: This reason code is deprecated and no longer adds risk. Applications with no owners are now treated neutrally.
+
+**Historical Context**: Previously, applications without owners were penalized (+15 points). This was based on an incorrect assumption that ownership provides accountability. Research by Glenn Van Rymenant demonstrated that ownership actually represents change authority over trusted identity objects, making it a risk factor rather than a security control.
 
 #### UNVERIFIED_PUBLISHER (+6)
 
@@ -626,7 +651,7 @@ flowchart LR
 - Assignments: Broad reachability (no assignment required)
 - Reply URLs: `https://app.example.com`, `https://phishing-site.com/callback`
 - Credentials: 1 password secret (400 days old)
-- Owners: None
+- Owners: 1 user owner
 - Governance: None
 
 **Score Calculation**:
@@ -641,7 +666,7 @@ Exposure:
   GOVERNANCE (no assignment required)             +5
 
 Governance & Lifecycle:
-  NO_OWNERS                                       +15
+  HAS_OWNERS_USER                                 +15
   UNVERIFIED_PUBLISHER                            +6
   DECEPTION (name mismatch)                       +20
   REPLYURL_OUTLIER_DOMAIN (phishing-site.com)    +10
@@ -661,7 +686,7 @@ Total: 158 → Clamped to 100 → CRITICAL
   {"code": "HAS_PRIVILEGED_SCOPES", "weight": 20, "message": "Privileged delegated scopes (ReadWrite)"},
   {"code": "HAS_TOO_MANY_SCOPES", "weight": 15, "message": "Overly broad consent (.All scopes)"},
   {"code": "GOVERNANCE", "weight": 5, "message": "Assignments not required for app"},
-  {"code": "NO_OWNERS", "weight": 15, "message": "No owners assigned"},
+  {"code": "HAS_OWNERS_USER", "weight": 15, "message": "Application has user principal owners (count: 1)"},
   {"code": "UNVERIFIED_PUBLISHER", "weight": 6, "message": "Unverified publisher"},
   {"code": "DECEPTION", "weight": 20, "message": "Name mismatch with unverified publisher"},
   {"code": "REPLYURL_OUTLIER_DOMAIN", "weight": 10, "message": "Reply URLs use non-aligned domains"},
@@ -680,7 +705,7 @@ Total: 158 → Clamped to 100 → CRITICAL
 - Assignments: 25 users (HR group)
 - Reply URLs: `https://hr.contoso.com/callback`
 - Credentials: Certificate (expires in 90 days)
-- Owners: 2 admins
+- Owners: 1 service principal owner
 
 **Score Calculation**:
 
@@ -692,7 +717,7 @@ Exposure:
   ASSIGNED_TO (25 users)                          +15
 
 Lifecycle:
-  (No negative factors)                           +0
+  HAS_OWNERS_SP                                   +8
 
 Credential Hygiene:
   (No issues)                                     +0
@@ -700,14 +725,15 @@ Credential Hygiene:
 Reply URL Anomalies:
   (No issues)                                     +0
 
-Final Score: 23 → LOW
+Final Score: 31 → LOW
 ```
 
 **Risk Reasons**:
 ```json
 [
   {"code": "OFFLINE_ACCESS_PERSISTENCE", "weight": 8, "message": "offline_access delegated grant allows refresh tokens"},
-  {"code": "ASSIGNED_TO", "weight": 15, "message": "App is assigned to principals approximating ~25 users"}
+  {"code": "ASSIGNED_TO", "weight": 15, "message": "App is assigned to principals approximating ~25 users"},
+  {"code": "HAS_OWNERS_SP", "weight": 8, "message": "Application has service principal owners (count: 1)"}
 ]
 ```
 
@@ -754,8 +780,10 @@ To adjust risk weights, edit `scoring_logic.json`:
 - **Investigation**: Review permissions, ownership, and credentials
 
 ### 3. Ownership Management
-- **Assign Owners**: Ensure all apps have proper ownership
-- **Effect**: Prevents +15 point NO_OWNERS penalty
+- **Review Owners**: Applications with owners (especially user owners) represent change authority risk
+- **Best Practice**: Prefer service principal owners over user owners where possible to reduce mutation risk
+- **Context**: Per Glenn Van Rymenant's analysis, ownership is a risk factor (change authority) rather than a security control
+- **Effect**: User owners add +15, SP owners add +8, unknown owners add +5
 
 ### 4. Credential Hygiene
 - **Review**: Check for long-lived and expired secrets
@@ -765,11 +793,7 @@ To adjust risk weights, edit `scoring_logic.json`:
 - **Verification**: Work with vendors to get publisher verification
 - **Effect**: Reduces base risk by 6 points and prevents DECEPTION scoring
 
-### 6. Ownership
-- **Assignment**: Ensure all apps have designated owners
-- **Accountability**: Owners are responsible for lifecycle and security
-
-### 7. Least Privilege
+### 6. Least Privilege
 - **Permissions**: Review and reduce unnecessary permissions
 - **Impact**: Can reduce scores by 15-50 points depending on changes
 
