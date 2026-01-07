@@ -33,10 +33,13 @@ export function toVisDataLightweight(input: any): VisData {
       __oidsee: n
     }))
     
-    // Create minimal edge objects - just id and __oidsee
+    // Create minimal edge objects - id, from, to, and __oidsee
+    // Need from/to for filtering logic in applyQuery to work
     // Handle case where edges might be undefined or null
     const visEdges = (exp.edges || []).map(e => ({
       id: e.id,
+      from: e.from,
+      to: e.to,
       __oidsee: e
     }))
     
