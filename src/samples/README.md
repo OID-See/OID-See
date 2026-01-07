@@ -40,3 +40,12 @@ This directory contains sample OID-See export JSON files for testing and demonst
 ## Generating Custom Samples
 
 To generate additional test data, see the Python scripts in the repository's test utilities.
+
+## Note on Scoring Changes
+
+**Important:** These sample files may contain outdated risk reason codes (e.g., `NO_OWNERS`) from earlier versions of OID-See. The samples are functionally valid for testing graph visualization and structure, but risk scores and reason codes may not reflect the current scoring logic.
+
+To generate fresh samples with current scoring:
+1. Run `oidsee_scanner.py` against a test tenant
+2. Use the output as a new sample file
+3. Update this README with the new file characteristics
