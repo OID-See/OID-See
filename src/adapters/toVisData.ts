@@ -173,7 +173,7 @@ export async function toVisDataAsync(input: any, onProgress?: ProgressCallback, 
       YIELD_DELAY_MS = 8
     } else {
       // Very large datasets (15k+ items): maximum responsiveness
-      // For 29k nodes: 193 yields with 1.93s overhead
+      // For 29k nodes: 290 yields with 2.9s overhead
       BATCH_SIZE = 100
       YIELD_DELAY_MS = 10
     }
