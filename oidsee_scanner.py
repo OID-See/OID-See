@@ -2849,9 +2849,16 @@ class OidSeeCollector:
                                 count = int(body.strip())
                             elif isinstance(body, (int, float)):
                                 count = int(body)
+                            elif isinstance(body, dict):
+                                # Unexpected dict response - log for debugging
+                                print(f"⚠️  Unexpected dict response for group {group_id}: {body}", file=sys.stderr)
+                                batch_results[group_id] = 0
+                                continue
                             else:
-                                # If body is a dict, it might have the count in a field
-                                count = int(str(body).strip())
+                                # Other unexpected types
+                                print(f"⚠️  Unexpected body type {type(body)} for group {group_id}: {body}", file=sys.stderr)
+                                batch_results[group_id] = 0
+                                continue
                             
                             batch_results[group_id] = count
                         except (ValueError, TypeError) as e:
