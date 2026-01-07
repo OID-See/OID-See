@@ -4,9 +4,11 @@ interface LoadingOverlayProps {
   visible: boolean
   message?: string
   progress?: string // Progress status message
+  onCancel?: () => void // Optional cancel callback
+  showCancel?: boolean // Whether to show cancel button (default: false for first 5 seconds)
 }
 
-export function LoadingOverlay({ visible, message = 'Loading...', progress }: LoadingOverlayProps) {
+export function LoadingOverlay({ visible, message = 'Loading...', progress, onCancel, showCancel = false }: LoadingOverlayProps) {
   const [dots, setDots] = useState('')
 
   useEffect(() => {
@@ -64,10 +66,37 @@ export function LoadingOverlay({ visible, message = 'Loading...', progress }: Lo
             fontSize: '0.9rem',
             color: 'rgba(234, 242, 255, 0.7)',
             minHeight: '1.5rem',
+            marginBottom: showCancel && onCancel ? '1rem' : '0',
           }}
         >
           {progress || 'Processing large dataset...'}
         </div>
+        {showCancel && onCancel && (
+          <button
+            onClick={onCancel}
+            style={{
+              padding: '0.5rem 1.5rem',
+              fontSize: '0.9rem',
+              backgroundColor: 'rgba(255, 107, 107, 0.2)',
+              color: '#ff6b6b',
+              border: '1px solid rgba(255, 107, 107, 0.5)',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: 500,
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(255, 107, 107, 0.3)'
+              e.currentTarget.style.borderColor = 'rgba(255, 107, 107, 0.8)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(255, 107, 107, 0.2)'
+              e.currentTarget.style.borderColor = 'rgba(255, 107, 107, 0.5)'
+            }}
+          >
+            Cancel
+          </button>
+        )}
       </div>
     </div>
   )

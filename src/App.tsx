@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { GraphCanvas, Selection, GraphCanvasHandle, PhysicsConfig, DEFAULT_PHYSICS } from './components/GraphCanvas'
-import { toVisData, toVisDataAsync, VisData } from './adapters/toVisData'
+import { toVisData, toVisDataAsync, toVisDataLightweight, VisData, ProgressCallback } from './adapters/toVisData'
 import sampleObj from './samples/sample-oidsee-graph.json'
 import { DetailsPanel } from './components/DetailsPanel'
 import { FilterBar, Lens } from './components/FilterBar'
@@ -370,9 +370,12 @@ export default function App() {
   const [largeGraphWarning, setLargeGraphWarning] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard')
   const [viewsReady, setViewsReady] = useState<Set<ViewMode>>(new Set())
+  const [showCancelButton, setShowCancelButton] = useState<boolean>(false)
   const graphRef = useRef<GraphCanvasHandle>(null)
   const detailsPanelRef = useRef<HTMLElement>(null)
   const graphConversionTimeoutRef = useRef<number | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const cancelButtonTimeoutRef = useRef<number | null>(null)
 
   // Load physics config on mount
   useEffect(() => {
@@ -469,9 +472,13 @@ export default function App() {
     })
     const startTime = performance.now()
     
-    // Show loading overlay immediately
+    // Show loading overlay immediately with file size info
     setLoading(true)
+    setLoadingProgress(`Reading file (${(file.size / 1024 / 1024).toFixed(1)} MB)...`)
     setError(null)
+    
+    // Yield to allow progress message to render before blocking file read
+    await new Promise(resolve => setTimeout(resolve, 100))
     
     try {
       console.log('[OID-See] 📖 Reading file content...')
@@ -494,6 +501,23 @@ export default function App() {
   // Helper function to yield control to the event loop
   const yieldToEventLoop = () => new Promise(resolve => setTimeout(resolve, YIELD_DELAY_MS))
 
+  // Cancel handler for long-running operations
+  function handleCancelLoading() {
+    console.log('[OID-See] 🚫 User cancelled loading operation')
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    // Clear the cancel button timeout
+    if (cancelButtonTimeoutRef.current !== null) {
+      clearTimeout(cancelButtonTimeoutRef.current)
+      cancelButtonTimeoutRef.current = null
+    }
+    setLoading(false)
+    setLoadingProgress('')
+    setShowCancelButton(false)
+    // Don't set error for user cancellations - handled in catch block
+  }
+
   async function render(input: string) {
     console.log('[OID-See] 🔄 Starting render process...')
     const renderStartTime = performance.now()
@@ -505,18 +529,37 @@ export default function App() {
       console.log('[OID-See] 🚫 Cancelled previous graph conversion')
     }
     
+    // Cancel any previous abort controller
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    
+    // Create new abort controller for this render
+    abortControllerRef.current = new AbortController()
+    const signal = abortControllerRef.current.signal
+    
     setLoading(true)
     setLoadingProgress('Initializing...')
     setError(null)
     setSelection(null)
     setLargeGraphWarning(null)
+    setShowCancelButton(false)
+    
+    // Show cancel button after 5 seconds for large datasets
+    if (cancelButtonTimeoutRef.current !== null) {
+      clearTimeout(cancelButtonTimeoutRef.current)
+    }
+    cancelButtonTimeoutRef.current = window.setTimeout(() => {
+      console.log('[OID-See] ⏱️ Showing cancel button (processing > 5 seconds)')
+      setShowCancelButton(true)
+    }, 5000)
     
     try {
       // Use setTimeout to allow the loading overlay to render before heavy processing
       console.log(`[OID-See] ⏱️  Waiting ${RENDER_DELAY_MS}ms for UI to update...`)
       await new Promise(resolve => setTimeout(resolve, RENDER_DELAY_MS))
       
-      setLoadingProgress('Parsing JSON data...')
+      setLoadingProgress(`Parsing JSON (${(input.length / 1024 / 1024).toFixed(1)} MB)...`)
       console.log('[OID-See] 🔍 Parsing JSON...')
       // Yield to allow progress message to render
       await yieldToEventLoop()
@@ -581,14 +624,17 @@ export default function App() {
         )
       }
       
-      // PRIORITY 1: Convert full dataset for alternative views (dashboard, table, tree, matrix)
-      // These views don't need vis-network format, they work directly with OidSee format
+      // PRIORITY 1: Convert dataset for alternative views (dashboard, table, tree, matrix)
+      // Use lightweight conversion that only creates {id, __oidsee} objects
+      // Alternative views extract OidSee data from __oidsee, don't need vis-network properties
       console.log('[OID-See] 🎨 Preparing data for dashboard and alternative views...')
       setLoadingProgress('Preparing dashboard view...')
       await yieldToEventLoop()
       
       const originalVisStartTime = performance.now()
-      const originalVis = isLargeGraph ? await toVisDataAsync(parsed) : toVisData(parsed)
+      // Use lightweight conversion for alternative views - much faster!
+      // Only creates minimal {id, __oidsee} objects instead of full vis-network format
+      const originalVis = toVisDataLightweight(parsed)
       const originalVisTime = performance.now() - originalVisStartTime
       console.log('[OID-See] ✅ Alternative views data ready:', {
         duration: `${originalVisTime.toFixed(0)}ms`,
@@ -608,6 +654,13 @@ export default function App() {
       // HIDE LOADING DIALOG NOW - Dashboard is ready and user can interact
       setLoading(false)
       setLoadingProgress('')
+      setShowCancelButton(false)
+      
+      // Clear cancel button timeout since we're done with the main loading
+      if (cancelButtonTimeoutRef.current !== null) {
+        clearTimeout(cancelButtonTimeoutRef.current)
+        cancelButtonTimeoutRef.current = null
+      }
       
       // PRIORITY 2: Truncate and convert data for graph view in TRUE BACKGROUND
       // Use setTimeout to move this completely off the main render flow
@@ -667,8 +720,12 @@ export default function App() {
           
           console.log('[OID-See] 🎨 Converting data to vis-network format for graph view...')
           const visStartTime = performance.now()
-          // Use async version for large graphs to prevent UI blocking
-          const vis = isLargeGraph ? await toVisDataAsync(graphParsed) : toVisData(graphParsed)
+          // Use sync for small datasets, async for larger ones to prevent UI blocking
+          // Note: Background task - progress updates won't show in UI but will log to console
+          const graphTotalItems = graphParsed.nodes.length + (graphParsed.edges?.length || 0)
+          const vis = graphTotalItems >= 500
+            ? await toVisDataAsync(graphParsed, (progress) => console.log(`[OID-See] ${progress}`), signal)
+            : toVisData(graphParsed)
           const visTime = performance.now() - visStartTime
           console.log('[OID-See] ✅ Graph view data ready:', {
             duration: `${visTime.toFixed(0)}ms`,
@@ -695,10 +752,20 @@ export default function App() {
       setOriginalData(null)
       setViewsReady(new Set())
       setSelection(null)
-      setError(e?.message ?? String(e))
+      // Don't show error if it was a user cancellation
+      if (e?.message !== 'Processing cancelled') {
+        setError(e?.message ?? String(e))
+      }
       // Only set loading false if it hasn't been set already
       setLoading(false)
       setLoadingProgress('')
+      setShowCancelButton(false)
+    } finally {
+      // Clean up cancel button timeout
+      if (cancelButtonTimeoutRef.current !== null) {
+        clearTimeout(cancelButtonTimeoutRef.current)
+        cancelButtonTimeoutRef.current = null
+      }
     }
   }
 
@@ -1278,7 +1345,13 @@ export default function App() {
         onClose={() => setLegendVisible(false)}
       />
       
-      <LoadingOverlay visible={loading} message="Loading data" progress={loadingProgress} />
+      <LoadingOverlay 
+        visible={loading} 
+        message="Loading data" 
+        progress={loadingProgress}
+        onCancel={handleCancelLoading}
+        showCancel={showCancelButton}
+      />
     </div>
   )
 }
