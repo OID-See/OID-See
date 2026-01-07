@@ -627,8 +627,12 @@ export default function App() {
       await yieldToEventLoop()
       
       const originalVisStartTime = performance.now()
-      // Always use async processing to show progress updates and enable cancellation
-      const originalVis = await toVisDataAsync(parsed, (progress) => setLoadingProgress(progress), signal)
+      // Use sync for small datasets (< 500 items), async for larger ones
+      // This keeps small files fast while enabling progress/cancellation for large files
+      const totalItems = nodeCount + edgeCount
+      const originalVis = totalItems >= 500
+        ? await toVisDataAsync(parsed, (progress) => setLoadingProgress(progress), signal)
+        : toVisData(parsed)
       const originalVisTime = performance.now() - originalVisStartTime
       console.log('[OID-See] ✅ Alternative views data ready:', {
         duration: `${originalVisTime.toFixed(0)}ms`,
@@ -714,9 +718,12 @@ export default function App() {
           
           console.log('[OID-See] 🎨 Converting data to vis-network format for graph view...')
           const visStartTime = performance.now()
-          // Always use async version to prevent UI blocking
+          // Use sync for small datasets, async for larger ones to prevent UI blocking
           // Note: Background task - progress updates won't show in UI but will log to console
-          const vis = await toVisDataAsync(graphParsed, (progress) => console.log(`[OID-See] ${progress}`), signal)
+          const graphTotalItems = graphParsed.nodes.length + (graphParsed.edges?.length || 0)
+          const vis = graphTotalItems >= 500
+            ? await toVisDataAsync(graphParsed, (progress) => console.log(`[OID-See] ${progress}`), signal)
+            : toVisData(graphParsed)
           const visTime = performance.now() - visStartTime
           console.log('[OID-See] ✅ Graph view data ready:', {
             duration: `${visTime.toFixed(0)}ms`,

@@ -149,20 +149,37 @@ export function toVisData(input: any): VisData {
 export async function toVisDataAsync(input: any, onProgress?: ProgressCallback, signal?: AbortSignal): Promise<VisData> {
   if (isOidSeeExport(input)) {
     const exp = input as OidSeeExport
-    // Very small batch size for maximum UI responsiveness with large datasets
-    // For 29k nodes, this means 580 batches, yielding every 50 nodes
-    // This prevents the "message handler took 55165ms" error by yielding frequently
-    const BATCH_SIZE = 50
-    // Slightly longer yield delay to give browser more time between batches
-    const YIELD_DELAY_MS = 15
+    
+    // Adaptive batch sizing based on dataset size for optimal performance
+    // Small datasets: Larger batches, minimal yielding (fast)
+    // Large datasets: Smaller batches, more yielding (responsive)
+    const totalItems = exp.nodes.length + (exp.edges?.length || 0)
+    let BATCH_SIZE: number
+    let YIELD_DELAY_MS: number
+    
+    if (totalItems < 1000) {
+      // Small datasets: process quickly without much overhead
+      BATCH_SIZE = 500
+      YIELD_DELAY_MS = 1
+    } else if (totalItems < 10000) {
+      // Medium datasets: balance speed and responsiveness
+      BATCH_SIZE = 250
+      YIELD_DELAY_MS = 5
+    } else {
+      // Large datasets (10k+ items): prioritize UI responsiveness
+      BATCH_SIZE = 200
+      YIELD_DELAY_MS = 10
+    }
+    
     // Throttle progress updates to avoid excessive re-renders
-    // Update UI at most every 200ms to balance feedback and performance
-    const PROGRESS_UPDATE_INTERVAL_MS = 200
+    // Update UI at most every 150ms to balance feedback and performance
+    const PROGRESS_UPDATE_INTERVAL_MS = 150
 
     console.log('[toVisData] 🔄 Processing nodes in batches...', {
       totalNodes: exp.nodes.length,
       totalEdges: exp.edges.length,
-      batchSize: BATCH_SIZE
+      batchSize: BATCH_SIZE,
+      yieldDelay: YIELD_DELAY_MS
     })
     const visNodes: any[] = []
     let lastProgressUpdate: number = 0
