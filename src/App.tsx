@@ -393,6 +393,9 @@ export default function App() {
   useEffect(() => {
     console.log('[OID-See] Initializing web workers...')
     
+    // Track initialization state
+    let isInitialized = false
+    
     // Initialize FileParser worker with pre-created worker instance
     const fileParserWorker = new WorkerManager({
       worker: new FileParserWorker(),
@@ -400,7 +403,6 @@ export default function App() {
         setLoadingProgress(message)
       }
     })
-    fileParserWorkerRef.current = fileParserWorker
     
     // Initialize Filter worker with pre-created worker instance
     const filterWorker = new WorkerManager({
@@ -409,15 +411,27 @@ export default function App() {
         setLoadingProgress(message)
       }
     })
-    filterWorkerRef.current = filterWorker
     
-    console.log('[OID-See] Workers initialized')
+    // Small delay to ensure workers are fully initialized before first use
+    // This prevents the "cold start" issue where first large file fails
+    setTimeout(() => {
+      fileParserWorkerRef.current = fileParserWorker
+      filterWorkerRef.current = filterWorker
+      isInitialized = true
+      console.log('[OID-See] Workers initialized and ready')
+    }, 50)
     
     // Cleanup on unmount
     return () => {
       console.log('[OID-See] Terminating workers...')
-      fileParserWorkerRef.current?.terminate()
-      filterWorkerRef.current?.terminate()
+      if (isInitialized) {
+        fileParserWorkerRef.current?.terminate()
+        filterWorkerRef.current?.terminate()
+      } else {
+        // If not initialized yet, terminate directly
+        fileParserWorker.terminate()
+        filterWorker.terminate()
+      }
     }
   }, [])
 
@@ -526,6 +540,22 @@ export default function App() {
     }, 5000)
     
     try {
+      // Ensure worker is initialized before using it
+      if (!fileParserWorkerRef.current) {
+        console.log('[OID-See] ⏳ Waiting for worker to initialize...')
+        setLoadingProgress('Initializing worker...')
+        // Wait for worker to be ready (max 1 second)
+        let attempts = 0
+        while (!fileParserWorkerRef.current && attempts < 20) {
+          await new Promise(resolve => setTimeout(resolve, 50))
+          attempts++
+        }
+        if (!fileParserWorkerRef.current) {
+          throw new Error('Worker failed to initialize')
+        }
+        console.log('[OID-See] ✅ Worker ready')
+      }
+      
       console.log('[OID-See] 📖 Reading and parsing file in worker...')
       
       // Use FileParser worker to read and parse file off main thread
@@ -596,6 +626,22 @@ export default function App() {
     setError(null)
     
     try {
+      // Ensure worker is initialized before using it
+      if (!fileParserWorkerRef.current) {
+        console.log('[OID-See] ⏳ Waiting for worker to initialize...')
+        setLoadingProgress('Initializing worker...')
+        // Wait for worker to be ready (max 1 second)
+        let attempts = 0
+        while (!fileParserWorkerRef.current && attempts < 20) {
+          await new Promise(resolve => setTimeout(resolve, 50))
+          attempts++
+        }
+        if (!fileParserWorkerRef.current) {
+          throw new Error('Worker failed to initialize')
+        }
+        console.log('[OID-See] ✅ Worker ready')
+      }
+      
       // Small delay to allow loading overlay to render
       await new Promise(resolve => setTimeout(resolve, 100))
       
