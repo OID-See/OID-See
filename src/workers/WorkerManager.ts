@@ -35,6 +35,8 @@ export class WorkerManager {
   private taskIdCounter = 0
   private workerUrl?: string
   private globalProgressCallback?: ProgressCallback
+  private isReady: boolean = false
+  private readyPromise: Promise<void> | null = null
 
   constructor(options: WorkerManagerOptions) {
     this.workerUrl = options.workerUrl
@@ -49,6 +51,15 @@ export class WorkerManager {
       this.worker.onerror = (error) => {
         console.error('[WorkerManager] Worker error:', error)
       }
+      
+      // Ensure worker is ready by waiting a tiny bit for event loop to settle
+      // This prevents the "cold start" issue where first message is lost
+      this.readyPromise = new Promise(resolve => {
+        setTimeout(() => {
+          this.isReady = true
+          resolve()
+        }, 10) // Very small delay just to let worker initialize
+      })
     }
   }
 
@@ -120,7 +131,13 @@ export class WorkerManager {
 
     const taskId = this.generateTaskId()
     
-    const promise = new Promise<T>((resolve, reject) => {
+    const promise = new Promise<T>(async (resolve, reject) => {
+      // Wait for worker to be ready (prevents cold start issue)
+      if (this.readyPromise) {
+        await this.readyPromise
+        this.readyPromise = null // Only need to wait once
+      }
+      
       // Store callbacks
       this.callbacks.set(taskId, {
         resolve,
