@@ -2795,7 +2795,8 @@ class OidSeeCollector:
         uncached_groups = [gid for gid in group_ids if gid not in self.group_member_count_cache]
         
         if not uncached_groups:
-            return self.group_member_count_cache
+            # All groups are cached, return only the requested ones
+            return {gid: self.group_member_count_cache.get(gid, 0) for gid in group_ids}
         
         results = {}
         results_lock = Lock()
@@ -2901,7 +2902,17 @@ class OidSeeCollector:
                 except Exception as e:
                     print(f"⚠️  Unexpected error processing batch {batch_idx + 1}: {e}", file=sys.stderr)
         
-        return results
+        # Merge results with cached values to return all requested group_ids
+        final_results = {}
+        for gid in group_ids:
+            if gid in results:
+                final_results[gid] = results[gid]
+            elif gid in self.group_member_count_cache:
+                final_results[gid] = self.group_member_count_cache[gid]
+            else:
+                final_results[gid] = 0
+        
+        return final_results
 
     def fetch_all_data_for_sp(self, sp: Dict[str, Any]) -> Dict[str, Any]:
         """
