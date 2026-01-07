@@ -165,7 +165,7 @@ export async function toVisDataAsync(input: any, onProgress?: ProgressCallback, 
       batchSize: BATCH_SIZE
     })
     const visNodes: any[] = []
-    let lastProgressUpdate = 0
+    let lastProgressUpdate: number = 0
     
     // Process nodes in batches
     for (let i = 0; i < exp.nodes.length; i += BATCH_SIZE) {
@@ -229,7 +229,8 @@ export async function toVisDataAsync(input: any, onProgress?: ProgressCallback, 
 
     console.log('[toVisData] 🔗 Processing edges in batches...')
     const visEdges: any[] = []
-    lastProgressUpdate = 0 // Reset for edges
+    // Reset timestamp for edges - subtract interval to ensure first update happens immediately
+    lastProgressUpdate = Date.now() - PROGRESS_UPDATE_INTERVAL_MS
     
     // Process edges in batches
     for (let i = 0; i < exp.edges.length; i += BATCH_SIZE) {
