@@ -753,24 +753,20 @@ export default function App() {
         edges: originalVis.edges.length.toLocaleString()
       })
       
-      // HIDE LOADING DIALOG NOW - Before setting data to avoid triggering useMemo filtering
+      // HIDE LOADING DIALOG NOW - Ensure dialog is dismissed before setting data
       setLoading(false)
       setLoadingProgress('')
       setShowCancelButton(false)
       
-      console.log('[OID-See] ✅ Dialog dismissed, setting data in background...')
+      // Set data immediately after dialog is dismissed
+      // Views need this data to render properly
+      setOriginalData(originalVis)
+      setViewsReady(new Set(['dashboard', 'table', 'tree', 'matrix']))
       
-      // Set original data in setTimeout to avoid blocking dialog dismissal
-      // This prevents the filtered useMemo from running synchronously and blocking UI
-      setTimeout(() => {
-        setOriginalData(originalVis)
-        setViewsReady(new Set(['dashboard', 'table', 'tree', 'matrix']))
-        
-        console.log('[OID-See] ✅ Dashboard and alternative views ready!')
-        
-        const dashboardTime = performance.now() - renderStartTime
-        console.log('[OID-See] 🎉 Dashboard populated in:', `${dashboardTime.toFixed(0)}ms`)
-      }, 100)
+      console.log('[OID-See] ✅ Dashboard and alternative views ready!')
+      
+      const dashboardTime = performance.now() - renderStartTime
+      console.log('[OID-See] 🎉 Dashboard populated in:', `${dashboardTime.toFixed(0)}ms`)
       
       // Clear cancel button timeout since we're done with the main loading
       if (cancelButtonTimeoutRef.current !== null) {
