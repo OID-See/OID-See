@@ -877,26 +877,98 @@ export default function App() {
   }
 
   // Filtered data for graph view (uses truncated data)
-  const filtered = useMemo(() => {
-    if (!data) return null
-    try {
-      return applyQuery(data, query.trim(), lens, pathAware)
-    } catch (e) {
-      console.error('Error applying query/lens filter:', e)
-      // Return unfiltered data on error to prevent complete failure
-      return data
+  // Use worker to avoid blocking UI thread
+  const [filtered, setFiltered] = useState<VisData | null>(null)
+  
+  useEffect(() => {
+    if (!data) {
+      setFiltered(null)
+      return
+    }
+    
+    const filterWorker = filterWorkerRef.current
+    if (!filterWorker) {
+      // Fallback to unfiltered if worker not ready
+      setFiltered(data)
+      return
+    }
+    
+    // Start with unfiltered data for immediate UI responsiveness
+    setFiltered(data)
+    
+    // Apply filtering in worker (non-blocking)
+    const abortController = new AbortController()
+    
+    filterWorker.execute({
+      taskType: 'applyQuery',
+      data: {
+        nodes: data.nodes,
+        edges: data.edges,
+        query: query.trim(),
+        lens,
+        pathAware
+      }
+    }).then(result => {
+      if (!abortController.signal.aborted) {
+        setFiltered({ nodes: result.nodes, edges: result.edges, parsed: result.parsed })
+      }
+    }).catch(error => {
+      if (!abortController.signal.aborted) {
+        console.error('Error applying query/lens filter in worker:', error)
+        // Keep unfiltered data on error
+      }
+    })
+    
+    return () => {
+      abortController.abort()
     }
   }, [data, query, lens, pathAware])
 
   // Filtered data for alternative views (uses full originalData)
-  const filteredOriginal = useMemo(() => {
-    if (!originalData) return null
-    try {
-      return applyQuery(originalData, query.trim(), lens, pathAware)
-    } catch (e) {
-      console.error('Error applying query/lens filter to original data:', e)
-      // Return unfiltered data on error to prevent complete failure
-      return originalData
+  // Use worker to avoid blocking UI thread
+  const [filteredOriginal, setFilteredOriginal] = useState<VisData | null>(null)
+  
+  useEffect(() => {
+    if (!originalData) {
+      setFilteredOriginal(null)
+      return
+    }
+    
+    const filterWorker = filterWorkerRef.current
+    if (!filterWorker) {
+      // Fallback to unfiltered if worker not ready
+      setFilteredOriginal(originalData)
+      return
+    }
+    
+    // Start with unfiltered data for immediate UI responsiveness
+    setFilteredOriginal(originalData)
+    
+    // Apply filtering in worker (non-blocking)
+    const abortController = new AbortController()
+    
+    filterWorker.execute({
+      taskType: 'applyQuery',
+      data: {
+        nodes: originalData.nodes,
+        edges: originalData.edges,
+        query: query.trim(),
+        lens,
+        pathAware
+      }
+    }).then(result => {
+      if (!abortController.signal.aborted) {
+        setFilteredOriginal({ nodes: result.nodes, edges: result.edges, parsed: result.parsed })
+      }
+    }).catch(error => {
+      if (!abortController.signal.aborted) {
+        console.error('Error applying query/lens filter to original data in worker:', error)
+        // Keep unfiltered data on error
+      }
+    })
+    
+    return () => {
+      abortController.abort()
     }
   }, [originalData, query, lens, pathAware])
 
