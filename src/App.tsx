@@ -925,9 +925,14 @@ export default function App() {
 
   // Filtered data for alternative views (uses full originalData)
   const filteredOriginal = useMemo(() => {
-    if (!originalData) return null
+    if (!originalData) {
+      console.log('[OID-See] filteredOriginal: originalData is null')
+      return null
+    }
     try {
-      return applyQuery(originalData, query.trim(), lens, pathAware)
+      const result = applyQuery(originalData, query.trim(), lens, pathAware)
+      console.log('[OID-See] filteredOriginal computed:', result ? `${result.nodes.length} nodes, ${result.edges.length} edges` : 'null')
+      return result
     } catch (e) {
       console.error('Error applying query/lens filter to original data:', e)
       // Return unfiltered data on error to prevent complete failure
@@ -1358,7 +1363,18 @@ export default function App() {
               </div>
             </div>
           </div>
-          {((viewMode === 'graph' && data && filtered) || (viewMode !== 'graph' && originalData && filteredOriginal)) ? (
+          {(() => {
+            const showContent = (viewMode === 'graph' && data && filtered) || (viewMode !== 'graph' && originalData && filteredOriginal)
+            console.log('[OID-See] Render condition check:', {
+              viewMode,
+              hasData: !!data,
+              hasFiltered: !!filtered,
+              hasOriginalData: !!originalData,
+              hasFilteredOriginal: !!filteredOriginal,
+              showContent
+            })
+            return showContent
+          })() ? (
             <>
               {viewMode === 'graph' && (
                 <GraphCanvas 
