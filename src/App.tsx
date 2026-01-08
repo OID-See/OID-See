@@ -543,12 +543,19 @@ export default function App() {
         duration: `${totalTime.toFixed(0)}ms`
       })
       
-      // Set raw text for editor (formatted JSON)
-      const text = JSON.stringify(parsed, null, 2)
-      setRaw(text)
-      
       // Process the parsed data directly without re-parsing
+      // Set raw text AFTER rendering to avoid blocking UI with expensive stringify
+      setLoadingProgress('Processing graph data...')
       await processGraphData(parsed)
+      
+      // Now that rendering is complete, stringify in background for raw editor
+      // This is expensive for large files but doesn't block initial rendering
+      setTimeout(() => {
+        console.log('[OID-See] 📝 Generating formatted JSON for editor...')
+        const text = JSON.stringify(parsed, null, 2)
+        setRaw(text)
+        console.log('[OID-See] ✅ Raw JSON ready for editor')
+      }, 100)
     } catch (e: any) {
       console.error('[OID-See] ❌ File read/parse error:', e)
       setError(e?.message || 'Failed to read or parse file')
