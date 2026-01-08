@@ -132,42 +132,46 @@ export class WorkerManager {
 
     const taskId = this.generateTaskId()
     
-    const promise = new Promise<T>(async (resolve, reject) => {
+    // Wait for readiness, then execute
+    const promise = (async () => {
       // Wait for worker to be ready (prevents cold start issue)
       if (this.readyPromise) {
         await this.readyPromise
         this.readyPromise = null // Only need to wait once
       }
       
-      // Store callbacks
-      this.callbacks.set(taskId, {
-        resolve,
-        reject,
-        onProgress: onProgress || this.globalProgressCallback
-      })
+      // Now create the actual promise for task execution
+      return new Promise<T>((resolve, reject) => {
+        // Store callbacks
+        this.callbacks.set(taskId, {
+          resolve,
+          reject,
+          onProgress: onProgress || this.globalProgressCallback
+        })
 
-      // Create task
-      const task: WorkerTask = {
-        id: taskId,
-        status: 'pending'
-      }
-      this.tasks.set(taskId, task)
-
-      // Send execute message
-      const message: WorkerMessage = {
-        type: 'execute',
-        id: taskId,
-        payload: {
-          taskType,
-          data: payload
+        // Create task
+        const task: WorkerTask = {
+          id: taskId,
+          status: 'pending'
         }
-      }
+        this.tasks.set(taskId, task)
 
-      this.worker!.postMessage(message)
-      
-      // Update task status
-      task.status = 'running'
-    })
+        // Send execute message
+        const message: WorkerMessage = {
+          type: 'execute',
+          id: taskId,
+          payload: {
+            taskType,
+            data: payload
+          }
+        }
+
+        this.worker!.postMessage(message)
+        
+        // Update task status
+        task.status = 'running'
+      })
+    })()
     
     return { promise, taskId }
   }
