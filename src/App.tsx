@@ -789,27 +789,29 @@ export default function App() {
       
       // PRIORITY 2: Process graph view in WEB WORKER (off main thread)
       // This prevents UI blocking for large datasets (26k+ nodes)
+      // IMPORTANT: Do NOT await - let worker run in background while UI remains responsive
       const graphConversionStartTime = performance.now()
       console.log('[OID-See] 🎨 Starting background graph view preparation in worker...')
       
-      try {
-        const graphProcessorWorker = graphProcessorWorkerRef.current
-        if (!graphProcessorWorker) {
-          console.warn('[OID-See] GraphProcessor worker not initialized, skipping graph view')
-          return
-        }
-        
-        // Call the worker to process graph data
-        const result = await graphProcessorWorker.execute({
-          taskType: 'processGraph',
-          parsed,
-          maxNodes: MAX_RENDERABLE_NODES,
-          maxEdges: MAX_RENDERABLE_EDGES,
-          needsTruncation: exceedsLimits
-        })
-        
+      const graphProcessorWorker = graphProcessorWorkerRef.current
+      if (!graphProcessorWorker) {
+        console.warn('[OID-See] GraphProcessor worker not initialized, skipping graph view')
+        return
+      }
+      
+      // Start worker processing (DON'T AWAIT - let it run in background)
+      graphProcessorWorker.execute({
+        taskType: 'processGraph',
+        parsed,
+        maxNodes: MAX_RENDERABLE_NODES,
+        maxEdges: MAX_RENDERABLE_EDGES,
+        needsTruncation: exceedsLimits
+      }, (stage, progress, message) => {
+        // Progress updates from worker - just log them
+        console.log(`[OID-See] 📊 Worker progress: ${message}`)
+      }).then((result: any) => {
         // Worker completed - update UI with results
-        const { visData, wasTruncated, nodeCount: visNodeCount, edgeCount: visEdgeCount } = result as any
+        const { visData, wasTruncated, nodeCount: visNodeCount, edgeCount: visEdgeCount } = result
         
         // Add ctxRenderer to Group nodes (functions can't be transferred via postMessage)
         // Worker marks Group nodes with __isGroup flag
@@ -841,10 +843,10 @@ export default function App() {
         const totalTime = performance.now() - renderStartTime
         const graphTaskTime = performance.now() - graphConversionStartTime
         console.log(`[OID-See] ✅ All views ready! Graph: ${graphTaskTime.toFixed(0)}ms, Total: ${totalTime.toFixed(0)}ms`)
-      } catch (e: any) {
+      }).catch((e: any) => {
         console.error('[OID-See] ❌ Background graph processing error:', e)
         // Graph view fails silently - other views still work
-      }
+      })
       
     } catch (e: any) {
       console.error('[OID-See] ❌ Render error:', e)
