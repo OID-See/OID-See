@@ -781,7 +781,13 @@ export default function App() {
       
       if (parsed.nodes.length > 20000) {
         console.log(`[OID-See] ⏭️  Skipping graph view for very large file (${parsed.nodes.length.toLocaleString()} nodes) - use Table, Tree, Matrix, or Dashboard views instead`)
-        // Don't add 'graph' to ready views - it will remain disabled
+        // Mark graph as "ready" (but unavailable) to remove loading indicator
+        setViewsReady(prev => new Set([...prev, 'graph']))
+        // Show message explaining why graph view is unavailable
+        setLargeGraphWarning(
+          `⚠️ Graph view unavailable for very large files (${parsed.nodes.length.toLocaleString()} nodes). ` +
+          `Please use Table, Tree, Matrix, or Dashboard views to explore your data.`
+        )
       } else {
         graphConversionTimeoutRef.current = window.setTimeout(async () => {
         try {
