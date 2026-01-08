@@ -753,15 +753,15 @@ export default function App() {
         edges: originalVis.edges.length.toLocaleString()
       })
       
-      // HIDE LOADING DIALOG NOW - Ensure dialog is dismissed before setting data
+      // Set data FIRST before hiding loading dialog
+      // This ensures originalData is available when views render
+      setOriginalData(originalVis)
+      setViewsReady(new Set(['dashboard', 'table', 'tree', 'matrix']))
+      
+      // THEN hide loading dialog - React will batch these updates
       setLoading(false)
       setLoadingProgress('')
       setShowCancelButton(false)
-      
-      // Set data immediately after dialog is dismissed
-      // Views need this data to render properly
-      setOriginalData(originalVis)
-      setViewsReady(new Set(['dashboard', 'table', 'tree', 'matrix']))
       
       console.log('[OID-See] ✅ Dashboard and alternative views ready!')
       
