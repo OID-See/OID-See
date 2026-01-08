@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { GraphCanvas, Selection, GraphCanvasHandle, PhysicsConfig, DEFAULT_PHYSICS } from './components/GraphCanvas'
-import { toVisData, toVisDataAsync, toVisDataLightweight, VisData, ProgressCallback } from './adapters/toVisData'
+import { toVisData, toVisDataAsync, toVisDataLightweight, doubleCircleRenderer, VisData, ProgressCallback } from './adapters/toVisData'
 import sampleObj from './samples/sample-oidsee-graph.json'
 import { DetailsPanel } from './components/DetailsPanel'
 import { FilterBar, Lens } from './components/FilterBar'
@@ -22,6 +22,7 @@ import { DashboardView } from './components/DashboardView'
 import { WorkerManager } from './workers/WorkerManager'
 import FileParserWorker from './workers/fileParser.worker?worker'
 import FilterWorker from './workers/filter.worker?worker'
+import GraphProcessorWorker from './workers/graphProcessor.worker?worker'
 
 type SavedQuery = { name: string; query: string }
 
@@ -383,6 +384,7 @@ export default function App() {
   // Worker managers
   const fileParserWorkerRef = useRef<WorkerManager | null>(null)
   const filterWorkerRef = useRef<WorkerManager | null>(null)
+  const graphProcessorWorkerRef = useRef<WorkerManager | null>(null)
 
   // Load physics config on mount
   useEffect(() => {
@@ -411,6 +413,16 @@ export default function App() {
     })
     filterWorkerRef.current = filterWorker
     
+    // Initialize GraphProcessor worker with pre-created worker instance
+    const graphProcessorWorker = new WorkerManager({
+      worker: new GraphProcessorWorker(),
+      onProgress: (stage, progress, message) => {
+        console.log(`[OID-See] Graph processing: ${message}`)
+        // Optional: could show progress in UI if desired
+      }
+    })
+    graphProcessorWorkerRef.current = graphProcessorWorker
+    
     console.log('[OID-See] Workers initialized')
     
     // Cleanup on unmount
@@ -418,6 +430,7 @@ export default function App() {
       console.log('[OID-See] Terminating workers...')
       fileParserWorkerRef.current?.terminate()
       filterWorkerRef.current?.terminate()
+      graphProcessorWorkerRef.current?.terminate()
     }
   }, [])
 
@@ -774,113 +787,64 @@ export default function App() {
         cancelButtonTimeoutRef.current = null
       }
       
-      // PRIORITY 2: Truncate and convert data for graph view in TRUE BACKGROUND
-      // Use setTimeout to move this completely off the main render flow
+      // PRIORITY 2: Process graph view in WEB WORKER (off main thread)
+      // This prevents UI blocking for large datasets (26k+ nodes)
       const graphConversionStartTime = performance.now()
-      graphConversionTimeoutRef.current = window.setTimeout(async () => {
-        try {
-          console.log('[OID-See] 🎨 Starting background graph view preparation...')
-          
-          // Yield to event loop before starting heavy processing
-          await yieldToEventLoop()
-          
-          // Truncate if needed (do this in background, not in main render flow!)
-          let graphParsed = parsed
-          if (exceedsLimits) {
-            console.log('[OID-See] ✂️  Truncating data for graph view (background)...')
-            const truncateStartTime = performance.now()
-            
-            // Yield at start to allow UI updates
-            await yieldToEventLoop()
-            
-            // Clone to avoid mutating original - yield after clone
-            graphParsed = { ...parsed, nodes: [...parsed.nodes], edges: [...(parsed.edges || [])] }
-            await yieldToEventLoop()
-            
-            // Create indices array for sorting
-            console.log('[OID-See] 📋 Creating index array for sorting...')
-            const indices = Array.from({ length: graphParsed.nodes.length }, (_, i) => i)
-            
-            // Yield before expensive sort operation
-            await yieldToEventLoop()
-            
-            // Sort indices by risk score (highest first)
-            // Note: Array.sort() is native and can't yield, but we yield before/after
-            console.log('[OID-See] 📋 Sorting nodes by risk score...')
-            indices.sort((aIdx, bIdx) => {
-              const a = graphParsed.nodes[aIdx]
-              const b = graphParsed.nodes[bIdx]
-              const scoreA = a?.risk?.score ?? 0
-              const scoreB = b?.risk?.score ?? 0
-              return scoreB - scoreA
-            })
-            const sortTime = performance.now() - truncateStartTime
-            console.log('[OID-See] ✅ Sort complete:', `${sortTime.toFixed(0)}ms`)
-            
-            // Yield immediately after expensive sort to allow UI updates
-            await yieldToEventLoop()
-            
-            // Take top N highest-risk nodes
-            console.log(`[OID-See] ✂️  Selecting top ${MAX_RENDERABLE_NODES.toLocaleString()} risk nodes...`)
-            const truncatedNodes = indices.slice(0, MAX_RENDERABLE_NODES).map(i => graphParsed.nodes[i])
-            const nodeIds = new Set(truncatedNodes.map((n: OidSeeNode) => n.id))
-            
-            // Yield before filtering edges
-            await yieldToEventLoop()
-            
-            // Filter edges
-            console.log('[OID-See] 🔗 Filtering edges...')
-            const truncatedEdges = (graphParsed.edges || [])
-              .filter((e: OidSeeEdge) => nodeIds.has(e.from) && nodeIds.has(e.to))
-              .slice(0, MAX_RENDERABLE_EDGES)
-            
-            graphParsed.nodes = truncatedNodes
-            graphParsed.edges = truncatedEdges
-            
-            const truncateTime = performance.now() - truncateStartTime
-            console.log('[OID-See] ✅ Truncation complete:', {
-              duration: `${truncateTime.toFixed(0)}ms`,
-              graphViewNodes: truncatedNodes.length.toLocaleString(),
-              graphViewEdges: truncatedEdges.length.toLocaleString()
-            })
-          }
-          
-          // Yield before vis-network conversion
-          await yieldToEventLoop()
-          
-          console.log('[OID-See] 🎨 Converting data to vis-network format for graph view...')
-          const visStartTime = performance.now()
-          // Always use async version in background to ensure UI responsiveness
-          // Even "small" truncated datasets benefit from yielding during conversion
-          const vis = await toVisDataAsync(graphParsed, (progress) => console.log(`[OID-See] ${progress}`), signal)
-          const visTime = performance.now() - visStartTime
-          console.log('[OID-See] ✅ Graph view data ready:', {
-            duration: `${visTime.toFixed(0)}ms`,
-            nodes: vis.nodes.length.toLocaleString(),
-            edges: vis.edges.length.toLocaleString()
-          })
-          
-          // Set graph data
-          setData(vis)
-          setViewsReady(prev => new Set([...prev, 'graph']))
-          
-          // NOW show truncation warning after all processing is complete
-          // This ensures the dialog doesn't block UI during processing
-          if (exceedsLimits) {
-            setLargeGraphWarning(
-              `⚠️ Graph view truncated to ${MAX_RENDERABLE_NODES.toLocaleString()} highest-risk nodes (dataset: ${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges). ` +
-              `Use Table, Tree, Matrix, or Dashboard views to see the full dataset. Physics disabled for performance.`
-            )
-          }
-          
-          const totalTime = performance.now() - renderStartTime
-          const graphTaskTime = performance.now() - graphConversionStartTime
-          console.log(`[OID-See] ✅ All views ready! Graph: ${graphTaskTime.toFixed(0)}ms, Total: ${totalTime.toFixed(0)}ms`)
-        } catch (e: any) {
-          console.error('[OID-See] ❌ Background graph conversion error:', e)
-          // Graph view fails silently - other views still work
+      console.log('[OID-See] 🎨 Starting background graph view preparation in worker...')
+      
+      try {
+        const graphProcessorWorker = graphProcessorWorkerRef.current
+        if (!graphProcessorWorker) {
+          console.warn('[OID-See] GraphProcessor worker not initialized, skipping graph view')
+          return
         }
-      }, 100) // Small delay to ensure dashboard renders first
+        
+        // Call the worker to process graph data
+        const result = await graphProcessorWorker.execute({
+          taskType: 'processGraph',
+          parsed,
+          maxNodes: MAX_RENDERABLE_NODES,
+          maxEdges: MAX_RENDERABLE_EDGES,
+          needsTruncation: exceedsLimits
+        })
+        
+        // Worker completed - update UI with results
+        const { visData, wasTruncated, nodeCount: visNodeCount, edgeCount: visEdgeCount } = result as any
+        
+        // Add ctxRenderer to Group nodes (functions can't be transferred via postMessage)
+        // Worker marks Group nodes with __isGroup flag
+        visData.nodes.forEach((node: any) => {
+          if (node.__isGroup) {
+            node.ctxRenderer = doubleCircleRenderer
+            delete node.__isGroup // Clean up the flag
+          }
+        })
+        
+        console.log('[OID-See] ✅ Graph view data ready from worker:', {
+          nodes: visNodeCount.toLocaleString(),
+          edges: visEdgeCount.toLocaleString(),
+          truncated: wasTruncated
+        })
+        
+        // Set graph data
+        setData(visData)
+        setViewsReady(prev => new Set([...prev, 'graph']))
+        
+        // Show truncation warning if data was truncated
+        if (wasTruncated) {
+          setLargeGraphWarning(
+            `⚠️ Graph view truncated to ${MAX_RENDERABLE_NODES.toLocaleString()} highest-risk nodes (dataset: ${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges). ` +
+            `Use Table, Tree, Matrix, or Dashboard views to see the full dataset. Physics disabled for performance.`
+          )
+        }
+        
+        const totalTime = performance.now() - renderStartTime
+        const graphTaskTime = performance.now() - graphConversionStartTime
+        console.log(`[OID-See] ✅ All views ready! Graph: ${graphTaskTime.toFixed(0)}ms, Total: ${totalTime.toFixed(0)}ms`)
+      } catch (e: any) {
+        console.error('[OID-See] ❌ Background graph processing error:', e)
+        // Graph view fails silently - other views still work
+      }
       
     } catch (e: any) {
       console.error('[OID-See] ❌ Render error:', e)

@@ -54,7 +54,7 @@ export function toVisDataLightweight(input: any): VisData {
 }
 
 // Custom double-circle renderer for group nodes
-function doubleCircleRenderer({ ctx, x, y, state, style }: any) {
+export function doubleCircleRenderer({ ctx, x, y, state, style }: any) {
   try {
     // Validate required parameters
     if (!ctx || x === undefined || y === undefined) {
