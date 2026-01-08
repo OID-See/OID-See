@@ -715,11 +715,8 @@ export default function App() {
         console.log('[OID-See] ℹ️  Graph exceeds limits - will truncate ONLY for graph view in background')
         console.log('[OID-See] ℹ️  Alternative views (Table, Tree, Matrix, Dashboard) will use full dataset')
         
-        // Warn user about truncation for graph view only
-        setLargeGraphWarning(
-          `⚠️ Graph view will be truncated to ${MAX_RENDERABLE_NODES.toLocaleString()} highest-risk nodes (dataset: ${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges). ` +
-          `Use Table, Tree, Matrix, or Dashboard views to see the full dataset. Physics disabled for performance.`
-        )
+        // NOTE: Truncation warning will be shown AFTER graph processing completes
+        // This prevents the dialog from blocking UI while processing is happening
         
         // Disable physics for truncated graphs
         console.log('[OID-See] ⚙️  Disabling physics for large graph...')
@@ -877,9 +874,18 @@ export default function App() {
           setData(vis)
           setViewsReady(prev => new Set([...prev, 'graph']))
           
+          // NOW show truncation warning after all processing is complete
+          // This ensures the dialog doesn't block UI during processing
+          if (exceedsLimits) {
+            setLargeGraphWarning(
+              `⚠️ Graph view truncated to ${MAX_RENDERABLE_NODES.toLocaleString()} highest-risk nodes (dataset: ${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges). ` +
+              `Use Table, Tree, Matrix, or Dashboard views to see the full dataset. Physics disabled for performance.`
+            )
+          }
+          
           const totalTime = performance.now() - renderStartTime
           const graphTaskTime = performance.now() - graphConversionStartTime
-          console.log(`[OID-See] ✅ All views ready! Dashboard: ${dashboardTime.toFixed(0)}ms, Graph: ${graphTaskTime.toFixed(0)}ms, Total: ${totalTime.toFixed(0)}ms`)
+          console.log(`[OID-See] ✅ All views ready! Graph: ${graphTaskTime.toFixed(0)}ms, Total: ${totalTime.toFixed(0)}ms`)
         } catch (e: any) {
           console.error('[OID-See] ❌ Background graph conversion error:', e)
           // Graph view fails silently - other views still work
