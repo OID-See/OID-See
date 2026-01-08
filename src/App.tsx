@@ -889,31 +889,15 @@ export default function App() {
   }, [data, query, lens, pathAware])
 
   // Filtered data for alternative views (uses full originalData)
-  // Start with originalData immediately (no filtering) to avoid blocking UI
-  // Apply filtering asynchronously in background
-  const [filteredOriginal, setFilteredOriginal] = useState<GraphDataGeneric | null>(null)
-  
-  useEffect(() => {
-    if (!originalData) {
-      setFilteredOriginal(null)
-      return
+  const filteredOriginal = useMemo(() => {
+    if (!originalData) return null
+    try {
+      return applyQuery(originalData, query.trim(), lens, pathAware)
+    } catch (e) {
+      console.error('Error applying query/lens filter to original data:', e)
+      // Return unfiltered data on error to prevent complete failure
+      return originalData
     }
-    
-    // Start with unfiltered data immediately - UI responsive right away
-    setFilteredOriginal(originalData)
-    
-    // Apply filtering in background after a small delay
-    const timer = setTimeout(() => {
-      try {
-        const filtered = applyQuery(originalData, query.trim(), lens, pathAware)
-        setFilteredOriginal(filtered)
-      } catch (e) {
-        console.error('Error applying query/lens filter to original data:', e)
-        // Keep unfiltered data on error
-      }
-    }, 10) // Small delay to let UI become responsive first
-    
-    return () => clearTimeout(timer)
   }, [originalData, query, lens, pathAware])
 
   const counts = useMemo(() => {
