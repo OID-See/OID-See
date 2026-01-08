@@ -42,7 +42,7 @@ const MAX_SUBSET_VISUALIZATION_NODES = 500
 const RENDER_DELAY_MS = 200 // ms delay to ensure UI updates before heavy processing
 
 // Yield delay between blocking operations to keep UI responsive
-const YIELD_DELAY_MS = 50 // ms delay to yield control to event loop
+const YIELD_DELAY_MS = 100 // ms delay to yield control to event loop (increased for large files)
 
 // Emoji regex for cross-browser compatibility validation
 const EMOJI_REGEX = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{FE00}-\u{FE0F}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F251}]/u
@@ -571,7 +571,14 @@ export default function App() {
   }
 
   // Helper function to yield control to the event loop
-  const yieldToEventLoop = () => new Promise(resolve => setTimeout(resolve, YIELD_DELAY_MS))
+  // Use requestIdleCallback for better responsiveness if available, fallback to setTimeout
+  const yieldToEventLoop = () => new Promise<void>(resolve => {
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => resolve(), { timeout: YIELD_DELAY_MS })
+    } else {
+      setTimeout(resolve, YIELD_DELAY_MS)
+    }
+  })
 
   // Cancel handler for long-running operations
   function handleCancelLoading() {
@@ -779,7 +786,7 @@ export default function App() {
           console.log('[OID-See] 🎨 Starting background graph view preparation...')
           
           // Yield to event loop before starting heavy processing
-          await new Promise(resolve => setTimeout(resolve, 0))
+          await yieldToEventLoop()
           
           // Truncate if needed (do this in background, not in main render flow!)
           let graphParsed = parsed
@@ -788,18 +795,18 @@ export default function App() {
             const truncateStartTime = performance.now()
             
             // Yield at start to allow UI updates
-            await new Promise(resolve => setTimeout(resolve, 10))
+            await yieldToEventLoop()
             
             // Clone to avoid mutating original - yield after clone
             graphParsed = { ...parsed, nodes: [...parsed.nodes], edges: [...(parsed.edges || [])] }
-            await new Promise(resolve => setTimeout(resolve, 10))
+            await yieldToEventLoop()
             
             // Create indices array for sorting
             console.log('[OID-See] 📋 Creating index array for sorting...')
             const indices = Array.from({ length: graphParsed.nodes.length }, (_, i) => i)
             
             // Yield before expensive sort operation
-            await new Promise(resolve => setTimeout(resolve, 10))
+            await yieldToEventLoop()
             
             // Sort indices by risk score (highest first)
             // Note: Array.sort() is native and can't yield, but we yield before/after
@@ -815,7 +822,7 @@ export default function App() {
             console.log('[OID-See] ✅ Sort complete:', `${sortTime.toFixed(0)}ms`)
             
             // Yield immediately after expensive sort to allow UI updates
-            await new Promise(resolve => setTimeout(resolve, 10))
+            await yieldToEventLoop()
             
             // Take top N highest-risk nodes
             console.log(`[OID-See] ✂️  Selecting top ${MAX_RENDERABLE_NODES.toLocaleString()} risk nodes...`)
@@ -823,7 +830,7 @@ export default function App() {
             const nodeIds = new Set(truncatedNodes.map((n: OidSeeNode) => n.id))
             
             // Yield before filtering edges
-            await new Promise(resolve => setTimeout(resolve, 10))
+            await yieldToEventLoop()
             
             // Filter edges
             console.log('[OID-See] 🔗 Filtering edges...')
@@ -843,7 +850,7 @@ export default function App() {
           }
           
           // Yield before vis-network conversion
-          await new Promise(resolve => setTimeout(resolve, 10))
+          await yieldToEventLoop()
           
           console.log('[OID-See] 🎨 Converting data to vis-network format for graph view...')
           const visStartTime = performance.now()
