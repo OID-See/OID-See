@@ -766,15 +766,18 @@ export default function App() {
         edges: originalVis.edges.length.toLocaleString()
       })
       
-      // Set data FIRST before hiding loading dialog
-      // This ensures originalData is available when views render
-      setOriginalData(originalVis)
-      setViewsReady(new Set(['dashboard', 'table', 'tree', 'matrix']))
-      
-      // THEN hide loading dialog - React will batch these updates
+      // Hide loading dialog FIRST to make UI responsive
       setLoading(false)
       setLoadingProgress('')
       setShowCancelButton(false)
+      
+      // THEN set data in next tick to avoid blocking useMemo calculations
+      // Setting originalData triggers expensive useMemo hooks that process all nodes/edges
+      // By deferring it, we keep UI responsive
+      setTimeout(() => {
+        setOriginalData(originalVis)
+        setViewsReady(new Set(['dashboard', 'table', 'tree', 'matrix']))
+      }, 0)
       
       console.log('[OID-See] ✅ Dashboard and alternative views ready!')
       
