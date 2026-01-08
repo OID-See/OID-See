@@ -1358,7 +1358,7 @@ export default function App() {
               </div>
             </div>
           </div>
-          {data && filtered ? (
+          {((viewMode === 'graph' && data && filtered) || (viewMode !== 'graph' && originalData && filteredOriginal)) ? (
             <>
               {viewMode === 'graph' && (
                 <GraphCanvas 
