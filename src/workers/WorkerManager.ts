@@ -54,11 +54,12 @@ export class WorkerManager {
       
       // Ensure worker is ready by waiting a tiny bit for event loop to settle
       // This prevents the "cold start" issue where first message is lost
+      // Increased to 100ms based on observed handler initialization times
       this.readyPromise = new Promise(resolve => {
         setTimeout(() => {
           this.isReady = true
           resolve()
-        }, 10) // Very small delay just to let worker initialize
+        }, 100) // Allow time for worker's message handler to fully initialize
       })
     }
   }
