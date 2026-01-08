@@ -778,6 +778,9 @@ export default function App() {
         try {
           console.log('[OID-See] 🎨 Starting background graph view preparation...')
           
+          // Yield to event loop before starting heavy processing
+          await new Promise(resolve => setTimeout(resolve, 0))
+          
           // Truncate if needed (do this in background, not in main render flow!)
           let graphParsed = parsed
           if (exceedsLimits) {
@@ -791,6 +794,9 @@ export default function App() {
             console.log('[OID-See] 📋 Creating index array for sorting...')
             const indices = Array.from({ length: graphParsed.nodes.length }, (_, i) => i)
             
+            // Yield before sorting
+            await new Promise(resolve => setTimeout(resolve, 0))
+            
             // Sort indices by risk score (highest first)
             console.log('[OID-See] 📋 Sorting nodes by risk score...')
             indices.sort((aIdx, bIdx) => {
@@ -803,10 +809,16 @@ export default function App() {
             const sortTime = performance.now() - truncateStartTime
             console.log('[OID-See] ✅ Sort complete:', `${sortTime.toFixed(0)}ms`)
             
+            // Yield after sorting
+            await new Promise(resolve => setTimeout(resolve, 0))
+            
             // Take top N highest-risk nodes
             console.log(`[OID-See] ✂️  Selecting top ${MAX_RENDERABLE_NODES.toLocaleString()} risk nodes...`)
             const truncatedNodes = indices.slice(0, MAX_RENDERABLE_NODES).map(i => graphParsed.nodes[i])
             const nodeIds = new Set(truncatedNodes.map((n: OidSeeNode) => n.id))
+            
+            // Yield before filtering edges
+            await new Promise(resolve => setTimeout(resolve, 0))
             
             // Filter edges
             console.log('[OID-See] 🔗 Filtering edges...')
@@ -824,6 +836,9 @@ export default function App() {
               graphViewEdges: truncatedEdges.length.toLocaleString()
             })
           }
+          
+          // Yield before vis-network conversion
+          await new Promise(resolve => setTimeout(resolve, 0))
           
           console.log('[OID-See] 🎨 Converting data to vis-network format for graph view...')
           const visStartTime = performance.now()
