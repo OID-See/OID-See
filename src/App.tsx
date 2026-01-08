@@ -766,18 +766,14 @@ export default function App() {
         edges: originalVis.edges.length.toLocaleString()
       })
       
-      // Hide loading dialog FIRST to make UI responsive
+      // Set data first (no longer blocks since we removed expensive useMemo hooks)
+      setOriginalData(originalVis)
+      setViewsReady(new Set(['dashboard', 'table', 'tree', 'matrix']))
+      
+      // Then hide loading dialog
       setLoading(false)
       setLoadingProgress('')
       setShowCancelButton(false)
-      
-      // THEN set data in next tick to avoid blocking useMemo calculations
-      // Setting originalData triggers expensive useMemo hooks that process all nodes/edges
-      // By deferring it, we keep UI responsive
-      setTimeout(() => {
-        setOriginalData(originalVis)
-        setViewsReady(new Set(['dashboard', 'table', 'tree', 'matrix']))
-      }, 0)
       
       console.log('[OID-See] ✅ Dashboard and alternative views ready!')
       
@@ -932,16 +928,9 @@ export default function App() {
     return new Map(data.edges.map(e => [e.id, e]))
   }, [data])
 
-  // Extract original nodes and edges from full dataset for alternative views
-  const originalNodes = useMemo(() => {
-    if (!originalData) return []
-    return originalData.nodes.map(n => n.__oidsee ?? n as OidSeeNode).filter((n): n is OidSeeNode => !!n)
-  }, [originalData])
-
-  const originalEdges = useMemo(() => {
-    if (!originalData) return []
-    return originalData.edges.map(e => e.__oidsee ?? e as OidSeeEdge).filter((e): e is OidSeeEdge => !!e)
-  }, [originalData])
+  // Note: originalNodes and originalEdges useMemo hooks removed
+  // They were blocking the UI thread with expensive .map().filter() operations on 26k+ items
+  // The lightweight conversion already provides the data in the correct format for alternative views
 
   // Filtered nodes and edges for alternative views (from full dataset)
   const filteredNodes = useMemo(() => {
