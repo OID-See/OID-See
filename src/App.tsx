@@ -778,10 +778,14 @@ export default function App() {
       
       // PRIORITY 2: Truncate and convert data for graph view in TRUE BACKGROUND
       // Use setTimeout to move this completely off the main render flow
-      // Store timeout ID for cleanup
-      // Capture the start time for accurate background task measurement
+      // For very large files (>20k nodes), skip graph view to keep UI responsive
       const graphConversionStartTime = performance.now()
-      graphConversionTimeoutRef.current = window.setTimeout(async () => {
+      
+      if (parsed.nodes.length > 20000) {
+        console.log(`[OID-See] ⏭️  Skipping graph view for very large file (${parsed.nodes.length.toLocaleString()} nodes) - use Table, Tree, Matrix, or Dashboard views instead`)
+        // Don't add 'graph' to ready views - it will remain disabled
+      } else {
+        graphConversionTimeoutRef.current = window.setTimeout(async () => {
         try {
           console.log('[OID-See] 🎨 Starting background graph view preparation...')
           
@@ -876,6 +880,7 @@ export default function App() {
           // Graph view fails silently - other views still work
         }
       }, 100) // Small delay to ensure dashboard renders first
+      }
       
     } catch (e: any) {
       console.error('[OID-See] ❌ Render error:', e)
