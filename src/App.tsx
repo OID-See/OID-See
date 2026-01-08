@@ -787,17 +787,22 @@ export default function App() {
             console.log('[OID-See] ✂️  Truncating data for graph view (background)...')
             const truncateStartTime = performance.now()
             
-            // Clone to avoid mutating original
+            // Yield at start to allow UI updates
+            await new Promise(resolve => setTimeout(resolve, 10))
+            
+            // Clone to avoid mutating original - yield after clone
             graphParsed = { ...parsed, nodes: [...parsed.nodes], edges: [...(parsed.edges || [])] }
+            await new Promise(resolve => setTimeout(resolve, 10))
             
             // Create indices array for sorting
             console.log('[OID-See] 📋 Creating index array for sorting...')
             const indices = Array.from({ length: graphParsed.nodes.length }, (_, i) => i)
             
-            // Yield before sorting
-            await new Promise(resolve => setTimeout(resolve, 0))
+            // Yield before expensive sort operation
+            await new Promise(resolve => setTimeout(resolve, 10))
             
             // Sort indices by risk score (highest first)
+            // Note: Array.sort() is native and can't yield, but we yield before/after
             console.log('[OID-See] 📋 Sorting nodes by risk score...')
             indices.sort((aIdx, bIdx) => {
               const a = graphParsed.nodes[aIdx]
@@ -809,8 +814,8 @@ export default function App() {
             const sortTime = performance.now() - truncateStartTime
             console.log('[OID-See] ✅ Sort complete:', `${sortTime.toFixed(0)}ms`)
             
-            // Yield after sorting
-            await new Promise(resolve => setTimeout(resolve, 0))
+            // Yield immediately after expensive sort to allow UI updates
+            await new Promise(resolve => setTimeout(resolve, 10))
             
             // Take top N highest-risk nodes
             console.log(`[OID-See] ✂️  Selecting top ${MAX_RENDERABLE_NODES.toLocaleString()} risk nodes...`)
@@ -818,7 +823,7 @@ export default function App() {
             const nodeIds = new Set(truncatedNodes.map((n: OidSeeNode) => n.id))
             
             // Yield before filtering edges
-            await new Promise(resolve => setTimeout(resolve, 0))
+            await new Promise(resolve => setTimeout(resolve, 10))
             
             // Filter edges
             console.log('[OID-See] 🔗 Filtering edges...')
@@ -838,16 +843,13 @@ export default function App() {
           }
           
           // Yield before vis-network conversion
-          await new Promise(resolve => setTimeout(resolve, 0))
+          await new Promise(resolve => setTimeout(resolve, 10))
           
           console.log('[OID-See] 🎨 Converting data to vis-network format for graph view...')
           const visStartTime = performance.now()
-          // Use sync for small datasets, async for larger ones to prevent UI blocking
-          // Note: Background task - progress updates won't show in UI but will log to console
-          const graphTotalItems = graphParsed.nodes.length + (graphParsed.edges?.length || 0)
-          const vis = graphTotalItems >= 500
-            ? await toVisDataAsync(graphParsed, (progress) => console.log(`[OID-See] ${progress}`), signal)
-            : toVisData(graphParsed)
+          // Always use async version in background to ensure UI responsiveness
+          // Even "small" truncated datasets benefit from yielding during conversion
+          const vis = await toVisDataAsync(graphParsed, (progress) => console.log(`[OID-See] ${progress}`), signal)
           const visTime = performance.now() - visStartTime
           console.log('[OID-See] ✅ Graph view data ready:', {
             duration: `${visTime.toFixed(0)}ms`,
