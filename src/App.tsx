@@ -401,6 +401,10 @@ export default function App() {
   const filterVersionRef = useRef<number>(0)
   // Manages debouncing timeout for filter operations
   const filterTimeoutRef = useRef<number | null>(null)
+  // Stores parsed data for lazy graph processing
+  const parsedDataForGraphRef = useRef<OidSeeExport | null>(null)
+  // Tracks whether graph processing has started
+  const graphProcessingStartedRef = useRef<boolean>(false)
   
   // Worker managers
   const fileParserWorkerRef = useRef<WorkerManager | null>(null)
@@ -671,6 +675,8 @@ export default function App() {
       setOriginalData(null)
       setViewsReady(new Set())
       setSelection(null)
+      parsedDataForGraphRef.current = null
+      graphProcessingStartedRef.current = false
       if (e?.message !== 'Processing cancelled' && e?.message !== 'Task cancelled') {
         setError(e?.message ?? String(e))
       }
@@ -808,68 +814,18 @@ export default function App() {
         cancelButtonTimeoutRef.current = null
       }
       
-      // PRIORITY 2: Process graph view in WEB WORKER (off main thread)
-      // This prevents UI blocking for large datasets (26k+ nodes)
-      // IMPORTANT: Do NOT await - let worker run in background while UI remains responsive
-      const graphConversionStartTime = performance.now()
-      console.log('[OID-See] 🎨 Starting background graph view preparation in worker...')
+      // Store parsed data for lazy graph processing
+      // Graph view will be processed on-demand when user switches to it
+      // This prevents UI blocking from background graph processing for large datasets
+      parsedDataForGraphRef.current = parsed
+      graphProcessingStartedRef.current = false
       
-      const graphProcessorWorker = graphProcessorWorkerRef.current
-      if (!graphProcessorWorker) {
-        console.warn('[OID-See] GraphProcessor worker not initialized, skipping graph view')
-        return
-      }
-      
-      // Start worker processing (DON'T AWAIT - let it run in background)
-      graphProcessorWorker.execute(
-        'processGraph',
-        {
-          parsed,
-          maxNodes: MAX_RENDERABLE_NODES,
-          maxEdges: MAX_RENDERABLE_EDGES,
-          needsTruncation: exceedsLimits
-        },
-        (stage, progress, message) => {
-          // Progress updates from worker - just log them
-          console.log(`[OID-See] 📊 Worker progress: ${message}`)
-        }
-      ).then((result: any) => {
-        // Worker completed - update UI with results
-        const { visData, wasTruncated, nodeCount: visNodeCount, edgeCount: visEdgeCount } = result
-        
-        // Add ctxRenderer to Group nodes (functions can't be transferred via postMessage)
-        // Worker marks Group nodes with __isGroup flag
-        visData.nodes.forEach((node: any) => {
-          if (node.__isGroup) {
-            node.ctxRenderer = doubleCircleRenderer
-            delete node.__isGroup // Clean up the flag
-          }
-        })
-        
-        console.log('[OID-See] ✅ Graph view data ready from worker:', {
-          nodes: visNodeCount.toLocaleString(),
-          edges: visEdgeCount.toLocaleString(),
-          truncated: wasTruncated
-        })
-        
-        // Set graph data
-        setData(visData)
-        setViewsReady(prev => new Set([...prev, 'graph']))
-        
-        // Show truncation warning if data was truncated
-        if (wasTruncated) {
-          setLargeGraphWarning(
-            `⚠️ Graph view truncated to ${MAX_RENDERABLE_NODES.toLocaleString()} highest-risk nodes (dataset: ${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges). ` +
-            `Use Table, Tree, Matrix, or Dashboard views to see the full dataset. Physics disabled for performance.`
-          )
-        }
-        
-        const totalTime = performance.now() - renderStartTime
-        const graphTaskTime = performance.now() - graphConversionStartTime
-        console.log(`[OID-See] ✅ All views ready! Graph: ${graphTaskTime.toFixed(0)}ms, Total: ${totalTime.toFixed(0)}ms`)
-      }).catch((e: any) => {
-        console.error('[OID-See] ❌ Background graph processing error:', e)
-        // Graph view fails silently - other views still work
+      console.log('[OID-See] ✅ Data loaded! Graph view will be processed when needed.')
+      console.log('[OID-See] 📊 Dataset size:', {
+        nodes: nodeCount.toLocaleString(),
+        edges: edgeCount.toLocaleString(),
+        isLarge: isLargeGraph,
+        exceedsLimits
       })
       
     } catch (e: any) {
@@ -878,6 +834,8 @@ export default function App() {
       setOriginalData(null)
       setViewsReady(new Set())
       setSelection(null)
+      parsedDataForGraphRef.current = null
+      graphProcessingStartedRef.current = false
       // Don't show error if it was a user cancellation
       if (e?.message !== 'Processing cancelled') {
         setError(e?.message ?? String(e))
@@ -1051,6 +1009,93 @@ export default function App() {
       }
     }
   }, [data, originalData, query, lens, pathAware])
+
+  // Lazy graph processing: only process graph when user switches to graph view
+  // This prevents UI blocking from background processing for large datasets
+  useEffect(() => {
+    // Only process if:
+    // 1. User is on graph view
+    // 2. We have parsed data to process
+    // 3. Processing hasn't started yet
+    // 4. We don't already have graph data
+    if (viewMode === 'graph' && parsedDataForGraphRef.current && !graphProcessingStartedRef.current && !data) {
+      graphProcessingStartedRef.current = true
+      
+      const graphProcessorWorker = graphProcessorWorkerRef.current
+      const parsed = parsedDataForGraphRef.current
+      
+      if (!graphProcessorWorker) {
+        console.warn('[OID-See] GraphProcessor worker not initialized, skipping graph view')
+        return
+      }
+      
+      const nodeCount = parsed?.nodes?.length || 0
+      const edgeCount = parsed?.edges?.length || 0
+      const isLargeGraph = nodeCount >= LARGE_GRAPH_THRESHOLD || edgeCount >= LARGE_GRAPH_THRESHOLD
+      const exceedsLimits = nodeCount > MAX_RENDERABLE_NODES || edgeCount > MAX_RENDERABLE_EDGES
+      
+      console.log('[OID-See] 🎨 User switched to Graph view - starting graph processing in worker...')
+      console.log('[OID-See] 📊 Dataset:', {
+        nodes: nodeCount.toLocaleString(),
+        edges: edgeCount.toLocaleString(),
+        isLarge: isLargeGraph,
+        exceedsLimits
+      })
+      
+      const graphConversionStartTime = performance.now()
+      
+      // Start worker processing
+      graphProcessorWorker.execute(
+        'processGraph',
+        {
+          parsed,
+          maxNodes: MAX_RENDERABLE_NODES,
+          maxEdges: MAX_RENDERABLE_EDGES,
+          needsTruncation: exceedsLimits
+        },
+        (stage, progress, message) => {
+          // Progress updates from worker - just log them
+          console.log(`[OID-See] 📊 Worker progress: ${message}`)
+        }
+      ).then((result: any) => {
+        // Worker completed - update UI with results
+        const { visData, wasTruncated, nodeCount: visNodeCount, edgeCount: visEdgeCount } = result
+        
+        // Add ctxRenderer to Group nodes (functions can't be transferred via postMessage)
+        // Worker marks Group nodes with __isGroup flag
+        visData.nodes.forEach((node: any) => {
+          if (node.__isGroup) {
+            node.ctxRenderer = doubleCircleRenderer
+            delete node.__isGroup // Clean up the flag
+          }
+        })
+        
+        console.log('[OID-See] ✅ Graph view data ready from worker:', {
+          nodes: visNodeCount.toLocaleString(),
+          edges: visEdgeCount.toLocaleString(),
+          truncated: wasTruncated
+        })
+        
+        // Set graph data
+        setData(visData)
+        setViewsReady(prev => new Set([...prev, 'graph']))
+        
+        // Show truncation warning if data was truncated
+        if (wasTruncated) {
+          setLargeGraphWarning(
+            `⚠️ Graph view truncated to ${MAX_RENDERABLE_NODES.toLocaleString()} highest-risk nodes (dataset: ${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges). ` +
+            `Use Table, Tree, Matrix, or Dashboard views to see the full dataset. Physics disabled for performance.`
+          )
+        }
+        
+        const graphTaskTime = performance.now() - graphConversionStartTime
+        console.log(`[OID-See] ✅ Graph view ready! Processing time: ${graphTaskTime.toFixed(0)}ms`)
+      }).catch((e: any) => {
+        console.error('[OID-See] ❌ Graph processing error:', e)
+        graphProcessingStartedRef.current = false // Allow retry
+      })
+    }
+  }, [viewMode, data])
 
   const counts = useMemo(() => {
     if (!data || !filtered) return undefined
