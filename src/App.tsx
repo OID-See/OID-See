@@ -26,6 +26,20 @@ import GraphProcessorWorker from './workers/graphProcessor.worker?worker'
 
 type SavedQuery = { name: string; query: string }
 
+// Filter result type matching filter.worker.ts structure
+// Note: Duplicated here because filter.worker.ts doesn't export it
+// and we want to maintain clear types for the async filtering logic
+// The 'parsed' property is received from the worker but not stored in state
+// because it's not needed after filtering (queries are reparsed when needed)
+interface FilterResult {
+  nodes: any[]
+  edges: any[]
+  parsed: {
+    clauses: Clause[]
+    errors: string[]
+  }
+}
+
 // Large graph detection threshold - reduced to catch more cases
 const LARGE_GRAPH_THRESHOLD = 3000 // nodes or edges
 
@@ -375,11 +389,22 @@ export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard')
   const [viewsReady, setViewsReady] = useState<Set<ViewMode>>(new Set())
   const [showCancelButton, setShowCancelButton] = useState<boolean>(false)
+  const [filtered, setFiltered] = useState<VisData | null>(null)
+  const [filteredOriginal, setFilteredOriginal] = useState<VisData | null>(null)
+  const [isFiltering, setIsFiltering] = useState<boolean>(false)
   const graphRef = useRef<GraphCanvasHandle>(null)
   const detailsPanelRef = useRef<HTMLElement>(null)
   const graphConversionTimeoutRef = useRef<number | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const cancelButtonTimeoutRef = useRef<number | null>(null)
+  // Tracks filter request versions to discard stale results and prevent race conditions
+  const filterVersionRef = useRef<number>(0)
+  // Manages debouncing timeout for filter operations
+  const filterTimeoutRef = useRef<number | null>(null)
+  // Stores parsed data for lazy graph processing
+  const parsedDataForGraphRef = useRef<OidSeeExport | null>(null)
+  // Tracks whether graph processing has started
+  const graphProcessingStartedRef = useRef<boolean>(false)
   
   // Worker managers
   const fileParserWorkerRef = useRef<WorkerManager | null>(null)
@@ -408,7 +433,8 @@ export default function App() {
     const filterWorker = new WorkerManager({
       worker: new FilterWorker(),
       onProgress: (stage, progress, message) => {
-        setLoadingProgress(message)
+        console.log(`[OID-See] Filtering: ${message}`)
+        // Progress is logged but not shown in UI to avoid flicker for fast filters
       }
     })
     filterWorkerRef.current = filterWorker
@@ -649,6 +675,8 @@ export default function App() {
       setOriginalData(null)
       setViewsReady(new Set())
       setSelection(null)
+      parsedDataForGraphRef.current = null
+      graphProcessingStartedRef.current = false
       if (e?.message !== 'Processing cancelled' && e?.message !== 'Task cancelled') {
         setError(e?.message ?? String(e))
       }
@@ -786,29 +814,263 @@ export default function App() {
         cancelButtonTimeoutRef.current = null
       }
       
-      // PRIORITY 2: Process graph view in WEB WORKER (off main thread)
-      // This prevents UI blocking for large datasets (26k+ nodes)
-      // IMPORTANT: Do NOT await - let worker run in background while UI remains responsive
-      const graphConversionStartTime = performance.now()
-      console.log('[OID-See] 🎨 Starting background graph view preparation in worker...')
+      // Store parsed data for lazy graph processing
+      // Graph view will be processed on-demand when user switches to it
+      // This prevents UI blocking from background graph processing for large datasets
+      parsedDataForGraphRef.current = parsed
+      graphProcessingStartedRef.current = false
+      
+      console.log('[OID-See] ✅ Data loaded! Graph view will be processed when needed.')
+      console.log('[OID-See] 📊 Dataset size:', {
+        nodes: nodeCount.toLocaleString(),
+        edges: edgeCount.toLocaleString(),
+        isLarge: isLargeGraph,
+        exceedsLimits
+      })
+      
+    } catch (e: any) {
+      console.error('[OID-See] ❌ Render error:', e)
+      setData(null)
+      setOriginalData(null)
+      setViewsReady(new Set())
+      setSelection(null)
+      parsedDataForGraphRef.current = null
+      graphProcessingStartedRef.current = false
+      // Don't show error if it was a user cancellation
+      if (e?.message !== 'Processing cancelled') {
+        setError(e?.message ?? String(e))
+      }
+      // Only set loading false if it hasn't been set already
+      setLoading(false)
+      setLoadingProgress('')
+      setShowCancelButton(false)
+    } finally {
+      // Clean up cancel button timeout
+      if (cancelButtonTimeoutRef.current !== null) {
+        clearTimeout(cancelButtonTimeoutRef.current)
+        cancelButtonTimeoutRef.current = null
+      }
+    }
+  }
+
+  function onDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault()
+    const file = e.dataTransfer.files?.[0]
+    if (file) void readFile(file)
+  }
+
+  // Async filtering with FilterWorker
+  // Filters both data (for graph view) and originalData (for alternative views)
+  // Uses debouncing and version tracking to prevent race conditions
+  useEffect(() => {
+    // Clear any pending filter timeout
+    if (filterTimeoutRef.current !== null) {
+      clearTimeout(filterTimeoutRef.current)
+      filterTimeoutRef.current = null
+    }
+
+    // If no data, clear filtered results
+    if (!data && !originalData) {
+      setFiltered(null)
+      setFilteredOriginal(null)
+      return
+    }
+
+    // Immediately set filtered states to unfiltered data ONLY if they're currently null
+    // This ensures views don't show "No data yet" while waiting for async filtering
+    // But avoids triggering unnecessary re-renders when query/lens changes
+    // IMPORTANT: For large datasets, skip immediate initialization to prevent UI blocking
+    // View components will show loading state until async filtering completes
+    const LARGE_DATASET_THRESHOLD = 10000 // Nodes/edges threshold for large dataset
+    const isLargeDataset = (originalData?.nodes?.length ?? 0) > LARGE_DATASET_THRESHOLD || 
+                           (originalData?.edges?.length ?? 0) > LARGE_DATASET_THRESHOLD
+    
+    if (!isLargeDataset) {
+      // For small datasets, initialize immediately for instant view rendering
+      if (data && !filtered) {
+        setFiltered(data)
+      }
+      if (originalData && !filteredOriginal) {
+        setFilteredOriginal(originalData)
+      }
+    } else {
+      // For large datasets, keep filtered states null until async filtering completes
+      // This prevents view components from trying to process 29k+ nodes synchronously
+      console.log('[OID-See] Large dataset detected - skipping immediate initialization to prevent UI blocking')
+    }
+
+    // Debounce filter operations (300ms delay)
+    filterTimeoutRef.current = window.setTimeout(() => {
+      // Increment version to track this request
+      filterVersionRef.current += 1
+      const currentVersion = filterVersionRef.current
+
+      console.log('[OID-See] 🔍 Starting async filter operation', {
+        version: currentVersion,
+        query: query.trim(),
+        lens,
+        pathAware,
+        hasData: !!data,
+        hasOriginalData: !!originalData
+      })
+
+      setIsFiltering(true)
+
+      // Run both filter operations in parallel for better performance
+      const filterPromises: Promise<void>[] = []
+
+      // Filter the truncated data for graph view
+      if (data && filterWorkerRef.current) {
+        const graphFilterPromise = filterWorkerRef.current.execute<FilterResult>(
+          'applyQuery',
+          {
+            nodes: data.nodes,
+            edges: data.edges,
+            query: query.trim(),
+            lens,
+            pathAware
+          },
+          (stage, progress, message) => {
+            // Log progress but don't show in UI to avoid flicker
+            console.log(`[OID-See] Filter (graph): ${message}`)
+          }
+        ).then((result) => {
+          // Only update if this is still the current version (no newer request)
+          if (currentVersion === filterVersionRef.current) {
+            setFiltered({
+              nodes: result.nodes,
+              edges: result.edges
+            })
+            console.log('[OID-See] ✅ Graph view filter complete', {
+              nodes: result.nodes.length,
+              edges: result.edges.length
+            })
+          } else {
+            console.log('[OID-See] ⏭️  Discarding stale filter result (graph view)', {
+              resultVersion: currentVersion,
+              currentVersion: filterVersionRef.current
+            })
+          }
+        }).catch((error) => {
+          console.error('[OID-See] ❌ Graph filter error:', error)
+          // On error, fall back to unfiltered data
+          if (currentVersion === filterVersionRef.current && data) {
+            setFiltered(data)
+          }
+        })
+        
+        filterPromises.push(graphFilterPromise)
+      }
+
+      // Filter the full originalData for alternative views
+      if (originalData && filterWorkerRef.current) {
+        const viewsFilterPromise = filterWorkerRef.current.execute<FilterResult>(
+          'applyQuery',
+          {
+            nodes: originalData.nodes,
+            edges: originalData.edges,
+            query: query.trim(),
+            lens,
+            pathAware
+          },
+          (stage, progress, message) => {
+            // Log progress but don't show in UI to avoid flicker
+            console.log(`[OID-See] Filter (views): ${message}`)
+          }
+        ).then((result) => {
+          // Only update if this is still the current version
+          if (currentVersion === filterVersionRef.current) {
+            setFilteredOriginal({
+              nodes: result.nodes,
+              edges: result.edges
+            })
+            console.log('[OID-See] ✅ Alternative views filter complete', {
+              nodes: result.nodes.length,
+              edges: result.edges.length
+            })
+          } else {
+            console.log('[OID-See] ⏭️  Discarding stale filter result (alternative views)', {
+              resultVersion: currentVersion,
+              currentVersion: filterVersionRef.current
+            })
+          }
+        }).catch((error) => {
+          console.error('[OID-See] ❌ Views filter error:', error)
+          // On error, fall back to unfiltered data
+          if (currentVersion === filterVersionRef.current && originalData) {
+            setFilteredOriginal(originalData)
+          }
+        })
+        
+        filterPromises.push(viewsFilterPromise)
+      }
+
+      // Wait for all filters to complete, then clear filtering state
+      Promise.allSettled(filterPromises).finally(() => {
+        // Only clear filtering state if this is still the current version
+        if (currentVersion === filterVersionRef.current) {
+          setIsFiltering(false)
+        }
+      })
+    }, 300) // 300ms debounce
+
+    // Cleanup function
+    return () => {
+      if (filterTimeoutRef.current !== null) {
+        clearTimeout(filterTimeoutRef.current)
+        filterTimeoutRef.current = null
+      }
+    }
+  }, [data, originalData, query, lens, pathAware])
+
+  // Lazy graph processing: only process graph when user switches to graph view
+  // This prevents UI blocking from background processing for large datasets
+  useEffect(() => {
+    // Only process if:
+    // 1. User is on graph view
+    // 2. We have parsed data to process
+    // 3. Processing hasn't started yet
+    // 4. We don't already have graph data
+    if (viewMode === 'graph' && parsedDataForGraphRef.current && !graphProcessingStartedRef.current && !data) {
+      graphProcessingStartedRef.current = true
       
       const graphProcessorWorker = graphProcessorWorkerRef.current
+      const parsed = parsedDataForGraphRef.current
+      
       if (!graphProcessorWorker) {
         console.warn('[OID-See] GraphProcessor worker not initialized, skipping graph view')
         return
       }
       
-      // Start worker processing (DON'T AWAIT - let it run in background)
-      graphProcessorWorker.execute({
-        taskType: 'processGraph',
-        parsed,
-        maxNodes: MAX_RENDERABLE_NODES,
-        maxEdges: MAX_RENDERABLE_EDGES,
-        needsTruncation: exceedsLimits
-      }, (stage, progress, message) => {
-        // Progress updates from worker - just log them
-        console.log(`[OID-See] 📊 Worker progress: ${message}`)
-      }).then((result: any) => {
+      const nodeCount = parsed?.nodes?.length || 0
+      const edgeCount = parsed?.edges?.length || 0
+      const isLargeGraph = nodeCount >= LARGE_GRAPH_THRESHOLD || edgeCount >= LARGE_GRAPH_THRESHOLD
+      const exceedsLimits = nodeCount > MAX_RENDERABLE_NODES || edgeCount > MAX_RENDERABLE_EDGES
+      
+      console.log('[OID-See] 🎨 User switched to Graph view - starting graph processing in worker...')
+      console.log('[OID-See] 📊 Dataset:', {
+        nodes: nodeCount.toLocaleString(),
+        edges: edgeCount.toLocaleString(),
+        isLarge: isLargeGraph,
+        exceedsLimits
+      })
+      
+      const graphConversionStartTime = performance.now()
+      
+      // Start worker processing
+      graphProcessorWorker.execute(
+        'processGraph',
+        {
+          parsed,
+          maxNodes: MAX_RENDERABLE_NODES,
+          maxEdges: MAX_RENDERABLE_EDGES,
+          needsTruncation: exceedsLimits
+        },
+        (stage, progress, message) => {
+          // Progress updates from worker - just log them
+          console.log(`[OID-See] 📊 Worker progress: ${message}`)
+        }
+      ).then((result: any) => {
         // Worker completed - update UI with results
         const { visData, wasTruncated, nodeCount: visNodeCount, edgeCount: visEdgeCount } = result
         
@@ -839,66 +1101,14 @@ export default function App() {
           )
         }
         
-        const totalTime = performance.now() - renderStartTime
         const graphTaskTime = performance.now() - graphConversionStartTime
-        console.log(`[OID-See] ✅ All views ready! Graph: ${graphTaskTime.toFixed(0)}ms, Total: ${totalTime.toFixed(0)}ms`)
+        console.log(`[OID-See] ✅ Graph view ready! Processing time: ${graphTaskTime.toFixed(0)}ms`)
       }).catch((e: any) => {
-        console.error('[OID-See] ❌ Background graph processing error:', e)
-        // Graph view fails silently - other views still work
+        console.error('[OID-See] ❌ Graph processing error:', e)
+        graphProcessingStartedRef.current = false // Allow retry
       })
-      
-    } catch (e: any) {
-      console.error('[OID-See] ❌ Render error:', e)
-      setData(null)
-      setOriginalData(null)
-      setViewsReady(new Set())
-      setSelection(null)
-      // Don't show error if it was a user cancellation
-      if (e?.message !== 'Processing cancelled') {
-        setError(e?.message ?? String(e))
-      }
-      // Only set loading false if it hasn't been set already
-      setLoading(false)
-      setLoadingProgress('')
-      setShowCancelButton(false)
-    } finally {
-      // Clean up cancel button timeout
-      if (cancelButtonTimeoutRef.current !== null) {
-        clearTimeout(cancelButtonTimeoutRef.current)
-        cancelButtonTimeoutRef.current = null
-      }
     }
-  }
-
-  function onDrop(e: React.DragEvent<HTMLDivElement>) {
-    e.preventDefault()
-    const file = e.dataTransfer.files?.[0]
-    if (file) void readFile(file)
-  }
-
-  // Filtered data for graph view (uses truncated data)
-  const filtered = useMemo(() => {
-    if (!data) return null
-    try {
-      return applyQuery(data, query.trim(), lens, pathAware)
-    } catch (e) {
-      console.error('Error applying query/lens filter:', e)
-      // Return unfiltered data on error to prevent complete failure
-      return data
-    }
-  }, [data, query, lens, pathAware])
-
-  // Filtered data for alternative views (uses full originalData)
-  const filteredOriginal = useMemo(() => {
-    if (!originalData) return null
-    try {
-      return applyQuery(originalData, query.trim(), lens, pathAware)
-    } catch (e) {
-      console.error('Error applying query/lens filter to original data:', e)
-      // Return unfiltered data on error to prevent complete failure
-      return originalData
-    }
-  }, [originalData, query, lens, pathAware])
+  }, [viewMode, data])
 
   const counts = useMemo(() => {
     if (!data || !filtered) return undefined
@@ -931,9 +1141,10 @@ export default function App() {
   // Note: All expensive useMemo hooks removed
   // They were blocking the UI thread with .map().filter() operations on 26k+ items
   // The lightweight conversion already provides the data in the correct format for alternative views
-  // Pass raw filtered data directly - views will access __oidsee property as needed
-  const filteredNodes = filteredOriginal?.nodes ?? []
-  const filteredEdges = filteredOriginal?.edges ?? []
+  // Extract __oidsee property from filtered data for alternative views
+  // filteredOriginal contains vis-data format {id, __oidsee} but views expect raw OidSeeNode/OidSeeEdge
+  const filteredNodes = filteredOriginal?.nodes?.map(n => n.__oidsee ?? n) ?? []
+  const filteredEdges = filteredOriginal?.edges?.map(e => e.__oidsee ?? e) ?? []
 
   function saveCurrentQuery() {
     const name = prompt('Save query as…')

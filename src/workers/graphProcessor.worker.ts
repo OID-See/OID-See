@@ -365,7 +365,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
         const payload = message.payload as any
         
         if (payload.taskType === 'processGraph') {
-          await processGraph(taskId, payload as ProcessGraphPayload)
+          await processGraph(taskId, payload.data as ProcessGraphPayload)
         } else {
           sendError(taskId, new Error(`Unknown task type: ${payload.taskType}`))
         }

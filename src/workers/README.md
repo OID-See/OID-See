@@ -61,6 +61,15 @@ pool.terminate()
 
 ## Available Workers
 
+**Active Workers (Currently Integrated):**
+1. FileParser Worker - Handles file reading and JSON parsing
+2. GraphProcessor Worker - Converts data and computes positions
+3. Filter Worker - Asynchronous filtering of nodes and edges
+
+**Available but Not Integrated:**
+- Layout Worker - Advanced layout computation
+- Analytics Worker - Graph statistics and risk analysis
+
 ### 1. FileParser Worker (`fileParser.worker.ts`)
 
 Handles file reading and JSON parsing off the main thread.
@@ -91,7 +100,18 @@ const parsed = await fileParserWorker.execute('parseFile',
 
 ### 2. Filter Worker (`filter.worker.ts`)
 
-Performs query filtering operations (applyQuery) off the main thread.
+Handles filtering of nodes and edges asynchronously, preventing UI blocking for large datasets.
+
+**Status: INTEGRATED** - Filtering operations now run off the main thread using this worker.
+
+Filtering runs asynchronously via `filterWorkerRef.current.execute()` in a useEffect hook with debouncing (300ms) and version tracking to prevent race conditions. The implementation uses request versioning to discard stale results from outdated filter operations.
+
+**Integration Details:**
+- Debounced filter requests prevent excessive worker calls during typing
+- Version tracking ensures only the latest filter results are applied
+- Filters both truncated data (graph view) and full originalData (alternative views)
+- Error handling falls back to unfiltered data
+- Progress logged to console without UI flicker
 
 **Task Types:**
 - `applyQuery`: Filter nodes and edges based on query and lens
@@ -102,10 +122,9 @@ const result = await filterWorker.execute('applyQuery', {
   nodes,
   edges,
   query: 'n.risk.score>=70',
-  lens: 'risk',
-  pathAware: true
+  lens: 'full',
+  pathAware: false
 })
-// result: { nodes, edges, parsed }
 ```
 
 **Features:**
@@ -113,6 +132,7 @@ const result = await filterWorker.execute('applyQuery', {
 - Progress tracking for node and edge filtering
 - Supports all query operators and lens types
 - Path-aware filtering for derived edges
+- Race condition prevention via version tracking
 
 **Progress Stages:**
 1. `parsing` (5%): Parsing query
@@ -120,7 +140,25 @@ const result = await filterWorker.execute('applyQuery', {
 3. `filtering_edges` (45-75%): Filtering edges
 4. `finalizing` (80-100%): Finalizing node set
 
-### 3. Layout Worker (`layout.worker.ts`)
+### 3. GraphProcessor Worker (`graphProcessor.worker.ts`)
+
+Performs graph processing operations (coordinate computation, risk calculations) off the main thread.
+
+**Task Types:**
+- `processGraph`: Convert parsed data to visualization-ready format with coordinates
+
+**Features:**
+- Handles conversion of OID-See data to vis.js format
+- Computes initial node positions using clustering
+- Progress tracking for processing stages
+- Cancellation support
+- Efficient processing for large graphs
+
+**Progress Stages:**
+1. `converting` (0-50%): Converting data format
+2. `positioning` (50-100%): Computing node positions
+
+### 4. Layout Worker (`layout.worker.ts`)
 
 Computes graph layouts off the main thread.
 
@@ -151,7 +189,7 @@ const positions = await layoutWorker.execute('computeLayout', {
 1. `indexing` (10%): Indexing nodes
 2. `clustering` (20-100%): Creating and positioning clusters
 
-### 4. Analytics Worker (`analytics.worker.ts`)
+### 5. Analytics Worker (`analytics.worker.ts`)
 
 Performs risk computation and graph analysis off the main thread.
 
