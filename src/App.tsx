@@ -26,6 +26,16 @@ import GraphProcessorWorker from './workers/graphProcessor.worker?worker'
 
 type SavedQuery = { name: string; query: string }
 
+// Filter result type from filter.worker.ts
+interface FilterResult {
+  nodes: any[]
+  edges: any[]
+  parsed: {
+    clauses: Clause[]
+    errors: string[]
+  }
+}
+
 // Large graph detection threshold - reduced to catch more cases
 const LARGE_GRAPH_THRESHOLD = 3000 // nodes or edges
 
@@ -919,11 +929,7 @@ export default function App() {
       try {
         // Filter the truncated data for graph view
         if (data && filterWorkerRef.current) {
-          const result = await filterWorkerRef.current.execute<{
-            nodes: any[]
-            edges: any[]
-            parsed: any
-          }>(
+          const result = await filterWorkerRef.current.execute<FilterResult>(
             'applyQuery',
             {
               nodes: data.nodes,
@@ -959,11 +965,7 @@ export default function App() {
 
         // Filter the full originalData for alternative views
         if (originalData && filterWorkerRef.current) {
-          const result = await filterWorkerRef.current.execute<{
-            nodes: any[]
-            edges: any[]
-            parsed: any
-          }>(
+          const result = await filterWorkerRef.current.execute<FilterResult>(
             'applyQuery',
             {
               nodes: originalData.nodes,
