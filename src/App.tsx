@@ -915,6 +915,15 @@ export default function App() {
       return
     }
 
+    // Immediately set filtered states to unfiltered data to allow views to render
+    // The async filter will update these once it completes
+    if (data && !filtered) {
+      setFiltered(data)
+    }
+    if (originalData && !filteredOriginal) {
+      setFilteredOriginal(originalData)
+    }
+
     // Debounce filter operations (300ms delay)
     filterTimeoutRef.current = window.setTimeout(async () => {
       // Increment version to track this request
