@@ -1035,7 +1035,7 @@ export default function App() {
       }
 
       // Wait for all filters to complete, then clear filtering state
-      Promise.all(filterPromises).finally(() => {
+      Promise.allSettled(filterPromises).finally(() => {
         // Only clear filtering state if this is still the current version
         if (currentVersion === filterVersionRef.current) {
           setIsFiltering(false)
