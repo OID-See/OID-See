@@ -879,11 +879,24 @@ export default function App() {
     // Immediately set filtered states to unfiltered data ONLY if they're currently null
     // This ensures views don't show "No data yet" while waiting for async filtering
     // But avoids triggering unnecessary re-renders when query/lens changes
-    if (data && !filtered) {
-      setFiltered(data)
-    }
-    if (originalData && !filteredOriginal) {
-      setFilteredOriginal(originalData)
+    // IMPORTANT: For large datasets, skip immediate initialization to prevent UI blocking
+    // View components will show loading state until async filtering completes
+    const LARGE_DATASET_THRESHOLD = 10000 // Nodes/edges threshold for large dataset
+    const isLargeDataset = (originalData?.nodes?.length ?? 0) > LARGE_DATASET_THRESHOLD || 
+                           (originalData?.edges?.length ?? 0) > LARGE_DATASET_THRESHOLD
+    
+    if (!isLargeDataset) {
+      // For small datasets, initialize immediately for instant view rendering
+      if (data && !filtered) {
+        setFiltered(data)
+      }
+      if (originalData && !filteredOriginal) {
+        setFilteredOriginal(originalData)
+      }
+    } else {
+      // For large datasets, keep filtered states null until async filtering completes
+      // This prevents view components from trying to process 29k+ nodes synchronously
+      console.log('[OID-See] Large dataset detected - skipping immediate initialization to prevent UI blocking')
     }
 
     // Debounce filter operations (300ms delay)
