@@ -917,10 +917,11 @@ export default function App() {
 
     // Immediately set filtered states to unfiltered data to allow views to render
     // The async filter will update these once it completes
-    if (data && !filtered) {
+    // This ensures views don't show "No data yet" while waiting for async filtering
+    if (data) {
       setFiltered(data)
     }
-    if (originalData && !filteredOriginal) {
+    if (originalData) {
       setFilteredOriginal(originalData)
     }
 
