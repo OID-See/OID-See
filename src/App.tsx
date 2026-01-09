@@ -1165,13 +1165,16 @@ export default function App() {
     return new Map(data.edges.map(e => [e.id, e]))
   }, [data])
 
-  // Note: All expensive useMemo hooks removed
-  // They were blocking the UI thread with .map().filter() operations on 26k+ items
-  // The lightweight conversion already provides the data in the correct format for alternative views
   // Extract __oidsee property from filtered data for alternative views
   // filteredOriginal contains vis-data format {id, __oidsee} but views expect raw OidSeeNode/OidSeeEdge
-  const filteredNodes = filteredOriginal?.nodes?.map(n => n.__oidsee ?? n) ?? []
-  const filteredEdges = filteredOriginal?.edges?.map(e => e.__oidsee ?? e) ?? []
+  // Memoize these to avoid expensive .map() on every render (critical for 12k+ items)
+  const filteredNodes = useMemo(() => 
+    filteredOriginal?.nodes?.map(n => n.__oidsee ?? n) ?? []
+  , [filteredOriginal])
+  
+  const filteredEdges = useMemo(() => 
+    filteredOriginal?.edges?.map(e => e.__oidsee ?? e) ?? []
+  , [filteredOriginal])
 
   function saveCurrentQuery() {
     const name = prompt('Save query as…')
