@@ -21,6 +21,7 @@ import { MatrixView } from './components/MatrixView'
 import { DashboardView } from './components/DashboardView'
 import { WorkerManager } from './workers/WorkerManager'
 import FileParserWorker from './workers/fileParser.worker?worker'
+import FilterWorker from './workers/filter.worker?worker'
 import GraphProcessorWorker from './workers/graphProcessor.worker?worker'
 
 type SavedQuery = { name: string; query: string }
@@ -374,14 +375,20 @@ export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard')
   const [viewsReady, setViewsReady] = useState<Set<ViewMode>>(new Set())
   const [showCancelButton, setShowCancelButton] = useState<boolean>(false)
+  const [filtered, setFiltered] = useState<VisData | null>(null)
+  const [filteredOriginal, setFilteredOriginal] = useState<VisData | null>(null)
+  const [isFiltering, setIsFiltering] = useState<boolean>(false)
   const graphRef = useRef<GraphCanvasHandle>(null)
   const detailsPanelRef = useRef<HTMLElement>(null)
   const graphConversionTimeoutRef = useRef<number | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const cancelButtonTimeoutRef = useRef<number | null>(null)
+  const filterVersionRef = useRef<number>(0)
+  const filterTimeoutRef = useRef<number | null>(null)
   
   // Worker managers
   const fileParserWorkerRef = useRef<WorkerManager | null>(null)
+  const filterWorkerRef = useRef<WorkerManager | null>(null)
   const graphProcessorWorkerRef = useRef<WorkerManager | null>(null)
 
   // Load physics config on mount
@@ -402,6 +409,16 @@ export default function App() {
     })
     fileParserWorkerRef.current = fileParserWorker
     
+    // Initialize Filter worker with pre-created worker instance
+    const filterWorker = new WorkerManager({
+      worker: new FilterWorker(),
+      onProgress: (stage, progress, message) => {
+        console.log(`[OID-See] Filtering: ${message}`)
+        // Progress is logged but not shown in UI to avoid flicker for fast filters
+      }
+    })
+    filterWorkerRef.current = filterWorker
+    
     // Initialize GraphProcessor worker with pre-created worker instance
     const graphProcessorWorker = new WorkerManager({
       worker: new GraphProcessorWorker(),
@@ -418,6 +435,7 @@ export default function App() {
     return () => {
       console.log('[OID-See] Terminating workers...')
       fileParserWorkerRef.current?.terminate()
+      filterWorkerRef.current?.terminate()
       graphProcessorWorkerRef.current?.terminate()
     }
   }, [])
@@ -864,33 +882,147 @@ export default function App() {
     if (file) void readFile(file)
   }
 
-  // Filtered data for graph view (uses truncated data)
-  // NOTE: Filtering is currently synchronous and may block the UI for large datasets.
-  // This is a known limitation - async filtering will be addressed in a future PR.
-  const filtered = useMemo(() => {
-    if (!data) return null
-    try {
-      return applyQuery(data, query.trim(), lens, pathAware)
-    } catch (e) {
-      console.error('Error applying query/lens filter:', e)
-      // Return unfiltered data on error to prevent complete failure
-      return data
+  // Async filtering with FilterWorker
+  // Filters both data (for graph view) and originalData (for alternative views)
+  // Uses debouncing and version tracking to prevent race conditions
+  useEffect(() => {
+    // Clear any pending filter timeout
+    if (filterTimeoutRef.current !== null) {
+      clearTimeout(filterTimeoutRef.current)
+      filterTimeoutRef.current = null
     }
-  }, [data, query, lens, pathAware])
 
-  // Filtered data for alternative views (uses full originalData)
-  // NOTE: Filtering is currently synchronous and may block the UI for large datasets.
-  // This is a known limitation - async filtering will be addressed in a future PR.
-  const filteredOriginal = useMemo(() => {
-    if (!originalData) return null
-    try {
-      return applyQuery(originalData, query.trim(), lens, pathAware)
-    } catch (e) {
-      console.error('Error applying query/lens filter to original data:', e)
-      // Return unfiltered data on error to prevent complete failure
-      return originalData
+    // If no data, clear filtered results
+    if (!data && !originalData) {
+      setFiltered(null)
+      setFilteredOriginal(null)
+      return
     }
-  }, [originalData, query, lens, pathAware])
+
+    // Debounce filter operations (300ms delay)
+    filterTimeoutRef.current = window.setTimeout(async () => {
+      // Increment version to track this request
+      filterVersionRef.current += 1
+      const currentVersion = filterVersionRef.current
+
+      console.log('[OID-See] 🔍 Starting async filter operation', {
+        version: currentVersion,
+        query: query.trim(),
+        lens,
+        pathAware,
+        hasData: !!data,
+        hasOriginalData: !!originalData
+      })
+
+      setIsFiltering(true)
+
+      try {
+        // Filter the truncated data for graph view
+        if (data && filterWorkerRef.current) {
+          const result = await filterWorkerRef.current.execute<{
+            nodes: any[]
+            edges: any[]
+            parsed: any
+          }>(
+            'applyQuery',
+            {
+              nodes: data.nodes,
+              edges: data.edges,
+              query: query.trim(),
+              lens,
+              pathAware
+            },
+            (stage, progress, message) => {
+              // Log progress but don't show in UI to avoid flicker
+              console.log(`[OID-See] Filter (graph): ${message}`)
+            }
+          )
+
+          // Only update if this is still the current version (no newer request)
+          if (currentVersion === filterVersionRef.current) {
+            setFiltered({
+              nodes: result.nodes,
+              edges: result.edges,
+              parsed: result.parsed
+            })
+            console.log('[OID-See] ✅ Graph view filter complete', {
+              nodes: result.nodes.length,
+              edges: result.edges.length
+            })
+          } else {
+            console.log('[OID-See] ⏭️  Discarding stale filter result (graph view)', {
+              resultVersion: currentVersion,
+              currentVersion: filterVersionRef.current
+            })
+          }
+        }
+
+        // Filter the full originalData for alternative views
+        if (originalData && filterWorkerRef.current) {
+          const result = await filterWorkerRef.current.execute<{
+            nodes: any[]
+            edges: any[]
+            parsed: any
+          }>(
+            'applyQuery',
+            {
+              nodes: originalData.nodes,
+              edges: originalData.edges,
+              query: query.trim(),
+              lens,
+              pathAware
+            },
+            (stage, progress, message) => {
+              // Log progress but don't show in UI to avoid flicker
+              console.log(`[OID-See] Filter (views): ${message}`)
+            }
+          )
+
+          // Only update if this is still the current version
+          if (currentVersion === filterVersionRef.current) {
+            setFilteredOriginal({
+              nodes: result.nodes,
+              edges: result.edges,
+              parsed: result.parsed
+            })
+            console.log('[OID-See] ✅ Alternative views filter complete', {
+              nodes: result.nodes.length,
+              edges: result.edges.length
+            })
+          } else {
+            console.log('[OID-See] ⏭️  Discarding stale filter result (alternative views)', {
+              resultVersion: currentVersion,
+              currentVersion: filterVersionRef.current
+            })
+          }
+        }
+      } catch (error) {
+        console.error('[OID-See] ❌ Filter error:', error)
+        // On error, fall back to unfiltered data
+        if (currentVersion === filterVersionRef.current) {
+          if (data) {
+            setFiltered(data)
+          }
+          if (originalData) {
+            setFilteredOriginal(originalData)
+          }
+        }
+      } finally {
+        // Only clear filtering state if this is still the current version
+        if (currentVersion === filterVersionRef.current) {
+          setIsFiltering(false)
+        }
+      }
+    }, 300) // 300ms debounce
+
+    // Cleanup function
+    return () => {
+      if (filterTimeoutRef.current !== null) {
+        clearTimeout(filterTimeoutRef.current)
+        filterTimeoutRef.current = null
+      }
+    }
+  }, [data, originalData, query, lens, pathAware])
 
   const counts = useMemo(() => {
     if (!data || !filtered) return undefined
