@@ -706,6 +706,9 @@ export default function App() {
     abortControllerRef.current = new AbortController()
     const signal = abortControllerRef.current.signal
     
+    // Clear old graph data to trigger lazy loading for new file
+    // This ensures the lazy loading useEffect will run when user is on graph view
+    setData(null)
     setSelection(null)
     setLargeGraphWarning(null)
     setShowCancelButton(false)
