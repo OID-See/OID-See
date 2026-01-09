@@ -394,7 +394,7 @@ export default function App() {
   const [isFiltering, setIsFiltering] = useState<boolean>(false)
   
   // Use transition for non-urgent view mode changes to keep UI responsive
-  const [isPending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
   
   // Wrapper for setViewMode that uses transition to prevent UI blocking
   const handleViewModeChange = (mode: ViewMode) => {
