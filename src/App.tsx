@@ -1061,9 +1061,10 @@ export default function App() {
   // Note: All expensive useMemo hooks removed
   // They were blocking the UI thread with .map().filter() operations on 26k+ items
   // The lightweight conversion already provides the data in the correct format for alternative views
-  // Pass raw filtered data directly - views will access __oidsee property as needed
-  const filteredNodes = filteredOriginal?.nodes ?? []
-  const filteredEdges = filteredOriginal?.edges ?? []
+  // Extract __oidsee property from filtered data for alternative views
+  // filteredOriginal contains vis-data format {id, __oidsee} but views expect raw OidSeeNode/OidSeeEdge
+  const filteredNodes = filteredOriginal?.nodes?.map(n => n.__oidsee ?? n) ?? []
+  const filteredEdges = filteredOriginal?.edges?.map(e => e.__oidsee ?? e) ?? []
 
   function saveCurrentQuery() {
     const name = prompt('Save query as…')
