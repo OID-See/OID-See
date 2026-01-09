@@ -21,7 +21,6 @@ import { MatrixView } from './components/MatrixView'
 import { DashboardView } from './components/DashboardView'
 import { WorkerManager } from './workers/WorkerManager'
 import FileParserWorker from './workers/fileParser.worker?worker'
-import FilterWorker from './workers/filter.worker?worker'
 import GraphProcessorWorker from './workers/graphProcessor.worker?worker'
 
 type SavedQuery = { name: string; query: string }
@@ -383,7 +382,6 @@ export default function App() {
   
   // Worker managers
   const fileParserWorkerRef = useRef<WorkerManager | null>(null)
-  const filterWorkerRef = useRef<WorkerManager | null>(null)
   const graphProcessorWorkerRef = useRef<WorkerManager | null>(null)
 
   // Load physics config on mount
@@ -404,15 +402,6 @@ export default function App() {
     })
     fileParserWorkerRef.current = fileParserWorker
     
-    // Initialize Filter worker with pre-created worker instance
-    const filterWorker = new WorkerManager({
-      worker: new FilterWorker(),
-      onProgress: (stage, progress, message) => {
-        setLoadingProgress(message)
-      }
-    })
-    filterWorkerRef.current = filterWorker
-    
     // Initialize GraphProcessor worker with pre-created worker instance
     const graphProcessorWorker = new WorkerManager({
       worker: new GraphProcessorWorker(),
@@ -429,7 +418,6 @@ export default function App() {
     return () => {
       console.log('[OID-See] Terminating workers...')
       fileParserWorkerRef.current?.terminate()
-      filterWorkerRef.current?.terminate()
       graphProcessorWorkerRef.current?.terminate()
     }
   }, [])
@@ -877,6 +865,8 @@ export default function App() {
   }
 
   // Filtered data for graph view (uses truncated data)
+  // NOTE: Filtering is currently synchronous and may block the UI for large datasets.
+  // This is a known limitation - async filtering will be addressed in a future PR.
   const filtered = useMemo(() => {
     if (!data) return null
     try {
@@ -889,6 +879,8 @@ export default function App() {
   }, [data, query, lens, pathAware])
 
   // Filtered data for alternative views (uses full originalData)
+  // NOTE: Filtering is currently synchronous and may block the UI for large datasets.
+  // This is a known limitation - async filtering will be addressed in a future PR.
   const filteredOriginal = useMemo(() => {
     if (!originalData) return null
     try {
