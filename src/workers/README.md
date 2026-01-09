@@ -64,9 +64,9 @@ pool.terminate()
 **Active Workers (Currently Integrated):**
 1. FileParser Worker - Handles file reading and JSON parsing
 2. GraphProcessor Worker - Converts data and computes positions
+3. Filter Worker - Asynchronous filtering of nodes and edges
 
 **Available but Not Integrated:**
-- Filter Worker - Code exists but not used (filtering is synchronous)
 - Layout Worker - Advanced layout computation
 - Analytics Worker - Graph statistics and risk analysis
 
@@ -98,35 +98,41 @@ const parsed = await fileParserWorker.execute('parseFile',
 1. `reading` (0-50%): Reading file content
 2. `parsing` (50-100%): Parsing JSON
 
-### Filter Worker (`filter.worker.ts`) - ⚠️ NOT CURRENTLY INTEGRATED
+### 2. Filter Worker (`filter.worker.ts`)
 
-**Status: DEFERRED** - This worker exists but is not currently integrated into the application.
+Handles filtering of nodes and edges asynchronously, preventing UI blocking for large datasets.
 
-Filtering operations currently run synchronously on the main thread using the `applyQuery()` function defined in `App.tsx` (line 235, called within useMemo hooks on lines 884-893). While this blocks the UI for large datasets, it avoids timing and state synchronization issues that occurred during worker integration attempts.
+**Status: INTEGRATED** - Filtering operations now run off the main thread using this worker.
 
-**Why Not Integrated:**
-- Race conditions between worker responses and React state updates
-- Rendering views with stale or incomplete filtered data
-- Complexity in coordinating async filtering with React's rendering lifecycle
+Filtering runs asynchronously via `filterWorkerRef.current.execute()` in a useEffect hook with debouncing (300ms) and version tracking to prevent race conditions. The implementation uses request versioning to discard stale results from outdated filter operations.
 
-**Future Work:**
-Async filtering will be addressed in a future PR with a more robust approach, possibly:
-- Migrating filtering into view components themselves
-- Using React Suspense/transitions for better state coordination
-- Implementing proper data versioning to prevent stale results
-
-**Implementation Details (for future reference):**
-
-The worker code is complete and functional, supporting:
+**Integration Details:**
+- Debounced filter requests prevent excessive worker calls during typing
+- Version tracking ensures only the latest filter results are applied
+- Filters both truncated data (graph view) and full originalData (alternative views)
+- Error handling falls back to unfiltered data
+- Progress logged to console without UI flicker
 
 **Task Types:**
 - `applyQuery`: Filter nodes and edges based on query and lens
+
+**Usage:**
+```typescript
+const result = await filterWorker.execute('applyQuery', {
+  nodes,
+  edges,
+  query: 'n.risk.score>=70',
+  lens: 'full',
+  pathAware: false
+})
+```
 
 **Features:**
 - Batch processing with cancellation checkpoints
 - Progress tracking for node and edge filtering
 - Supports all query operators and lens types
 - Path-aware filtering for derived edges
+- Race condition prevention via version tracking
 
 **Progress Stages:**
 1. `parsing` (5%): Parsing query
@@ -134,7 +140,7 @@ The worker code is complete and functional, supporting:
 3. `filtering_edges` (45-75%): Filtering edges
 4. `finalizing` (80-100%): Finalizing node set
 
-### 2. GraphProcessor Worker (`graphProcessor.worker.ts`)
+### 3. GraphProcessor Worker (`graphProcessor.worker.ts`)
 
 Performs graph processing operations (coordinate computation, risk calculations) off the main thread.
 
