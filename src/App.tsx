@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef, useTransition } from 'react'
 import { GraphCanvas, Selection, GraphCanvasHandle, PhysicsConfig, DEFAULT_PHYSICS } from './components/GraphCanvas'
 import { toVisData, toVisDataAsync, toVisDataLightweight, doubleCircleRenderer, VisData, ProgressCallback } from './adapters/toVisData'
 import sampleObj from './samples/sample-oidsee-graph.json'
@@ -392,6 +392,17 @@ export default function App() {
   const [filtered, setFiltered] = useState<VisData | null>(null)
   const [filteredOriginal, setFilteredOriginal] = useState<VisData | null>(null)
   const [isFiltering, setIsFiltering] = useState<boolean>(false)
+  
+  // Use transition for non-urgent view mode changes to keep UI responsive
+  const [isPending, startTransition] = useTransition()
+  
+  // Wrapper for setViewMode that uses transition to prevent UI blocking
+  const handleViewModeChange = (mode: ViewMode) => {
+    startTransition(() => {
+      setViewMode(mode)
+    })
+  }
+  
   const graphRef = useRef<GraphCanvasHandle>(null)
   const detailsPanelRef = useRef<HTMLElement>(null)
   const graphConversionTimeoutRef = useRef<number | null>(null)
@@ -1279,7 +1290,7 @@ export default function App() {
     // Create a filter query for the selected nodes
     const idQuery = nodeIds.map(id => `n.id="${id}"`).join(' ')
     setQuery(idQuery)
-    setViewMode('graph')
+    handleViewModeChange('graph')
     
     // Show info message
     setLargeGraphWarning(
@@ -1334,7 +1345,7 @@ export default function App() {
     setFilterCollapsed(false)
     setMaximizedPanel(null)
     // Reset view mode to dashboard when resetting all views
-    setViewMode('dashboard')
+    handleViewModeChange('dashboard')
   }
 
   return (
@@ -1361,7 +1372,7 @@ export default function App() {
         </div>
 
         <div className="topbar__actions">
-          <ViewModeSelector currentMode={viewMode} onChange={setViewMode} viewsReady={viewsReady} />
+          <ViewModeSelector currentMode={viewMode} onChange={handleViewModeChange} viewsReady={viewsReady} />
           
           <button
             className="btn file"
