@@ -873,10 +873,32 @@ export default function App() {
       filterTimeoutRef.current = null
     }
 
+    // Skip filtering during initial data load to prevent multiple filter operations
+    // This prevents 3x filtering when setData(null), setOriginalData(), and setData() are called
+    if (loading) {
+      return
+    }
+
     // If no data, clear filtered results
     if (!data && !originalData) {
       setFiltered(null)
       setFilteredOriginal(null)
+      return
+    }
+
+    // If query is empty and lens is 'full', skip filtering entirely
+    // This prevents unnecessary filter operations on initial data load
+    const isDefaultFilter = query.trim() === '' && lens === 'full'
+    
+    if (isDefaultFilter) {
+      // No filtering needed - pass data through immediately
+      if (data && !filtered) {
+        setFiltered(data)
+      }
+      if (originalData && !filteredOriginal) {
+        setFilteredOriginal(originalData)
+      }
+      console.log('[OID-See] ✅ No filter query - passing data through without filtering')
       return
     }
 
@@ -1025,7 +1047,7 @@ export default function App() {
         filterTimeoutRef.current = null
       }
     }
-  }, [data, originalData, query, lens, pathAware])
+  }, [data, originalData, query, lens, pathAware, loading])
 
   // Lazy graph processing: only process graph when user switches to graph view
   // This prevents UI blocking from background processing for large datasets
