@@ -26,7 +26,9 @@ import GraphProcessorWorker from './workers/graphProcessor.worker?worker'
 
 type SavedQuery = { name: string; query: string }
 
-// Filter result type from filter.worker.ts
+// Filter result type matching filter.worker.ts structure
+// Note: Duplicated here because filter.worker.ts doesn't export it
+// and we want to maintain clear types for the async filtering logic
 interface FilterResult {
   nodes: any[]
   edges: any[]
@@ -948,8 +950,7 @@ export default function App() {
           if (currentVersion === filterVersionRef.current) {
             setFiltered({
               nodes: result.nodes,
-              edges: result.edges,
-              parsed: result.parsed
+              edges: result.edges
             })
             console.log('[OID-See] ✅ Graph view filter complete', {
               nodes: result.nodes.length,
@@ -984,8 +985,7 @@ export default function App() {
           if (currentVersion === filterVersionRef.current) {
             setFilteredOriginal({
               nodes: result.nodes,
-              edges: result.edges,
-              parsed: result.parsed
+              edges: result.edges
             })
             console.log('[OID-See] ✅ Alternative views filter complete', {
               nodes: result.nodes.length,
