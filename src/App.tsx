@@ -892,10 +892,11 @@ export default function App() {
     
     if (isDefaultFilter) {
       // No filtering needed - pass data through immediately
-      if (data && !filtered) {
+      // Update filtered states if they don't match the current data (handles query clearing)
+      if (data && filtered !== data) {
         setFiltered(data)
       }
-      if (originalData && !filteredOriginal) {
+      if (originalData && filteredOriginal !== originalData) {
         setFilteredOriginal(originalData)
       }
       console.log('[OID-See] ✅ No filter query - passing data through without filtering')
