@@ -61,6 +61,15 @@ pool.terminate()
 
 ## Available Workers
 
+**Active Workers (Currently Integrated):**
+1. FileParser Worker - Handles file reading and JSON parsing
+2. GraphProcessor Worker - Converts data and computes positions
+
+**Available but Not Integrated:**
+- Filter Worker - Code exists but not used (filtering is synchronous)
+- Layout Worker - Advanced layout computation
+- Analytics Worker - Graph statistics and risk analysis
+
 ### 1. FileParser Worker (`fileParser.worker.ts`)
 
 Handles file reading and JSON parsing off the main thread.
@@ -89,24 +98,29 @@ const parsed = await fileParserWorker.execute('parseFile',
 1. `reading` (0-50%): Reading file content
 2. `parsing` (50-100%): Parsing JSON
 
-### 2. Filter Worker (`filter.worker.ts`)
+### 2. Filter Worker (`filter.worker.ts`) - ⚠️ NOT CURRENTLY INTEGRATED
 
-Performs query filtering operations (applyQuery) off the main thread.
+**Status: DEFERRED** - This worker exists but is not currently integrated into the application.
+
+Filtering operations currently run synchronously on the main thread using the `applyQuery()` function in `App.tsx`. While this blocks the UI for large datasets, it avoids timing and state synchronization issues that occurred during worker integration attempts.
+
+**Why Not Integrated:**
+- Race conditions between worker responses and React state updates
+- Rendering views with stale or incomplete filtered data
+- Complexity in coordinating async filtering with React's rendering lifecycle
+
+**Future Work:**
+Async filtering will be addressed in a future PR with a more robust approach, possibly:
+- Migrating filtering into view components themselves
+- Using React Suspense/transitions for better state coordination
+- Implementing proper data versioning to prevent stale results
+
+**Implementation Details (for future reference):**
+
+The worker code is complete and functional, supporting:
 
 **Task Types:**
 - `applyQuery`: Filter nodes and edges based on query and lens
-
-**Usage:**
-```typescript
-const result = await filterWorker.execute('applyQuery', {
-  nodes,
-  edges,
-  query: 'n.risk.score>=70',
-  lens: 'risk',
-  pathAware: true
-})
-// result: { nodes, edges, parsed }
-```
 
 **Features:**
 - Batch processing with cancellation checkpoints
@@ -120,7 +134,25 @@ const result = await filterWorker.execute('applyQuery', {
 3. `filtering_edges` (45-75%): Filtering edges
 4. `finalizing` (80-100%): Finalizing node set
 
-### 3. Layout Worker (`layout.worker.ts`)
+### 3. GraphProcessor Worker (`graphProcessor.worker.ts`)
+
+Performs graph processing operations (coordinate computation, risk calculations) off the main thread.
+
+**Task Types:**
+- `processGraph`: Convert parsed data to visualization-ready format with coordinates
+
+**Features:**
+- Handles conversion of OID-See data to vis.js format
+- Computes initial node positions using clustering
+- Progress tracking for processing stages
+- Cancellation support
+- Efficient processing for large graphs
+
+**Progress Stages:**
+1. `converting` (0-50%): Converting data format
+2. `positioning` (50-100%): Computing node positions
+
+### 4. Layout Worker (`layout.worker.ts`)
 
 Computes graph layouts off the main thread.
 
@@ -151,7 +183,7 @@ const positions = await layoutWorker.execute('computeLayout', {
 1. `indexing` (10%): Indexing nodes
 2. `clustering` (20-100%): Creating and positioning clusters
 
-### 4. Analytics Worker (`analytics.worker.ts`)
+### 5. Analytics Worker (`analytics.worker.ts`)
 
 Performs risk computation and graph analysis off the main thread.
 
