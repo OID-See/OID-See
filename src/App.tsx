@@ -29,6 +29,8 @@ type SavedQuery = { name: string; query: string }
 // Filter result type matching filter.worker.ts structure
 // Note: Duplicated here because filter.worker.ts doesn't export it
 // and we want to maintain clear types for the async filtering logic
+// The 'parsed' property is received from the worker but not stored in state
+// because it's not needed after filtering (queries are reparsed when needed)
 interface FilterResult {
   nodes: any[]
   edges: any[]
@@ -395,7 +397,9 @@ export default function App() {
   const graphConversionTimeoutRef = useRef<number | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const cancelButtonTimeoutRef = useRef<number | null>(null)
+  // Tracks filter request versions to discard stale results and prevent race conditions
   const filterVersionRef = useRef<number>(0)
+  // Manages debouncing timeout for filter operations
   const filterTimeoutRef = useRef<number | null>(null)
   
   // Worker managers
