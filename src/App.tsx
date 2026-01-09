@@ -821,16 +821,19 @@ export default function App() {
       }
       
       // Start worker processing (DON'T AWAIT - let it run in background)
-      graphProcessorWorker.execute({
-        taskType: 'processGraph',
-        parsed,
-        maxNodes: MAX_RENDERABLE_NODES,
-        maxEdges: MAX_RENDERABLE_EDGES,
-        needsTruncation: exceedsLimits
-      }, (stage, progress, message) => {
-        // Progress updates from worker - just log them
-        console.log(`[OID-See] 📊 Worker progress: ${message}`)
-      }).then((result: any) => {
+      graphProcessorWorker.execute(
+        'processGraph',
+        {
+          parsed,
+          maxNodes: MAX_RENDERABLE_NODES,
+          maxEdges: MAX_RENDERABLE_EDGES,
+          needsTruncation: exceedsLimits
+        },
+        (stage, progress, message) => {
+          // Progress updates from worker - just log them
+          console.log(`[OID-See] 📊 Worker progress: ${message}`)
+        }
+      ).then((result: any) => {
         // Worker completed - update UI with results
         const { visData, wasTruncated, nodeCount: visNodeCount, edgeCount: visEdgeCount } = result
         
@@ -926,7 +929,7 @@ export default function App() {
     }
 
     // Debounce filter operations (300ms delay)
-    filterTimeoutRef.current = window.setTimeout(async () => {
+    filterTimeoutRef.current = window.setTimeout(() => {
       // Increment version to track this request
       filterVersionRef.current += 1
       const currentVersion = filterVersionRef.current
@@ -942,24 +945,25 @@ export default function App() {
 
       setIsFiltering(true)
 
-      try {
-        // Filter the truncated data for graph view
-        if (data && filterWorkerRef.current) {
-          const result = await filterWorkerRef.current.execute<FilterResult>(
-            'applyQuery',
-            {
-              nodes: data.nodes,
-              edges: data.edges,
-              query: query.trim(),
-              lens,
-              pathAware
-            },
-            (stage, progress, message) => {
-              // Log progress but don't show in UI to avoid flicker
-              console.log(`[OID-See] Filter (graph): ${message}`)
-            }
-          )
+      // Run both filter operations in parallel for better performance
+      const filterPromises: Promise<void>[] = []
 
+      // Filter the truncated data for graph view
+      if (data && filterWorkerRef.current) {
+        const graphFilterPromise = filterWorkerRef.current.execute<FilterResult>(
+          'applyQuery',
+          {
+            nodes: data.nodes,
+            edges: data.edges,
+            query: query.trim(),
+            lens,
+            pathAware
+          },
+          (stage, progress, message) => {
+            // Log progress but don't show in UI to avoid flicker
+            console.log(`[OID-See] Filter (graph): ${message}`)
+          }
+        ).then((result) => {
           // Only update if this is still the current version (no newer request)
           if (currentVersion === filterVersionRef.current) {
             setFiltered({
@@ -976,25 +980,33 @@ export default function App() {
               currentVersion: filterVersionRef.current
             })
           }
-        }
+        }).catch((error) => {
+          console.error('[OID-See] ❌ Graph filter error:', error)
+          // On error, fall back to unfiltered data
+          if (currentVersion === filterVersionRef.current && data) {
+            setFiltered(data)
+          }
+        })
+        
+        filterPromises.push(graphFilterPromise)
+      }
 
-        // Filter the full originalData for alternative views
-        if (originalData && filterWorkerRef.current) {
-          const result = await filterWorkerRef.current.execute<FilterResult>(
-            'applyQuery',
-            {
-              nodes: originalData.nodes,
-              edges: originalData.edges,
-              query: query.trim(),
-              lens,
-              pathAware
-            },
-            (stage, progress, message) => {
-              // Log progress but don't show in UI to avoid flicker
-              console.log(`[OID-See] Filter (views): ${message}`)
-            }
-          )
-
+      // Filter the full originalData for alternative views
+      if (originalData && filterWorkerRef.current) {
+        const viewsFilterPromise = filterWorkerRef.current.execute<FilterResult>(
+          'applyQuery',
+          {
+            nodes: originalData.nodes,
+            edges: originalData.edges,
+            query: query.trim(),
+            lens,
+            pathAware
+          },
+          (stage, progress, message) => {
+            // Log progress but don't show in UI to avoid flicker
+            console.log(`[OID-See] Filter (views): ${message}`)
+          }
+        ).then((result) => {
           // Only update if this is still the current version
           if (currentVersion === filterVersionRef.current) {
             setFilteredOriginal({
@@ -1011,24 +1023,24 @@ export default function App() {
               currentVersion: filterVersionRef.current
             })
           }
-        }
-      } catch (error) {
-        console.error('[OID-See] ❌ Filter error:', error)
-        // On error, fall back to unfiltered data
-        if (currentVersion === filterVersionRef.current) {
-          if (data) {
-            setFiltered(data)
-          }
-          if (originalData) {
+        }).catch((error) => {
+          console.error('[OID-See] ❌ Views filter error:', error)
+          // On error, fall back to unfiltered data
+          if (currentVersion === filterVersionRef.current && originalData) {
             setFilteredOriginal(originalData)
           }
-        }
-      } finally {
+        })
+        
+        filterPromises.push(viewsFilterPromise)
+      }
+
+      // Wait for all filters to complete, then clear filtering state
+      Promise.all(filterPromises).finally(() => {
         // Only clear filtering state if this is still the current version
         if (currentVersion === filterVersionRef.current) {
           setIsFiltering(false)
         }
-      }
+      })
     }, 300) // 300ms debounce
 
     // Cleanup function
