@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { GraphCanvas, Selection, GraphCanvasHandle, PhysicsConfig, DEFAULT_PHYSICS } from './components/GraphCanvas'
-import { toVisData, toVisDataAsync, toVisDataLightweight, VisData, ProgressCallback } from './adapters/toVisData'
+import { toVisData, toVisDataAsync, toVisDataLightweight, doubleCircleRenderer, VisData, ProgressCallback } from './adapters/toVisData'
 import sampleObj from './samples/sample-oidsee-graph.json'
 import { DetailsPanel } from './components/DetailsPanel'
 import { FilterBar, Lens } from './components/FilterBar'
@@ -19,6 +19,10 @@ import { TableView } from './components/TableView'
 import { TreeView } from './components/TreeView'
 import { MatrixView } from './components/MatrixView'
 import { DashboardView } from './components/DashboardView'
+import { WorkerManager } from './workers/WorkerManager'
+import FileParserWorker from './workers/fileParser.worker?worker'
+import FilterWorker from './workers/filter.worker?worker'
+import GraphProcessorWorker from './workers/graphProcessor.worker?worker'
 
 type SavedQuery = { name: string; query: string }
 
@@ -39,7 +43,7 @@ const MAX_SUBSET_VISUALIZATION_NODES = 500
 const RENDER_DELAY_MS = 200 // ms delay to ensure UI updates before heavy processing
 
 // Yield delay between blocking operations to keep UI responsive
-const YIELD_DELAY_MS = 50 // ms delay to yield control to event loop
+const YIELD_DELAY_MS = 100 // ms delay to yield control to event loop (increased for large files)
 
 // Emoji regex for cross-browser compatibility validation
 const EMOJI_REGEX = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{FE00}-\u{FE0F}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F251}]/u
@@ -376,10 +380,58 @@ export default function App() {
   const graphConversionTimeoutRef = useRef<number | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const cancelButtonTimeoutRef = useRef<number | null>(null)
+  
+  // Worker managers
+  const fileParserWorkerRef = useRef<WorkerManager | null>(null)
+  const filterWorkerRef = useRef<WorkerManager | null>(null)
+  const graphProcessorWorkerRef = useRef<WorkerManager | null>(null)
 
   // Load physics config on mount
   useEffect(() => {
     setPhysicsConfig(loadPhysicsConfig())
+  }, [])
+
+  // Initialize workers on mount
+  useEffect(() => {
+    console.log('[OID-See] Initializing web workers...')
+    
+    // Initialize FileParser worker with pre-created worker instance
+    const fileParserWorker = new WorkerManager({
+      worker: new FileParserWorker(),
+      onProgress: (stage, progress, message) => {
+        setLoadingProgress(message)
+      }
+    })
+    fileParserWorkerRef.current = fileParserWorker
+    
+    // Initialize Filter worker with pre-created worker instance
+    const filterWorker = new WorkerManager({
+      worker: new FilterWorker(),
+      onProgress: (stage, progress, message) => {
+        setLoadingProgress(message)
+      }
+    })
+    filterWorkerRef.current = filterWorker
+    
+    // Initialize GraphProcessor worker with pre-created worker instance
+    const graphProcessorWorker = new WorkerManager({
+      worker: new GraphProcessorWorker(),
+      onProgress: (stage, progress, message) => {
+        console.log(`[OID-See] Graph processing: ${message}`)
+        // Optional: could show progress in UI if desired
+      }
+    })
+    graphProcessorWorkerRef.current = graphProcessorWorker
+    
+    console.log('[OID-See] Workers initialized')
+    
+    // Cleanup on unmount
+    return () => {
+      console.log('[OID-See] Terminating workers...')
+      fileParserWorkerRef.current?.terminate()
+      filterWorkerRef.current?.terminate()
+      graphProcessorWorkerRef.current?.terminate()
+    }
   }, [])
 
   // Detect mobile viewport and track viewport width
@@ -476,34 +528,79 @@ export default function App() {
     setLoading(true)
     setLoadingProgress(`Reading file (${(file.size / 1024 / 1024).toFixed(1)} MB)...`)
     setError(null)
+    setShowCancelButton(false)
     
-    // Yield to allow progress message to render before blocking file read
-    await new Promise(resolve => setTimeout(resolve, 100))
+    // Show cancel button after 5 seconds for large files
+    if (cancelButtonTimeoutRef.current !== null) {
+      clearTimeout(cancelButtonTimeoutRef.current)
+    }
+    cancelButtonTimeoutRef.current = window.setTimeout(() => {
+      setShowCancelButton(true)
+    }, 5000)
     
     try {
-      console.log('[OID-See] 📖 Reading file content...')
-      const text = await file.text()
-      const readTime = performance.now() - startTime
-      console.log('[OID-See] ✅ File read complete:', {
-        duration: `${readTime.toFixed(0)}ms`,
-        contentSize: `${(text.length / 1024 / 1024).toFixed(2)} MB`
+      console.log('[OID-See] 📖 Reading and parsing file in worker...')
+      
+      // Use FileParser worker to read and parse file off main thread
+      const parsed = await fileParserWorkerRef.current!.execute<any>(
+        'parseFile',
+        { file },
+        (stage, progress, message) => {
+          console.log(`[OID-See] FileParser: ${message}`)
+          setLoadingProgress(message)
+        }
+      )
+      
+      const totalTime = performance.now() - startTime
+      console.log('[OID-See] ✅ File read and parse complete:', {
+        duration: `${totalTime.toFixed(0)}ms`
       })
       
-      setRaw(text)
-      await render(text)
+      // Process the parsed data directly without re-parsing
+      // Set raw text AFTER rendering to avoid blocking UI with expensive stringify
+      setLoadingProgress('Processing graph data...')
+      await processGraphData(parsed)
+      
+      // Now that rendering is complete, stringify in background for raw editor
+      // This is expensive for large files but doesn't block initial rendering
+      setTimeout(() => {
+        console.log('[OID-See] 📝 Generating formatted JSON for editor...')
+        const text = JSON.stringify(parsed, null, 2)
+        setRaw(text)
+        console.log('[OID-See] ✅ Raw JSON ready for editor')
+      }, 100)
     } catch (e: any) {
-      console.error('[OID-See] ❌ File read error:', e)
-      setError(e?.message || 'Failed to read file')
+      console.error('[OID-See] ❌ File read/parse error:', e)
+      setError(e?.message || 'Failed to read or parse file')
       setLoading(false)
+      setShowCancelButton(false)
+    } finally {
+      // Clean up cancel button timeout
+      if (cancelButtonTimeoutRef.current !== null) {
+        clearTimeout(cancelButtonTimeoutRef.current)
+        cancelButtonTimeoutRef.current = null
+      }
     }
   }
 
   // Helper function to yield control to the event loop
-  const yieldToEventLoop = () => new Promise(resolve => setTimeout(resolve, YIELD_DELAY_MS))
+  // Use requestIdleCallback for better responsiveness if available, fallback to setTimeout
+  const yieldToEventLoop = () => new Promise<void>(resolve => {
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => resolve(), { timeout: YIELD_DELAY_MS })
+    } else {
+      setTimeout(resolve, YIELD_DELAY_MS)
+    }
+  })
 
   // Cancel handler for long-running operations
   function handleCancelLoading() {
     console.log('[OID-See] 🚫 User cancelled loading operation')
+    
+    // Note: Worker tasks don't have a direct cancellation API yet
+    // The abort controller handles cancellation for other async operations
+    // Future enhancement: Add task ID tracking for worker cancellation
+    
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
     }
@@ -520,6 +617,49 @@ export default function App() {
 
   async function render(input: string) {
     console.log('[OID-See] 🔄 Starting render process...')
+    
+    setLoading(true)
+    setLoadingProgress('Initializing...')
+    setError(null)
+    
+    try {
+      // Small delay to allow loading overlay to render
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Parse JSON in worker to avoid blocking main thread
+      setLoadingProgress(`Parsing JSON (${(input.length / 1024 / 1024).toFixed(1)} MB)...`)
+      console.log('[OID-See] 🔍 Parsing JSON in worker...')
+      
+      const parsed = await fileParserWorkerRef.current!.execute<any>(
+        'parseText',
+        { text: input },
+        (stage, progress, message) => {
+          console.log(`[OID-See] Parser: ${message}`)
+          setLoadingProgress(message)
+        }
+      )
+      
+      console.log('[OID-See] ✅ JSON parse complete')
+      
+      // Process the parsed data
+      await processGraphData(parsed)
+    } catch (e: any) {
+      console.error('[OID-See] ❌ Render error:', e)
+      setData(null)
+      setOriginalData(null)
+      setViewsReady(new Set())
+      setSelection(null)
+      if (e?.message !== 'Processing cancelled' && e?.message !== 'Task cancelled') {
+        setError(e?.message ?? String(e))
+      }
+      setLoading(false)
+      setLoadingProgress('')
+      setShowCancelButton(false)
+    }
+  }
+
+  async function processGraphData(parsed: any) {
+    console.log('[OID-See] 🎨 Processing graph data...')
     const renderStartTime = performance.now()
     
     // Cancel any pending graph conversion from previous render
@@ -538,9 +678,6 @@ export default function App() {
     abortControllerRef.current = new AbortController()
     const signal = abortControllerRef.current.signal
     
-    setLoading(true)
-    setLoadingProgress('Initializing...')
-    setError(null)
     setSelection(null)
     setLargeGraphWarning(null)
     setShowCancelButton(false)
@@ -558,16 +695,6 @@ export default function App() {
       // Use setTimeout to allow the loading overlay to render before heavy processing
       console.log(`[OID-See] ⏱️  Waiting ${RENDER_DELAY_MS}ms for UI to update...`)
       await new Promise(resolve => setTimeout(resolve, RENDER_DELAY_MS))
-      
-      setLoadingProgress(`Parsing JSON (${(input.length / 1024 / 1024).toFixed(1)} MB)...`)
-      console.log('[OID-See] 🔍 Parsing JSON...')
-      // Yield to allow progress message to render
-      await yieldToEventLoop()
-      
-      const parseStartTime = performance.now()
-      const parsed = JSON.parse(input)
-      const parseTime = performance.now() - parseStartTime
-      console.log('[OID-See] ✅ JSON parse complete:', `${parseTime.toFixed(0)}ms`)
       
       // Yield to event loop after parsing large JSON
       await new Promise(resolve => setTimeout(resolve, 0))
@@ -601,11 +728,8 @@ export default function App() {
         console.log('[OID-See] ℹ️  Graph exceeds limits - will truncate ONLY for graph view in background')
         console.log('[OID-See] ℹ️  Alternative views (Table, Tree, Matrix, Dashboard) will use full dataset')
         
-        // Warn user about truncation for graph view only
-        setLargeGraphWarning(
-          `⚠️ Graph view will be truncated to ${MAX_RENDERABLE_NODES.toLocaleString()} highest-risk nodes (dataset: ${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges). ` +
-          `Use Table, Tree, Matrix, or Dashboard views to see the full dataset. Physics disabled for performance.`
-        )
+        // NOTE: Truncation warning will be shown AFTER graph processing completes
+        // This prevents the dialog from blocking UI while processing is happening
         
         // Disable physics for truncated graphs
         console.log('[OID-See] ⚙️  Disabling physics for large graph...')
@@ -642,19 +766,19 @@ export default function App() {
         edges: originalVis.edges.length.toLocaleString()
       })
       
-      // Set original data immediately for dashboard/table/tree/matrix views
+      // Set data first (no longer blocks since we removed expensive useMemo hooks)
       setOriginalData(originalVis)
       setViewsReady(new Set(['dashboard', 'table', 'tree', 'matrix']))
+      
+      // Then hide loading dialog
+      setLoading(false)
+      setLoadingProgress('')
+      setShowCancelButton(false)
       
       console.log('[OID-See] ✅ Dashboard and alternative views ready!')
       
       const dashboardTime = performance.now() - renderStartTime
-      console.log('[OID-See] 🎉 Dashboard ready in:', `${dashboardTime.toFixed(0)}ms`)
-      
-      // HIDE LOADING DIALOG NOW - Dashboard is ready and user can interact
-      setLoading(false)
-      setLoadingProgress('')
-      setShowCancelButton(false)
+      console.log('[OID-See] 🎉 Dashboard populated in:', `${dashboardTime.toFixed(0)}ms`)
       
       // Clear cancel button timeout since we're done with the main loading
       if (cancelButtonTimeoutRef.current !== null) {
@@ -662,89 +786,66 @@ export default function App() {
         cancelButtonTimeoutRef.current = null
       }
       
-      // PRIORITY 2: Truncate and convert data for graph view in TRUE BACKGROUND
-      // Use setTimeout to move this completely off the main render flow
-      // Store timeout ID for cleanup
-      // Capture the start time for accurate background task measurement
+      // PRIORITY 2: Process graph view in WEB WORKER (off main thread)
+      // This prevents UI blocking for large datasets (26k+ nodes)
+      // IMPORTANT: Do NOT await - let worker run in background while UI remains responsive
       const graphConversionStartTime = performance.now()
-      graphConversionTimeoutRef.current = window.setTimeout(async () => {
-        try {
-          console.log('[OID-See] 🎨 Starting background graph view preparation...')
-          
-          // Truncate if needed (do this in background, not in main render flow!)
-          let graphParsed = parsed
-          if (exceedsLimits) {
-            console.log('[OID-See] ✂️  Truncating data for graph view (background)...')
-            const truncateStartTime = performance.now()
-            
-            // Clone to avoid mutating original
-            graphParsed = { ...parsed, nodes: [...parsed.nodes], edges: [...(parsed.edges || [])] }
-            
-            // Create indices array for sorting
-            console.log('[OID-See] 📋 Creating index array for sorting...')
-            const indices = Array.from({ length: graphParsed.nodes.length }, (_, i) => i)
-            
-            // Sort indices by risk score (highest first)
-            console.log('[OID-See] 📋 Sorting nodes by risk score...')
-            indices.sort((aIdx, bIdx) => {
-              const a = graphParsed.nodes[aIdx]
-              const b = graphParsed.nodes[bIdx]
-              const scoreA = a?.risk?.score ?? 0
-              const scoreB = b?.risk?.score ?? 0
-              return scoreB - scoreA
-            })
-            const sortTime = performance.now() - truncateStartTime
-            console.log('[OID-See] ✅ Sort complete:', `${sortTime.toFixed(0)}ms`)
-            
-            // Take top N highest-risk nodes
-            console.log(`[OID-See] ✂️  Selecting top ${MAX_RENDERABLE_NODES.toLocaleString()} risk nodes...`)
-            const truncatedNodes = indices.slice(0, MAX_RENDERABLE_NODES).map(i => graphParsed.nodes[i])
-            const nodeIds = new Set(truncatedNodes.map((n: OidSeeNode) => n.id))
-            
-            // Filter edges
-            console.log('[OID-See] 🔗 Filtering edges...')
-            const truncatedEdges = (graphParsed.edges || [])
-              .filter((e: OidSeeEdge) => nodeIds.has(e.from) && nodeIds.has(e.to))
-              .slice(0, MAX_RENDERABLE_EDGES)
-            
-            graphParsed.nodes = truncatedNodes
-            graphParsed.edges = truncatedEdges
-            
-            const truncateTime = performance.now() - truncateStartTime
-            console.log('[OID-See] ✅ Truncation complete:', {
-              duration: `${truncateTime.toFixed(0)}ms`,
-              graphViewNodes: truncatedNodes.length.toLocaleString(),
-              graphViewEdges: truncatedEdges.length.toLocaleString()
-            })
+      console.log('[OID-See] 🎨 Starting background graph view preparation in worker...')
+      
+      const graphProcessorWorker = graphProcessorWorkerRef.current
+      if (!graphProcessorWorker) {
+        console.warn('[OID-See] GraphProcessor worker not initialized, skipping graph view')
+        return
+      }
+      
+      // Start worker processing (DON'T AWAIT - let it run in background)
+      graphProcessorWorker.execute({
+        taskType: 'processGraph',
+        parsed,
+        maxNodes: MAX_RENDERABLE_NODES,
+        maxEdges: MAX_RENDERABLE_EDGES,
+        needsTruncation: exceedsLimits
+      }, (stage, progress, message) => {
+        // Progress updates from worker - just log them
+        console.log(`[OID-See] 📊 Worker progress: ${message}`)
+      }).then((result: any) => {
+        // Worker completed - update UI with results
+        const { visData, wasTruncated, nodeCount: visNodeCount, edgeCount: visEdgeCount } = result
+        
+        // Add ctxRenderer to Group nodes (functions can't be transferred via postMessage)
+        // Worker marks Group nodes with __isGroup flag
+        visData.nodes.forEach((node: any) => {
+          if (node.__isGroup) {
+            node.ctxRenderer = doubleCircleRenderer
+            delete node.__isGroup // Clean up the flag
           }
-          
-          console.log('[OID-See] 🎨 Converting data to vis-network format for graph view...')
-          const visStartTime = performance.now()
-          // Use sync for small datasets, async for larger ones to prevent UI blocking
-          // Note: Background task - progress updates won't show in UI but will log to console
-          const graphTotalItems = graphParsed.nodes.length + (graphParsed.edges?.length || 0)
-          const vis = graphTotalItems >= 500
-            ? await toVisDataAsync(graphParsed, (progress) => console.log(`[OID-See] ${progress}`), signal)
-            : toVisData(graphParsed)
-          const visTime = performance.now() - visStartTime
-          console.log('[OID-See] ✅ Graph view data ready:', {
-            duration: `${visTime.toFixed(0)}ms`,
-            nodes: vis.nodes.length.toLocaleString(),
-            edges: vis.edges.length.toLocaleString()
-          })
-          
-          // Set graph data
-          setData(vis)
-          setViewsReady(prev => new Set([...prev, 'graph']))
-          
-          const totalTime = performance.now() - renderStartTime
-          const graphTaskTime = performance.now() - graphConversionStartTime
-          console.log(`[OID-See] ✅ All views ready! Dashboard: ${dashboardTime.toFixed(0)}ms, Graph: ${graphTaskTime.toFixed(0)}ms, Total: ${totalTime.toFixed(0)}ms`)
-        } catch (e: any) {
-          console.error('[OID-See] ❌ Background graph conversion error:', e)
-          // Graph view fails silently - other views still work
+        })
+        
+        console.log('[OID-See] ✅ Graph view data ready from worker:', {
+          nodes: visNodeCount.toLocaleString(),
+          edges: visEdgeCount.toLocaleString(),
+          truncated: wasTruncated
+        })
+        
+        // Set graph data
+        setData(visData)
+        setViewsReady(prev => new Set([...prev, 'graph']))
+        
+        // Show truncation warning if data was truncated
+        if (wasTruncated) {
+          setLargeGraphWarning(
+            `⚠️ Graph view truncated to ${MAX_RENDERABLE_NODES.toLocaleString()} highest-risk nodes (dataset: ${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges). ` +
+            `Use Table, Tree, Matrix, or Dashboard views to see the full dataset. Physics disabled for performance.`
+          )
         }
-      }, 100) // Small delay to ensure dashboard renders first
+        
+        const totalTime = performance.now() - renderStartTime
+        const graphTaskTime = performance.now() - graphConversionStartTime
+        console.log(`[OID-See] ✅ All views ready! Graph: ${graphTaskTime.toFixed(0)}ms, Total: ${totalTime.toFixed(0)}ms`)
+      }).catch((e: any) => {
+        console.error('[OID-See] ❌ Background graph processing error:', e)
+        // Graph view fails silently - other views still work
+      })
       
     } catch (e: any) {
       console.error('[OID-See] ❌ Render error:', e)
@@ -827,27 +928,12 @@ export default function App() {
     return new Map(data.edges.map(e => [e.id, e]))
   }, [data])
 
-  // Extract original nodes and edges from full dataset for alternative views
-  const originalNodes = useMemo(() => {
-    if (!originalData) return []
-    return originalData.nodes.map(n => n.__oidsee ?? n as OidSeeNode).filter((n): n is OidSeeNode => !!n)
-  }, [originalData])
-
-  const originalEdges = useMemo(() => {
-    if (!originalData) return []
-    return originalData.edges.map(e => e.__oidsee ?? e as OidSeeEdge).filter((e): e is OidSeeEdge => !!e)
-  }, [originalData])
-
-  // Filtered nodes and edges for alternative views (from full dataset)
-  const filteredNodes = useMemo(() => {
-    if (!filteredOriginal) return []
-    return filteredOriginal.nodes.map(n => n.__oidsee ?? n as OidSeeNode).filter((n): n is OidSeeNode => !!n)
-  }, [filteredOriginal])
-
-  const filteredEdges = useMemo(() => {
-    if (!filteredOriginal) return []
-    return filteredOriginal.edges.map(e => e.__oidsee ?? e as OidSeeEdge).filter((e): e is OidSeeEdge => !!e)
-  }, [filteredOriginal])
+  // Note: All expensive useMemo hooks removed
+  // They were blocking the UI thread with .map().filter() operations on 26k+ items
+  // The lightweight conversion already provides the data in the correct format for alternative views
+  // Pass raw filtered data directly - views will access __oidsee property as needed
+  const filteredNodes = filteredOriginal?.nodes ?? []
+  const filteredEdges = filteredOriginal?.edges ?? []
 
   function saveCurrentQuery() {
     const name = prompt('Save query as…')
@@ -1222,7 +1308,7 @@ export default function App() {
               </div>
             </div>
           </div>
-          {data && filtered ? (
+          {((viewMode === 'graph' && data && filtered) || (viewMode !== 'graph' && originalData && filteredOriginal)) ? (
             <>
               {viewMode === 'graph' && (
                 <GraphCanvas 
