@@ -98,11 +98,11 @@ const parsed = await fileParserWorker.execute('parseFile',
 1. `reading` (0-50%): Reading file content
 2. `parsing` (50-100%): Parsing JSON
 
-### 2. Filter Worker (`filter.worker.ts`) - ⚠️ NOT CURRENTLY INTEGRATED
+### Filter Worker (`filter.worker.ts`) - ⚠️ NOT CURRENTLY INTEGRATED
 
 **Status: DEFERRED** - This worker exists but is not currently integrated into the application.
 
-Filtering operations currently run synchronously on the main thread using the `applyQuery()` function in `App.tsx`. While this blocks the UI for large datasets, it avoids timing and state synchronization issues that occurred during worker integration attempts.
+Filtering operations currently run synchronously on the main thread using the `applyQuery()` function defined in `App.tsx` (line 235, called within useMemo hooks on lines 884-893). While this blocks the UI for large datasets, it avoids timing and state synchronization issues that occurred during worker integration attempts.
 
 **Why Not Integrated:**
 - Race conditions between worker responses and React state updates
@@ -134,7 +134,7 @@ The worker code is complete and functional, supporting:
 3. `filtering_edges` (45-75%): Filtering edges
 4. `finalizing` (80-100%): Finalizing node set
 
-### 3. GraphProcessor Worker (`graphProcessor.worker.ts`)
+### 2. GraphProcessor Worker (`graphProcessor.worker.ts`)
 
 Performs graph processing operations (coordinate computation, risk calculations) off the main thread.
 
