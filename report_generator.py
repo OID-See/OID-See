@@ -124,9 +124,10 @@ def _extract_metrics(export_data: Dict[str, Any]) -> Dict[str, Any]:
     )
     
     # Governance metrics
-    apps_without_owners = sum(
+    apps_with_owners = sum(
         1 for sp in service_principals
-        if any(r.get('code') == 'NO_OWNERS' for r in sp.get('risk', {}).get('reasons', []))
+        if any(r.get('code') in ['HAS_OWNERS_USER', 'HAS_OWNERS_SP', 'HAS_OWNERS_UNKNOWN'] 
+               for r in sp.get('risk', {}).get('reasons', []))
     )
     
     apps_no_assignment_required = sum(
@@ -238,7 +239,7 @@ def _extract_metrics(export_data: Dict[str, Any]) -> Dict[str, Any]:
         'apps_with_long_lived_secrets': apps_with_long_lived_secrets,
         'apps_with_expired_creds': apps_with_expired_creds,
         'unverified_publishers': unverified_publishers,
-        'apps_without_owners': apps_without_owners,
+        'apps_with_owners': apps_with_owners,
         'apps_no_assignment_required': apps_no_assignment_required,
         'apps_with_non_https': apps_with_non_https,
         'apps_with_ip_literals': apps_with_ip_literals,
@@ -858,7 +859,7 @@ def _generate_html(metrics: Dict[str, Any], export_data: Dict[str, Any]) -> str:
                 </div>
                 <div class="meta-item">
                     <div class="meta-label">Scanner Version</div>
-                    <div class="meta-value">{export_data.get('scanner', {}).get('version', '1.0.0')}</div>
+                    <div class="meta-value">{export_data.get('scanner', {}).get('version', '1.0.1')}</div>
                 </div>
             </div>
         </div>
@@ -904,9 +905,9 @@ def _generate_html(metrics: Dict[str, Any], export_data: Dict[str, Any]) -> str:
                         <div class="metric-title">Unverified Publishers</div>
                         <div class="metric-value">{metrics['unverified_publishers']}</div>
                     </div>
-                    <div class="metric-card danger">
-                        <div class="metric-title">Apps Without Owners</div>
-                        <div class="metric-value">{metrics['apps_without_owners']}</div>
+                    <div class="metric-card warning">
+                        <div class="metric-title">Apps With Owners (Change Authority)</div>
+                        <div class="metric-value">{metrics['apps_with_owners']}</div>
                     </div>
                     <div class="metric-card warning">
                         <div class="metric-title">Password Credentials</div>
@@ -1207,8 +1208,12 @@ def _generate_recommendations(metrics: Dict[str, Any]) -> str:
             "Ensure they are necessary and properly governed"
         )
     
-    if metrics['apps_without_owners'] > 0:
-        recommendations.append("Assign owners to all applications to ensure accountability and lifecycle management")
+    if metrics['apps_with_owners'] > 0:
+        recommendations.append(
+            "Review application ownership assignments. Owners have change authority over app/SP objects. "
+            "Consider using service principal owners instead of user owners where possible to reduce mutation risk. "
+            "See Glenn Van Rymenant's analysis: https://www.appgovscore.com/blog/entra-id-application-ownership-risks-problems"
+        )
     
     if metrics['unverified_publishers'] > 0:
         recommendations.append("Work with vendors to get publisher verification for third-party applications")
