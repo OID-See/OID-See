@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-01-18
+
 ### Fixed
 - **App Assignment Enumeration**: Fixed incorrect count of assigned users when groups are assigned to service principals. The scanner now fetches actual transitive member counts from Microsoft Graph API instead of using a hardcoded approximation of 5 users per group. This ensures accurate reporting of reachable users in risk scoring and exports.
   - Added `fetch_group_member_count()` method to query Microsoft Graph's `transitiveMembers/$count` endpoint
@@ -16,6 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added caching for group member counts to avoid redundant API calls
   - Updated risk scoring to use actual member counts in `ASSIGNED_TO` contributor
   - Changed risk reason message from "approximating ~N users" to "reaching N users" for accuracy
+
+- **Graph View Button State & Performance**: Fixed critical UI issues where graph view button remained stuck in loading state and eliminated severe performance regressions when loading large datasets.
+  - Fixed graph button remaining disabled after file upload by properly clearing stale data state
+  - Eliminated 7-second delays when loading large files (12k+ nodes) by skipping unnecessary filter operations on initial load
+  - Optimized empty query case: skip filter worker entirely when query is empty and lens is 'full'
+  - Memoized `filteredNodes` and `filteredEdges` to prevent expensive `.map()` operations on every render
+  - Used React 19's `startTransition` to mark view mode changes as non-urgent, keeping UI responsive
+  - Optimized view components to eliminate expensive array operations on 12k+ items:
+    - TableView: Cast objects directly instead of using spread operator
+    - DashboardView: Build top risky nodes list incrementally
+    - TreeView: Sort arrays in-place instead of creating copies
+  - Performance improvement: View switching now completes in <100ms vs 700-7000ms before
 
 ## [1.0.0] - 2026-01-05
 
