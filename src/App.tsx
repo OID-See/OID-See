@@ -1357,14 +1357,14 @@ export default function App() {
             <div className="brand__name">OID-See Viewer</div>
             <div className="brand__tag">Render OIDC/OAuth graphs from JSON</div>
             <a 
-              href="https://github.com/OID-See/OID-See/tree/v1.0.0" 
+              href="https://github.com/OID-See/OID-See/tree/v1.0.1" 
               target="_blank" 
               rel="noopener noreferrer"
               className="brand__version-link"
             >
               <img 
-                src="https://img.shields.io/badge/version-1.0.0-blue.svg" 
-                alt="Version 1.0.0" 
+                src="https://img.shields.io/badge/version-1.0.1-blue.svg" 
+                alt="Version 1.0.1" 
                 className="brand__version-badge"
               />
             </a>

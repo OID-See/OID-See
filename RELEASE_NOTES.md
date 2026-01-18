@@ -1,3 +1,16 @@
+# Release Notes - OID-See v1.0.1
+
+## 🔧 Maintenance Release - January 18, 2026
+
+See [RELEASE_NOTES_v1.0.1.md](RELEASE_NOTES_v1.0.1.md) for detailed v1.0.1 release notes.
+
+**Quick Summary**:
+- ✅ **Accurate App Assignment Enumeration**: Fixed incorrect user count approximations by fetching actual transitive member counts from Microsoft Graph API
+- ✅ **Graph View Performance**: Eliminated 7-second load delays and 700-7000ms view switching times for large datasets
+- ✅ **Button State Fix**: Resolved graph view button getting stuck in loading state after file upload
+
+---
+
 # Release Notes - private-beta-2
 
 ## Overview
