@@ -29,15 +29,24 @@ export function TableView({ nodes, edges, onSelection, onVisualize }: TableViewP
   const containerRef = useRef<HTMLDivElement>(null)
   
   // Prepare data with item type marker
+  // Optimized: Cast instead of spreading to avoid copying 12k+ objects
   const allData = useMemo(() => {
     const data: DataItem[] = []
     
     if (dataType === 'nodes' || dataType === 'both') {
-      data.push(...nodes.map(n => ({ ...n, __itemType: 'node' as const })))
+      // Cast nodes as DataItem without copying - much faster for large datasets
+      for (const node of nodes) {
+        (node as any).__itemType = 'node'
+        data.push(node as DataItem)
+      }
     }
     
     if (dataType === 'edges' || dataType === 'both') {
-      data.push(...edges.map(e => ({ ...e, __itemType: 'edge' as const })))
+      // Cast edges as DataItem without copying - much faster for large datasets
+      for (const edge of edges) {
+        (edge as any).__itemType = 'edge'
+        data.push(edge as DataItem)
+      }
     }
     
     return data

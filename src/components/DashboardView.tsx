@@ -79,11 +79,24 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
 
     const avgRiskScore = riskCount > 0 ? totalRisk / riskCount : 0
 
-    // Top risky nodes
-    const topRiskyNodes = [...nodes]
-      .filter(n => (n.risk?.score ?? 0) > 0)
-      .sort((a, b) => (b.risk?.score ?? 0) - (a.risk?.score ?? 0))
-      .slice(0, 10)
+    // Top risky nodes - optimized to avoid full array copy
+    const topRiskyNodes: OidSeeNode[] = []
+    const riskyNodes: Array<{node: OidSeeNode, score: number}> = []
+    
+    for (const node of nodes) {
+      const score = node.risk?.score ?? 0
+      if (score > 0) {
+        riskyNodes.push({node, score})
+      }
+    }
+    
+    // Sort only risky nodes (much smaller set)
+    riskyNodes.sort((a, b) => b.score - a.score)
+    
+    // Take top 10
+    for (let i = 0; i < Math.min(10, riskyNodes.length); i++) {
+      topRiskyNodes.push(riskyNodes[i].node)
+    }
     
     // Tier exposure metrics
     const tierExposure = {

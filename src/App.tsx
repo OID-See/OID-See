@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef, useTransition } from 'react'
 import { GraphCanvas, Selection, GraphCanvasHandle, PhysicsConfig, DEFAULT_PHYSICS } from './components/GraphCanvas'
 import { toVisData, toVisDataAsync, toVisDataLightweight, doubleCircleRenderer, VisData, ProgressCallback } from './adapters/toVisData'
 import sampleObj from './samples/sample-oidsee-graph.json'
@@ -392,6 +392,17 @@ export default function App() {
   const [filtered, setFiltered] = useState<VisData | null>(null)
   const [filteredOriginal, setFilteredOriginal] = useState<VisData | null>(null)
   const [isFiltering, setIsFiltering] = useState<boolean>(false)
+  
+  // Use transition for non-urgent view mode changes to keep UI responsive
+  const [, startTransition] = useTransition()
+  
+  // Wrapper for setViewMode that uses transition to prevent UI blocking
+  const handleViewModeChange = (mode: ViewMode) => {
+    startTransition(() => {
+      setViewMode(mode)
+    })
+  }
+  
   const graphRef = useRef<GraphCanvasHandle>(null)
   const detailsPanelRef = useRef<HTMLElement>(null)
   const graphConversionTimeoutRef = useRef<number | null>(null)
@@ -706,6 +717,10 @@ export default function App() {
     abortControllerRef.current = new AbortController()
     const signal = abortControllerRef.current.signal
     
+    // Clear old graph data and parsed data ref to prevent premature lazy loading
+    // This ensures lazy loading only triggers AFTER non-graph views are ready
+    setData(null)
+    parsedDataForGraphRef.current = null
     setSelection(null)
     setLargeGraphWarning(null)
     setShowCancelButton(false)
@@ -869,10 +884,33 @@ export default function App() {
       filterTimeoutRef.current = null
     }
 
+    // Skip filtering during initial data load to prevent multiple filter operations
+    // This prevents 3x filtering when setData(null), setOriginalData(), and setData() are called
+    if (loading) {
+      return
+    }
+
     // If no data, clear filtered results
     if (!data && !originalData) {
       setFiltered(null)
       setFilteredOriginal(null)
+      return
+    }
+
+    // If query is empty and lens is 'full', skip filtering entirely
+    // This prevents unnecessary filter operations on initial data load
+    const isDefaultFilter = query.trim() === '' && lens === 'full'
+    
+    if (isDefaultFilter) {
+      // No filtering needed - pass data through immediately
+      // Update filtered states if they don't match the current data (handles query clearing)
+      if (data && filtered !== data) {
+        setFiltered(data)
+      }
+      if (originalData && filteredOriginal !== originalData) {
+        setFilteredOriginal(originalData)
+      }
+      console.log('[OID-See] ✅ No filter query - passing data through without filtering')
       return
     }
 
@@ -1021,7 +1059,7 @@ export default function App() {
         filterTimeoutRef.current = null
       }
     }
-  }, [data, originalData, query, lens, pathAware])
+  }, [data, originalData, query, lens, pathAware, loading])
 
   // Lazy graph processing: only process graph when user switches to graph view
   // This prevents UI blocking from background processing for large datasets
@@ -1138,13 +1176,16 @@ export default function App() {
     return new Map(data.edges.map(e => [e.id, e]))
   }, [data])
 
-  // Note: All expensive useMemo hooks removed
-  // They were blocking the UI thread with .map().filter() operations on 26k+ items
-  // The lightweight conversion already provides the data in the correct format for alternative views
   // Extract __oidsee property from filtered data for alternative views
   // filteredOriginal contains vis-data format {id, __oidsee} but views expect raw OidSeeNode/OidSeeEdge
-  const filteredNodes = filteredOriginal?.nodes?.map(n => n.__oidsee ?? n) ?? []
-  const filteredEdges = filteredOriginal?.edges?.map(e => e.__oidsee ?? e) ?? []
+  // Memoize these to avoid expensive .map() on every render (critical for 12k+ items)
+  const filteredNodes = useMemo(() => 
+    filteredOriginal?.nodes?.map(n => n.__oidsee ?? n) ?? []
+  , [filteredOriginal])
+  
+  const filteredEdges = useMemo(() => 
+    filteredOriginal?.edges?.map(e => e.__oidsee ?? e) ?? []
+  , [filteredOriginal])
 
   function saveCurrentQuery() {
     const name = prompt('Save query as…')
@@ -1249,7 +1290,7 @@ export default function App() {
     // Create a filter query for the selected nodes
     const idQuery = nodeIds.map(id => `n.id="${id}"`).join(' ')
     setQuery(idQuery)
-    setViewMode('graph')
+    handleViewModeChange('graph')
     
     // Show info message
     setLargeGraphWarning(
@@ -1304,7 +1345,7 @@ export default function App() {
     setFilterCollapsed(false)
     setMaximizedPanel(null)
     // Reset view mode to dashboard when resetting all views
-    setViewMode('dashboard')
+    handleViewModeChange('dashboard')
   }
 
   return (
@@ -1331,7 +1372,7 @@ export default function App() {
         </div>
 
         <div className="topbar__actions">
-          <ViewModeSelector currentMode={viewMode} onChange={setViewMode} viewsReady={viewsReady} />
+          <ViewModeSelector currentMode={viewMode} onChange={handleViewModeChange} viewsReady={viewsReady} />
           
           <button
             className="btn file"
