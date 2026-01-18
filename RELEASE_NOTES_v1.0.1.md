@@ -23,31 +23,59 @@ OID-See v1.0.1 is a maintenance release that addresses critical accuracy and per
 
 **Technical Implementation**:
 ```python
-def categorize_owners_by_type(owners: List[dict], dir_cache: dict) -> dict:
-    """Categorize owners by principal type using @odata.type."""
-    categories = {"user": 0, "servicePrincipal": 0, "unknown": 0}
+def categorize_owners_by_type(owners: List[Dict[str, Any]], dir_cache) -> Dict[str, int]:
+    """
+    Categorize owners by principal type.
+    
+    Returns a dictionary with counts:
+    - 'user': Count of user principal owners
+    - 'sp': Count of service principal owners
+    - 'unknown': Count of other/unknown owner types
+    """
+    user_count = 0
+    sp_count = 0
+    unknown_count = 0
+    
     for owner in owners:
         owner_id = owner.get("id")
-        cached = dir_cache.get(owner_id, {})
-        odata_type = cached.get("@odata.type", "")
+        if not owner_id:
+            unknown_count += 1
+            continue
         
-        if "user" in odata_type.lower():
-            categories["user"] += 1
-        elif "serviceprincipal" in odata_type.lower():
-            categories["servicePrincipal"] += 1
+        # Resolve owner object to get @odata.type
+        owner_obj = dir_cache.get(owner_id) if dir_cache else None
+        if not owner_obj:
+            unknown_count += 1
+            continue
+        
+        odata_type = owner_obj.get("@odata.type", "").lower()
+        if "user" in odata_type:
+            user_count += 1
+        elif "serviceprincipal" in odata_type:
+            sp_count += 1
         else:
-            categories["unknown"] += 1
-    return categories
+            unknown_count += 1
+    
+    return {"user": user_count, "sp": sp_count, "unknown": unknown_count}
 ```
 
 **Risk Scoring**:
 ```python
 # Add risk for having owners (inverted from previous model)
+owner_categories = categorize_owners_by_type(owners, dir_cache)
+
 if owner_categories["user"] > 0:
     risk_reasons.append({
         "code": "HAS_OWNERS_USER",
         "weight": 15,
         "message": f"Has {owner_categories['user']} user owner(s). Ownership grants change authority."
+    })
+
+if owner_categories["sp"] > 0:
+    risk_reasons.append({
+        "code": "HAS_OWNERS_SP",
+        "weight": 8,
+        "message": f"Has {owner_categories['sp']} service principal owner(s)."
     })
 ```
 
