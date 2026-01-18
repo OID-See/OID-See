@@ -2,7 +2,76 @@
 
 ## 🔧 Maintenance Release - January 18, 2026
 
-OID-See v1.0.1 is a maintenance release that addresses critical accuracy and performance issues discovered in v1.0.0. This release focuses on improving data accuracy for app assignments and fixing significant viewer performance regressions.
+OID-See v1.0.1 is a maintenance release that addresses critical accuracy and performance issues discovered in v1.0.0, plus inverts the ownership scoring model to align with security best practices. This release focuses on improving data accuracy for app assignments, fixing significant viewer performance regressions, and correcting the treatment of application ownership as a risk factor.
+
+## What's Changed
+
+### 🔄 Ownership Scoring Inversion
+
+**Problem**: OID-See treated applications with no owners as a negative security signal (penalized with NO_OWNERS), which reversed the actual risk model for Entra ID applications. Application ownership grants principals change authority over trusted identity objects, which increases risk rather than indicating good security hygiene.
+
+**Solution**: Based on Glenn Van Rymenant's [analysis](https://www.appgovscore.com/blog/entra-id-application-ownership-risks-problems), ownership is now treated as a risk factor. Apps with no owners have reduced mutation attack surface; apps with user owners have the highest risk.
+
+**Changes**:
+- ✅ Deprecated `NO_OWNERS` risk contributor (weight → 0 for backward compatibility)
+- ✅ Added `HAS_OWNERS_USER` (+15 points) for user principal owners
+- ✅ Added `HAS_OWNERS_SP` (+8 points) for service principal owners
+- ✅ Added `HAS_OWNERS_UNKNOWN` (+5 points) for group/role owners
+- ✅ ServicePrincipal nodes include `ownershipInsights` property with breakdown by owner type
+- ✅ Viewer query changed from "Without Owners" to "With Owners (Change Authority)"
+- ✅ Report metrics updated from `apps_without_owners` to `apps_with_owners`
+
+**Technical Implementation**:
+```python
+def categorize_owners_by_type(owners: List[dict], dir_cache: dict) -> dict:
+    """Categorize owners by principal type using @odata.type."""
+    categories = {"user": 0, "servicePrincipal": 0, "unknown": 0}
+    for owner in owners:
+        owner_id = owner.get("id")
+        cached = dir_cache.get(owner_id, {})
+        odata_type = cached.get("@odata.type", "")
+        
+        if "user" in odata_type.lower():
+            categories["user"] += 1
+        elif "serviceprincipal" in odata_type.lower():
+            categories["servicePrincipal"] += 1
+        else:
+            categories["unknown"] += 1
+    return categories
+```
+
+**Risk Scoring**:
+```python
+# Add risk for having owners (inverted from previous model)
+if owner_categories["user"] > 0:
+    risk_reasons.append({
+        "code": "HAS_OWNERS_USER",
+        "weight": 15,
+        "message": f"Has {owner_categories['user']} user owner(s). Ownership grants change authority."
+    })
+```
+
+**Example Output**:
+```json
+{
+  "displayName": "Contoso Portal",
+  "ownershipInsights": {
+    "totalOwners": 3,
+    "userOwners": 2,
+    "spOwners": 1,
+    "unknownOwners": 0
+  },
+  "risk": {
+    "score": 45,
+    "reasons": [
+      {"code": "HAS_OWNERS_USER", "weight": 15, "message": "Has 2 user owner(s)"},
+      {"code": "HAS_OWNERS_SP", "weight": 8, "message": "Has 1 SP owner(s)"}
+    ]
+  }
+}
+```
+
+**Backward Compatibility**: NO_OWNERS retained in config with weight 0. Existing exports display deprecated code with zero contribution.
 
 ## What's Fixed
 
@@ -146,25 +215,37 @@ const handleViewModeChange = (mode: ViewMode) => {
    
    This will:
    - Fetch accurate group member counts
-   - Generate correct risk scores for app assignments
+   - Apply correct ownership risk scoring (inverted model)
+   - Generate accurate risk scores for app assignments
    - Provide reliable data for security decisions
 
 3. **Use Updated Viewer**
    - Visit https://oid-see.netlify.app/ (automatically updated)
    - Or rebuild locally: `npm install && npm run build`
    - Enjoy instant loading and smooth view switching
+   - Updated queries reflect new ownership risk model
 
 ### Breaking Changes
 
 **None**. This release is fully backward compatible.
 
 - Existing scan exports will work with the new viewer
+- Old scans will show NO_OWNERS with zero weight (deprecated)
 - Old scans will show approximated user counts (from v1.0.0)
-- New scans will show accurate user counts (recommended)
+- New scans will use inverted ownership model and accurate user counts (recommended)
 
 ## Technical Details
 
 ### Files Changed
+
+**Ownership Scoring Changes** (PR #66):
+- `oidsee_scanner.py`: Implemented ownership categorization and risk scoring inversion
+- `scoring_logic.json`: Added HAS_OWNERS_USER/SP/UNKNOWN, deprecated NO_OWNERS
+- `report_generator.py`: Updated metrics from apps_without_owners to apps_with_owners
+- `src/App.tsx`: Updated viewer query from "Without Owners" to "With Owners"
+- `docs/schema.md`: Documented new ownershipInsights property and risk codes
+- `docs/scoring-logic.md`: Updated documentation for ownership risk model
+- `tests/test_ownership_scoring.py`: Comprehensive test suite for ownership scoring
 
 **Scanner Changes** (PR #55):
 - `oidsee_scanner.py`: Added batched group member count fetching

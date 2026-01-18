@@ -15,8 +15,9 @@ OID-See is a comprehensive security analysis tool for Microsoft Entra ID (Azure 
 
 ## 🔧 Version 1.0.1 Released!
 
-OID-See v1.0.1 is a maintenance release that fixes critical accuracy and performance issues:
+OID-See v1.0.1 is a maintenance release that fixes critical accuracy and performance issues, plus inverts the ownership scoring model:
 
+- ✅ **Ownership Scoring Inversion**: Ownership now treated as a risk factor (based on Glenn Van Rymenant's analysis) rather than security control
 - ✅ **Accurate App Assignment Enumeration**: Fixed incorrect user count approximations by fetching actual transitive member counts
 - ✅ **Graph View Performance**: Eliminated 7-second load delays and slow view switching (700-7000ms → <100ms)
 - ✅ **Button State Fix**: Resolved graph view button getting stuck in loading state

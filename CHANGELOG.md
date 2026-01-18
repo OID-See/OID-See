@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.1] - 2026-01-18
 
+### Changed
+- **Ownership Scoring Inversion**: Application ownership is now treated as a risk factor rather than a security control, based on Glenn Van Rymenant's analysis showing that ownership grants change authority over trusted identity objects. Per [appgovscore.com analysis](https://www.appgovscore.com/blog/entra-id-application-ownership-risks-problems), apps with no owners have reduced mutation attack surface; apps with user owners have highest risk.
+  - Deprecated `NO_OWNERS` risk contributor (weight set to 0 for backward compatibility)
+  - Added `HAS_OWNERS_USER` (+15 points) for user principal owners
+  - Added `HAS_OWNERS_SP` (+8 points) for service principal owners  
+  - Added `HAS_OWNERS_UNKNOWN` (+5 points) for group/role owners
+  - Added `categorize_owners_by_type()` helper using `@odata.type` from directory cache
+  - ServicePrincipal nodes now include `ownershipInsights` property with breakdown by owner type
+  - Updated viewer query from "Without Owners" to "With Owners (Change Authority)"
+  - Updated report metrics from `apps_without_owners` to `apps_with_owners`
+  - Documentation updated in `docs/schema.md` and `docs/scoring-logic.md` with new risk reason codes
+
 ### Fixed
 - **App Assignment Enumeration**: Fixed incorrect count of assigned users when groups are assigned to service principals. The scanner now fetches actual transitive member counts from Microsoft Graph API instead of using a hardcoded approximation of 5 users per group. This ensures accurate reporting of reachable users in risk scoring and exports.
   - Added `fetch_group_member_count()` method to query Microsoft Graph's `transitiveMembers/$count` endpoint
