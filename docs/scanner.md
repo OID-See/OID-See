@@ -294,15 +294,26 @@ flowchart TD
 ### Phase 1: Authentication
 
 ```python
-# Device Code (Interactive)
-python oidsee_scanner.py --tenant-id "<TENANT_ID>" --out oidsee-export.json
+# Interactive Browser (Recommended for most users)
+python oidsee_scanner.py --tenant-id "<TENANT_ID>" --auth-method interactive-browser --out oidsee-export.json
 
-# Client Secret (Application)
+# Azure CLI (Fastest for developers)
+az login
+python oidsee_scanner.py --tenant-id "<TENANT_ID>" --auth-method azure-cli --out oidsee-export.json
+
+# Default Credential Chain (Flexible)
+python oidsee_scanner.py --tenant-id "<TENANT_ID>" --auth-method default --out oidsee-export.json
+
+# Client Secret (Non-interactive automation)
 python oidsee_scanner.py \
   --tenant-id "<TENANT_ID>" \
+  --auth-method client-secret \
   --client-id "<APP_ID>" \
   --client-secret "<SECRET>" \
   --out oidsee-export.json
+
+# Device Code (Legacy/SSH environments)
+python oidsee_scanner.py --tenant-id "<TENANT_ID>" --auth-method device-code --out oidsee-export.json
 ```
 
 ### Phase 2: Service Principal Discovery
@@ -349,9 +360,21 @@ See [Scoring Logic Documentation](scoring-logic.md) for detailed risk calculatio
 
 ### Authentication Options
 
+- `--auth-method`: Authentication method to use (choices: device-code, interactive-browser, azure-cli, default, client-secret)
 - `--device-code-client-id`: Public client for device code (default: Azure CLI)
+- `--interactive-browser-client-id`: Public client for interactive browser (default: Azure CLI)
 - `--client-id`: Application ID for client credentials
 - `--client-secret`: Application secret for client credentials
+
+#### Authentication Methods
+
+| Method | Description | Best For |
+|--------|-------------|----------|
+| `interactive-browser` | Opens system's default browser for authentication (recommended for most users) | Standard desktop use |
+| `azure-cli` | Uses existing Azure CLI login session | Developers who use az login |
+| `default` | Tries multiple credential methods in sequence (environment variables → managed identity → Azure CLI → interactive browser) | Flexible development |
+| `client-secret` | Uses client ID and client secret (service principal) | Non-interactive automation |
+| `device-code` | Uses device code flow for SSH/limited UI environments | Legacy or restricted environments
 
 ### Filtering Options
 

@@ -46,7 +46,13 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 import requests
 import random
 import tldextract
-from azure.identity import ClientSecretCredential, DeviceCodeCredential
+from azure.identity import (
+    ClientSecretCredential, 
+    DeviceCodeCredential, 
+    InteractiveBrowserCredential,
+    AzureCliCredential,
+    DefaultAzureCredential
+)
 
 
 GRAPH_BETA = "https://graph.microsoft.com/beta"
@@ -332,7 +338,6 @@ class GraphClient:
             timeout=900,
         )
         print("Requesting device code for interactive login...", file=sys.stderr)
-        # prime token
         _ = self._get_token()
         print(f"✓ Authenticated via device code for client_id={client_id}", file=sys.stderr)
 
@@ -344,6 +349,32 @@ class GraphClient:
         )
         _ = self._get_token()
         print(f"✓ Authenticated via client secret for client_id={client_id}", file=sys.stderr)
+
+    def authenticate_interactive_browser(self, client_id: str) -> None:
+        self.credential = InteractiveBrowserCredential(
+            client_id=client_id,
+            tenant_id=self.tenant_id,
+            timeout=300,  # 5 minutes
+        )
+        print("Opening browser for interactive login...", file=sys.stderr)
+        _ = self._get_token()
+        print(f"✓ Authenticated via interactive browser for client_id={client_id}", file=sys.stderr)
+
+    def authenticate_azure_cli(self) -> None:
+        self.credential = AzureCliCredential(tenant_id=self.tenant_id)
+        print("Using Azure CLI authentication...", file=sys.stderr)
+        _ = self._get_token()
+        print("✓ Authenticated via Azure CLI", file=sys.stderr)
+
+    def authenticate_default(self, client_id: str = None) -> None:
+        # Enable interactive browser as fallback
+        self.credential = DefaultAzureCredential(
+            exclude_interactive_browser_credential=False,
+            interactive_browser_client_id=client_id,
+            tenant_id=self.tenant_id
+        )
+        _ = self._get_token()
+        print("✓ Authenticated via DefaultAzureCredential chain", file=sys.stderr)
 
     def _get_token(self) -> str:
         if not self.credential:
@@ -4060,7 +4091,9 @@ class OidSeeCollector:
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="OID-See Graph Scanner (Graph-only)")
     p.add_argument("--tenant-id", required=True, help="Tenant ID (GUID) to authenticate against")
+    p.add_argument("--auth-method", help="Authentication method to use (device-code, interactive-browser, azure-cli, default, client-secret)", choices=["device-code", "interactive-browser", "azure-cli", "default", "client-secret"])
     p.add_argument("--device-code-client-id", help="Public client app id for device code auth (delegated)", default=AZURE_CLI_CLIENT_ID)
+    p.add_argument("--interactive-browser-client-id", help="Public client app id for interactive browser auth (delegated)", default=AZURE_CLI_CLIENT_ID)
     p.add_argument("--client-id", help="Client id for client secret auth (defaults to Azure CLI client id)")
     p.add_argument("--client-secret", help="Client secret for client secret auth")
     p.add_argument("--out", default="oidsee-export.json", help="Output JSON file path")
@@ -4089,12 +4122,34 @@ def main() -> int:
     # Configure HTTP retry/backoff behavior
     graph.max_retries = max(1, int(args.max_retries))
     graph.base_delay = max(0.1, float(args.retry_base_delay))
-    if args.client_secret:
-        cid = args.client_id or AZURE_CLI_CLIENT_ID
-        graph.authenticate_client_secret(cid, args.client_secret)
+    
+    # Determine authentication method
+    if args.auth_method:
+        if args.auth_method == "client-secret":
+            if not args.client_secret:
+                print("Error: --client-secret is required for client-secret authentication", file=sys.stderr)
+                return 1
+            cid = args.client_id or AZURE_CLI_CLIENT_ID
+            graph.authenticate_client_secret(cid, args.client_secret)
+        elif args.auth_method == "device-code":
+            cid = args.device_code_client_id or AZURE_CLI_CLIENT_ID
+            graph.authenticate_device_code(cid)
+        elif args.auth_method == "interactive-browser":
+            cid = args.interactive_browser_client_id or AZURE_CLI_CLIENT_ID
+            graph.authenticate_interactive_browser(cid)
+        elif args.auth_method == "azure-cli":
+            graph.authenticate_azure_cli()
+        elif args.auth_method == "default":
+            cid = args.client_id or AZURE_CLI_CLIENT_ID
+            graph.authenticate_default(cid)
     else:
-        cid = args.device_code_client_id or AZURE_CLI_CLIENT_ID
-        graph.authenticate_device_code(cid)
+        # Legacy behavior: client secret if available, else device code
+        if args.client_secret:
+            cid = args.client_id or AZURE_CLI_CLIENT_ID
+            graph.authenticate_client_secret(cid, args.client_secret)
+        else:
+            cid = args.device_code_client_id or AZURE_CLI_CLIENT_ID
+            graph.authenticate_device_code(cid)
 
     opts = CollectOptions(
         include_all_service_principals=bool(args.include_all_sps),
