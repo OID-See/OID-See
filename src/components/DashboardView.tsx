@@ -266,6 +266,42 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
   
   // Show prompt for large datasets on mobile
   if (!userReady && isLargeDataset) {
+    // For very large datasets on iOS, completely disable Dashboard to prevent crashes
+    const isVeryLarge = nodes.length > 20000 || edges.length > 30000
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+    
+    if (isIOS && isVeryLarge) {
+      return (
+        <div className="dashboard-view">
+          <div className="dashboard-view__header">
+            <h2>Dashboard Overview</h2>
+            <p className="dashboard-view__subtitle">
+              Very large dataset ({nodes.length.toLocaleString()} nodes, {edges.length.toLocaleString()} edges)
+            </p>
+          </div>
+          <div className="dashboard-view__loading">
+            <div className="dashboard-view__large-dataset-warning">
+              <p>🚫 Dashboard statistics are disabled for very large datasets on iOS to prevent crashes.</p>
+              <p><strong>This dataset has {nodes.length.toLocaleString()} nodes and {edges.length.toLocaleString()} edges.</strong></p>
+              <p>iOS Safari has strict memory limits that cause crashes when processing datasets of this size.</p>
+              <div style={{ marginTop: '1.5rem', textAlign: 'left', maxWidth: '400px' }}>
+                <p><strong>Recommended alternatives:</strong></p>
+                <ul style={{ paddingLeft: '1.5rem', lineHeight: '1.8' }}>
+                  <li><strong>Table View</strong> - Efficiently browse and filter all nodes</li>
+                  <li><strong>Tree View</strong> - Explore hierarchical relationships</li>
+                  <li><strong>Matrix View</strong> - Analyze edge type patterns</li>
+                  <li><strong>Graph View</strong> - Visual network exploration</li>
+                </ul>
+              </div>
+              <p className="dashboard-view__hint" style={{ marginTop: '1.5rem' }}>
+                💡 For full Dashboard features with large datasets, please use a desktop browser or reduce the dataset size using filters.
+              </p>
+            </div>
+          </div>
+        </div>
+      )
+    }
+    
     return (
       <div className="dashboard-view">
         <div className="dashboard-view__header">
