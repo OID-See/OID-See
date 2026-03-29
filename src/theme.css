@@ -2219,6 +2219,33 @@ body{
   color: var(--muted);
 }
 
+.dashboard-view__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 1.5rem;
+}
+
+.dashboard-view__loading p {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(66,232,224,0.1);
+  border-top-color: var(--teal);
+  border-radius: 50%;
+  animation: spinner-rotate 1s linear infinite;
+}
+
+@keyframes spinner-rotate {
+  to { transform: rotate(360deg); }
+}
+
 .dashboard-view__grid {
   padding: 1.5rem;
   display: grid;
