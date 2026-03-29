@@ -42,7 +42,11 @@ type Statistics = {
 }
 
 // Chunk size for async processing (nodes per chunk)
-const CHUNK_SIZE = 1000
+// Reduced for mobile browsers with stricter memory limits
+const CHUNK_SIZE = 500
+
+// Yield delay - increased for iOS Safari to ensure responsiveness
+const YIELD_DELAY_MS = 10
 
 // Helper to sleep and yield to event loop
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -50,12 +54,14 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps) {
   const [stats, setStats] = useState<Statistics | null>(null)
   const [isCalculating, setIsCalculating] = useState(false)
+  const [progress, setProgress] = useState(0)
 
   useEffect(() => {
     let cancelled = false
     
     const calculateStats = async () => {
       setIsCalculating(true)
+      setProgress(0)
       
       const nodesByType: Record<string, number> = {}
       const edgesByType: Record<string, number> = {}
@@ -69,7 +75,9 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
       
       let totalRisk = 0
       let riskCount = 0
-      const riskyNodes: OidSeeNode[] = []
+      // Use a capped array to limit memory for top risky nodes
+      const topRiskyNodesLimit = 100 // Keep more candidates initially
+      const riskyNodes: Array<{node: OidSeeNode, score: number}> = []
       
       const tierExposure = {
         tier0Count: 0,
@@ -85,7 +93,10 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
       
       let tenantPosture: TenantPosture | null = null
       
-      // Process nodes in chunks to avoid blocking UI
+      // Process nodes in smaller chunks with progress updates for iOS Safari
+      const totalNodes = nodes.length
+      const totalEdges = edges.length
+      
       for (let i = 0; i < nodes.length; i += CHUNK_SIZE) {
         if (cancelled) return
         
@@ -112,7 +123,13 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
           if (score > 0) {
             totalRisk += score
             riskCount++
-            riskyNodes.push(node)
+            // Only keep top candidates to limit memory
+            riskyNodes.push({node, score})
+            // Periodically trim to prevent unbounded growth
+            if (riskyNodes.length > topRiskyNodesLimit * 2) {
+              riskyNodes.sort((a, b) => b.score - a.score)
+              riskyNodes.length = topRiskyNodesLimit
+            }
           }
           
           // Tier exposure
@@ -154,10 +171,12 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
           }
         }
         
-        // Yield to event loop after each chunk
-        if (i + CHUNK_SIZE < nodes.length) {
-          await sleep(0)
-        }
+        // Update progress for nodes processing
+        const nodeProgress = Math.floor(((i + CHUNK_SIZE) / totalNodes) * 50) // 50% for nodes
+        setProgress(Math.min(nodeProgress, 50))
+        
+        // Yield with longer delay for iOS Safari
+        await sleep(YIELD_DELAY_MS)
       }
       
       if (cancelled) return
@@ -171,17 +190,18 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
           edgesByType[edge.type] = (edgesByType[edge.type] ?? 0) + 1
         }
         
-        if (i + CHUNK_SIZE < edges.length) {
-          await sleep(0)
-        }
+        // Update progress for edges processing  
+        const edgeProgress = 50 + Math.floor(((i + CHUNK_SIZE) / totalEdges) * 50) // 50-100%
+        setProgress(Math.min(edgeProgress, 100))
+        
+        await sleep(YIELD_DELAY_MS)
       }
       
       if (cancelled) return
       
-      // Sort risky nodes (this is fast even for large arrays with modern JS engines)
-      const topRiskyNodes = riskyNodes
-        .sort((a, b) => (b.risk?.score ?? 0) - (a.risk?.score ?? 0))
-        .slice(0, 10)
+      // Final sort and limit - do this once at the end
+      riskyNodes.sort((a, b) => b.score - a.score)
+      const topRiskyNodes = riskyNodes.slice(0, 10).map(item => item.node)
       
       const avgRiskScore = riskCount > 0 ? totalRisk / riskCount : 0
       
@@ -200,6 +220,7 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
       })
       
       setIsCalculating(false)
+      setProgress(0)
     }
     
     calculateStats()
@@ -216,12 +237,20 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
         <div className="dashboard-view__header">
           <h2>Dashboard Overview</h2>
           <p className="dashboard-view__subtitle">
-            Calculating statistics...
+            Calculating statistics{progress > 0 ? ` (${progress}%)` : '...'}
           </p>
         </div>
         <div className="dashboard-view__loading">
           <div className="loading-spinner"></div>
           <p>Processing {nodes.length.toLocaleString()} nodes and {edges.length.toLocaleString()} edges...</p>
+          {progress > 0 && (
+            <div className="loading-progress">
+              <div className="loading-progress__bar">
+                <div className="loading-progress__fill" style={{ width: `${progress}%` }}></div>
+              </div>
+              <div className="loading-progress__text">{progress}%</div>
+            </div>
+          )}
         </div>
       </div>
     )
