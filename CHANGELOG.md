@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-03-30
+
 ### Added
 - `src/workers/dataWorker.ts`: single Web Worker (Vite module worker syntax) handles all heavy processing — JSON parsing, filter/lens evaluation (`applyFilter`), and vis-network graph conversion — so the main thread is never blocked during import or filtering
 - `src/filters/lens.ts`: `lensEdgeAllowed()` extracted and exported for shared use by the worker and main thread

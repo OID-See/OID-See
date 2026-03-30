@@ -5,13 +5,25 @@
 
 # OID-See
 
-[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/OID-See/OID-See)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/OID-See/OID-See)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-stable-brightgreen.svg)](RELEASE_NOTES_v1.0.md)
 
 **Visualize and assess security risks in your Microsoft Entra ID tenant's third-party and multi-tenant applications.**
 
 OID-See is a comprehensive security analysis tool for Microsoft Entra ID (Azure AD) that helps you discover, analyze, and visualize risky third-party applications. The scanner collects data using Microsoft Graph, performs optional enrichment, and generates an interactive graph visualization that runs entirely in your browser—no telemetry, no servers, completely private.
+
+## 🚀 Version 1.1.0 — Large Tenant Performance Overhaul!
+
+OID-See v1.1.0 is a major performance release focused on real-world tenant scale (30k+ nodes, 50k+ edges) and mobile browser reliability:
+
+- ✅ **Web Worker Architecture**: All JSON parsing, filtering, and graph conversion moved off the main thread — UI never blocks
+- ✅ **Input Panel Removed**: No more paste/Render workflow; load directly from file or sample
+- ✅ **iOS Safari Support**: Graph tab safely disabled on iOS (WebKit OOM protection); all other views work fully
+- ✅ **Lazy Graph Loading**: vis-network canvas only initialised when the Graph tab is actually opened
+- ✅ **30k+ Node Scale**: Table, Tree, Matrix and Dashboard views handle full tenant exports with no truncation
+
+[📖 Read the full v1.1.0 Release Notes →](RELEASE_NOTES_v1.1.md)
 
 ## 🔧 Version 1.0.1 Released!
 
