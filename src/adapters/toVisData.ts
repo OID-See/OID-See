@@ -1,5 +1,5 @@
-
-import { isOidSeeExport, OidSeeExport } from './types'
+
+import { isOidSeeExport, OidSeeExport, OidSeeNode, OidSeeEdge } from './types'
 
 export type VisData = { nodes: any[]; edges: any[] }
 
@@ -42,86 +42,95 @@ function doubleCircleRenderer({ ctx, x, y, state, style }: any) {
   }
 }
 
+// Shared conversion helpers used by both sync and async paths
+function nodeToVisNode(n: OidSeeNode): any {
+  try {
+    const riskBoost = typeof n.risk?.score === 'number' ? Math.min(30, Math.max(0, n.risk.score)) : 0
+    const value = 10 + riskBoost / 2
+    const isHigh = (n.risk?.level === 'high' || n.risk?.level === 'critical') && (n.risk?.score ?? 0) >= 70
+    const isGroup = n.type === 'Group'
+    return {
+      id: n.id,
+      label: n.displayName || n.id,
+      group: n.type,
+      value,
+      __oidsee: n,
+      borderWidth: isHigh ? 3 : 2,
+      shape: isGroup ? 'custom' : 'dot',
+      ctxRenderer: isGroup ? doubleCircleRenderer : undefined,
+      color: isHigh ? {
+        border: 'rgba(255,107,107,0.95)',
+        background: 'rgba(255,107,107,0.20)',
+        highlight: { background: 'rgba(255,107,107,0.30)', border: 'rgba(255,107,107,1.0)' },
+      } : undefined,
+    }
+  } catch (e) {
+    return { id: n.id, label: n.displayName || n.id, group: n.type || 'Unknown', value: 10, __oidsee: n }
+  }
+}
+
+function edgeToVisEdge(e: OidSeeEdge): any {
+  const isDerived = !!e.derived?.isDerived
+  const isInstance = e.type === 'INSTANCE_OF'
+  const isTooManyScopes = e.type === 'HAS_TOO_MANY_SCOPES'
+  const color = isDerived
+    ? { color: 'rgba(66,232,224,0.90)', highlight: 'rgba(66,232,224,1.0)' }
+    : isInstance
+      ? { color: 'rgba(234,242,255,0.35)', highlight: 'rgba(234,242,255,0.65)' }
+      : isTooManyScopes
+        ? { color: 'rgba(255,100,100,0.70)', highlight: 'rgba(255,100,100,1.0)' }
+        : undefined
+  return {
+    id: e.id,
+    from: e.from,
+    to: e.to,
+    label: e.type,
+    arrows: 'to',
+    dashes: isDerived || isInstance,
+    width: isDerived ? 3 : isTooManyScopes ? 2.5 : 1.5,
+    color,
+    __oidsee: e,
+    ...(isInstance && { selectionWidth: 0, hoverWidth: 0 }),
+  }
+}
+
+/**
+ * Convert raw OidSeeNode/OidSeeEdge arrays directly to VisData (no isOidSeeExport check needed).
+ * Use this for on-demand graph loading to avoid the full JSON parse overhead.
+ */
+export function toVisDataFromRaw(nodes: OidSeeNode[], edges: OidSeeEdge[]): VisData {
+  return {
+    nodes: nodes.map(nodeToVisNode).filter(Boolean),
+    edges: edges.map(edgeToVisEdge),
+  }
+}
+
+/**
+ * Async version of toVisDataFromRaw that yields to event loop between batches.
+ * Use for large datasets to avoid blocking the main thread.
+ */
+export async function toVisDataFromRawAsync(nodes: OidSeeNode[], edges: OidSeeEdge[]): Promise<VisData> {
+  const BATCH_SIZE = 2000
+  const visNodes: any[] = []
+  for (let i = 0; i < nodes.length; i += BATCH_SIZE) {
+    for (const n of nodes.slice(i, i + BATCH_SIZE)) visNodes.push(nodeToVisNode(n))
+    if (i + BATCH_SIZE < nodes.length) await new Promise(r => setTimeout(r, 0))
+  }
+  const visEdges: any[] = []
+  for (let i = 0; i < edges.length; i += BATCH_SIZE) {
+    for (const e of edges.slice(i, i + BATCH_SIZE)) visEdges.push(edgeToVisEdge(e))
+    if (i + BATCH_SIZE < edges.length) await new Promise(r => setTimeout(r, 0))
+  }
+  return { nodes: visNodes, edges: visEdges }
+}
+
 export function toVisData(input: any): VisData {
   if (isOidSeeExport(input)) {
     const exp = input as OidSeeExport
-
-    const visNodes = exp.nodes.map((n) => {
-      try {
-        const riskBoost = typeof n.risk?.score === 'number' ? Math.min(30, Math.max(0, n.risk.score)) : 0
-        const value = 10 + riskBoost / 2
-
-        const isHigh = (n.risk?.level === 'high' || n.risk?.level === 'critical') && (n.risk?.score ?? 0) >= 70
-        const isGroup = n.type === 'Group'
-
-        return {
-          id: n.id,
-          label: n.displayName || n.id, // Fallback to ID if no display name
-          group: n.type,
-          value,
-          __oidsee: n,
-          borderWidth: isHigh ? 3 : 2,
-          shape: isGroup ? 'custom' : 'dot',
-          ctxRenderer: isGroup ? doubleCircleRenderer : undefined,
-          color: isHigh ? {
-            border: 'rgba(255,107,107,0.95)',
-            background: 'rgba(255,107,107,0.20)',
-            highlight: { background: 'rgba(255,107,107,0.30)', border: 'rgba(255,107,107,1.0)' },
-          } : undefined,
-        }
-      } catch (e) {
-        console.warn('Error mapping node:', n.id, e)
-        // Return minimal node if mapping fails
-        return {
-          id: n.id,
-          label: n.displayName || n.id,
-          group: n.type || 'Unknown',
-          value: 10,
-          __oidsee: n,
-        }
-      }
-    }).filter(Boolean) // Remove any null/undefined nodes
-
-    const visEdges = exp.edges.map((e) => {
-      // Don't show scopes on edge labels - they're visible in details panel
-      const label = e.type
-
-      const isDerived = !!e.derived?.isDerived
-      const isInstance = e.type === 'INSTANCE_OF'
-      
-      // Color edges based on type
-      const isScopeEdge = e.type === 'HAS_SCOPES' || e.type === 'HAS_PRIVILEGED_SCOPES' || e.type === 'HAS_TOO_MANY_SCOPES' || e.type === 'HAS_SCOPE'
-      const isTooManyScopes = e.type === 'HAS_TOO_MANY_SCOPES'
-
-      const color = isDerived
-        ? { color: 'rgba(66,232,224,0.90)', highlight: 'rgba(66,232,224,1.0)' }
-        : isInstance
-          ? { color: 'rgba(234,242,255,0.35)', highlight: 'rgba(234,242,255,0.65)' }
-          : isTooManyScopes
-            ? { color: 'rgba(255,100,100,0.70)', highlight: 'rgba(255,100,100,1.0)' }
-            : undefined
-
-      return {
-        id: e.id,
-        from: e.from,
-        to: e.to,
-        label,
-        arrows: 'to',
-        dashes: isDerived || isInstance,
-        width: isDerived ? 3 : isTooManyScopes ? 2.5 : 1.5,
-        color,
-        __oidsee: e,
-        // Minimize INSTANCE_OF edge clickable area to prevent interference with node clicks
-        // selectionWidth: 0 makes the edge line non-clickable, but labels remain selectable
-        // hoverWidth: 0 disables hover highlighting to further reduce interaction area
-        ...(isInstance && { 
-          selectionWidth: 0,
-          hoverWidth: 0,
-        }),
-      }
-    })
-
-    return { nodes: visNodes, edges: visEdges }
+    return {
+      nodes: exp.nodes.map(nodeToVisNode).filter(Boolean),
+      edges: exp.edges.map(edgeToVisEdge),
+    }
   }
 
   if (input && typeof input === 'object' && Array.isArray((input as any).nodes) && Array.isArray((input as any).edges)) {
@@ -137,116 +146,7 @@ export function toVisData(input: any): VisData {
 export async function toVisDataAsync(input: any): Promise<VisData> {
   if (isOidSeeExport(input)) {
     const exp = input as OidSeeExport
-    const BATCH_SIZE = 5000
-
-    console.log('[toVisData] 🔄 Processing nodes in batches...', {
-      totalNodes: exp.nodes.length,
-      totalEdges: exp.edges.length,
-      batchSize: BATCH_SIZE
-    })
-    const visNodes: any[] = []
-    
-    // Process nodes in batches
-    for (let i = 0; i < exp.nodes.length; i += BATCH_SIZE) {
-      const batch = exp.nodes.slice(i, Math.min(i + BATCH_SIZE, exp.nodes.length))
-      const batchNum = Math.floor(i / BATCH_SIZE) + 1
-      const totalBatches = Math.ceil(exp.nodes.length / BATCH_SIZE)
-      console.log(`[toVisData] 📦 Processing node batch ${batchNum}/${totalBatches} (${i + 1}-${i + batch.length})`)
-      
-      for (const n of batch) {
-        try {
-          const riskBoost = typeof n.risk?.score === 'number' ? Math.min(30, Math.max(0, n.risk.score)) : 0
-          const value = 10 + riskBoost / 2
-
-          const isHigh = (n.risk?.level === 'high' || n.risk?.level === 'critical') && (n.risk?.score ?? 0) >= 70
-          const isGroup = n.type === 'Group'
-
-          visNodes.push({
-            id: n.id,
-            label: n.displayName || n.id,
-            group: n.type,
-            value,
-            __oidsee: n,
-            borderWidth: isHigh ? 3 : 2,
-            shape: isGroup ? 'custom' : 'dot',
-            ctxRenderer: isGroup ? doubleCircleRenderer : undefined,
-            color: isHigh ? {
-              border: 'rgba(255,107,107,0.95)',
-              background: 'rgba(255,107,107,0.20)',
-              highlight: { background: 'rgba(255,107,107,0.30)', border: 'rgba(255,107,107,1.0)' },
-            } : undefined,
-          })
-        } catch (e) {
-          console.warn('Error mapping node:', n.id, e)
-          visNodes.push({
-            id: n.id,
-            label: n.displayName || n.id,
-            group: n.type || 'Unknown',
-            value: 10,
-            __oidsee: n,
-          })
-        }
-      }
-      
-      // Yield to event loop every batch
-      if (i + BATCH_SIZE < exp.nodes.length) {
-        await new Promise(resolve => setTimeout(resolve, 0))
-      }
-    }
-
-    console.log('[toVisData] 🔗 Processing edges in batches...')
-    const visEdges: any[] = []
-    
-    // Process edges in batches
-    for (let i = 0; i < exp.edges.length; i += BATCH_SIZE) {
-      const batch = exp.edges.slice(i, Math.min(i + BATCH_SIZE, exp.edges.length))
-      const batchNum = Math.floor(i / BATCH_SIZE) + 1
-      const totalBatches = Math.ceil(exp.edges.length / BATCH_SIZE)
-      console.log(`[toVisData] 🔗 Processing edge batch ${batchNum}/${totalBatches} (${i + 1}-${i + batch.length})`)
-      
-      for (const e of batch) {
-        const label = e.type
-        const isDerived = !!e.derived?.isDerived
-        const isInstance = e.type === 'INSTANCE_OF'
-        const isTooManyScopes = e.type === 'HAS_TOO_MANY_SCOPES'
-
-        const color = isDerived
-          ? { color: 'rgba(66,232,224,0.90)', highlight: 'rgba(66,232,224,1.0)' }
-          : isInstance
-            ? { color: 'rgba(234,242,255,0.35)', highlight: 'rgba(234,242,255,0.65)' }
-            : isTooManyScopes
-              ? { color: 'rgba(255,100,100,0.70)', highlight: 'rgba(255,100,100,1.0)' }
-              : undefined
-
-        visEdges.push({
-          id: e.id,
-          from: e.from,
-          to: e.to,
-          label,
-          arrows: 'to',
-          dashes: isDerived || isInstance,
-          width: isDerived ? 3 : isTooManyScopes ? 2.5 : 1.5,
-          color,
-          __oidsee: e,
-          ...(isInstance && { 
-            selectionWidth: 0,
-            hoverWidth: 0,
-          }),
-        })
-      }
-      
-      // Yield to event loop every batch
-      if (i + BATCH_SIZE < exp.edges.length) {
-        await new Promise(resolve => setTimeout(resolve, 0))
-      }
-    }
-
-    console.log('[toVisData] ✅ Conversion complete:', {
-      nodes: visNodes.length,
-      edges: visEdges.length
-    })
-
-    return { nodes: visNodes, edges: visEdges }
+    return toVisDataFromRawAsync(exp.nodes, exp.edges)
   }
 
   if (input && typeof input === 'object' && Array.isArray((input as any).nodes) && Array.isArray((input as any).edges)) {

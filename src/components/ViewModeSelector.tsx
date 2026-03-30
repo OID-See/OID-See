@@ -6,11 +6,13 @@ type ViewModeSelectorProps = {
   viewsReady?: Set<ViewMode>
 }
 
+const isIOSDevice = () => /iPhone|iPad|iPod/i.test(navigator.userAgent)
+
 export function ViewModeSelector({ currentMode, onChange, viewsReady = new Set() }: ViewModeSelectorProps) {
   const modes: ViewMode[] = ['dashboard', 'table', 'tree', 'matrix', 'graph']
-  
+  const onIOS = isIOSDevice()
+
   // When viewsReady is empty, we're in initial state (no data loaded yet)
-  // In this case, all buttons should be enabled to allow initial selection
   const hasData = viewsReady.size > 0
 
   return (
@@ -18,18 +20,23 @@ export function ViewModeSelector({ currentMode, onChange, viewsReady = new Set()
       <label className="view-mode-selector__label">View:</label>
       <div className="view-mode-selector__buttons">
         {modes.map((mode) => {
-          // Button is ready if: no data loaded yet, or this specific view is ready
+          const blockedOnIOS = onIOS && mode === 'graph'
           const isReady = !hasData || viewsReady.has(mode)
-          const isDisabled = !isReady
+          const isDisabled = !isReady || blockedOnIOS
+          const title = blockedOnIOS
+            ? 'Graph view is not available on iOS. Use Table View and select items to explore.'
+            : isDisabled
+            ? 'Loading…'
+            : VIEW_MODE_DESCRIPTIONS[mode]
           return (
             <button
               key={mode}
               className={`btn btn--view-mode${currentMode === mode ? ' active' : ''}${isDisabled ? ' disabled' : ''}`}
-              onClick={() => isReady && onChange(mode)}
+              onClick={() => !isDisabled && onChange(mode)}
               disabled={isDisabled}
-              title={isDisabled ? 'Loading...' : VIEW_MODE_DESCRIPTIONS[mode]}
+              title={title}
             >
-              {VIEW_MODE_LABELS[mode]}{isDisabled ? ' ⏳' : ''}
+              {VIEW_MODE_LABELS[mode]}{!blockedOnIOS && isDisabled ? ' ⏳' : ''}
             </button>
           )
         })}

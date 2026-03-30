@@ -42,10 +42,9 @@ type Statistics = {
 }
 
 // Chunk size for async processing (nodes per chunk)
-// Very conservative for iOS Safari's strict memory limits
 const CHUNK_SIZE = 250
 
-// Yield delay - increased for iOS Safari to ensure responsiveness
+// Yield delay between chunks
 const YIELD_DELAY_MS = 15
 
 // Initial delay before starting calculation (let page stabilize)
@@ -54,42 +53,45 @@ const INITIAL_DELAY_MS = 500
 // Helper to sleep and yield to event loop
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-// Detect if we're on a mobile browser (iOS Safari, etc.)
-const isMobileBrowser = () => {
-  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-}
+// Synchronous iOS/mobile detection — called once, never in a useEffect
+const isIOSDevice = () => /iPhone|iPad|iPod/i.test(navigator.userAgent)
+const isMobileDevice = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+
+// Thresholds
+const IOS_DISABLE_NODES = 5000   // Disable dashboard completely on iOS above this
+const MOBILE_PROMPT_NODES = 10000 // Prompt before computing on other mobile above this
 
 export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps) {
+  // Synchronous detection at render time — no state race possible
+  const onIOS = isIOSDevice()
+  const onMobile = isMobileDevice()
+  const disabledOnIOS = onIOS && nodes.length > IOS_DISABLE_NODES
+  const requiresPrompt = !onIOS && onMobile && (nodes.length > MOBILE_PROMPT_NODES || edges.length > MOBILE_PROMPT_NODES * 1.5)
+
   const [stats, setStats] = useState<Statistics | null>(null)
   const [isCalculating, setIsCalculating] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [userReady, setUserReady] = useState(false)
-  const [isLargeDataset, setIsLargeDataset] = useState(false)
+  // Auto-start for desktop and small datasets on mobile; require button click for large mobile datasets
+  const [userReady, setUserReady] = useState(!requiresPrompt)
 
-  // Check if dataset is large on mount
+  // Reset when the dataset changes
   useEffect(() => {
-    const large = nodes.length > 10000 || edges.length > 15000
-    setIsLargeDataset(large)
-    // For small datasets, auto-start. For large datasets on mobile, require user action
-    if (!large || !isMobileBrowser()) {
-      setUserReady(true)
-    }
-  }, [nodes.length, edges.length])
+    setStats(null)
+    setProgress(0)
+  }, [nodes, edges])
 
   useEffect(() => {
-    if (!userReady) return
-    
+    if (!userReady || disabledOnIOS) return
+
     let cancelled = false
-    let timeoutId: number
-    
+
     const calculateStats = async () => {
-      // Initial delay to let page stabilize (especially important for iOS)
       await sleep(INITIAL_DELAY_MS)
       if (cancelled) return
-      
+
       setIsCalculating(true)
       setProgress(0)
-      
+
       const nodesByType: Record<string, number> = {}
       const edgesByType: Record<string, number> = {}
       const riskDistribution: Record<string, number> = {
@@ -99,13 +101,12 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
         low: 0,
         none: 0,
       }
-      
+
       let totalRisk = 0
       let riskCount = 0
-      // Keep only top 50 to minimize memory - we only show top 10 anyway
       const topRiskyNodesLimit = 50
       const riskyNodes: Array<{node: OidSeeNode, score: number}> = []
-      
+
       const tierExposure = {
         tier0Count: 0,
         tier1Count: 0,
@@ -117,50 +118,39 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
         totalTier1Roles: 0,
         totalTier2Roles: 0,
       }
-      
+
       let tenantPosture: TenantPosture | null = null
-      
-      // Process nodes in smaller chunks with progress updates for iOS Safari
+
       const totalNodes = nodes.length
       const totalEdges = edges.length
-      
+
       for (let i = 0; i < nodes.length; i += CHUNK_SIZE) {
         if (cancelled) return
-        
+
         const chunk = nodes.slice(i, i + CHUNK_SIZE)
-        
+
         for (const node of chunk) {
-          // Count by type
           nodesByType[node.type] = (nodesByType[node.type] ?? 0) + 1
-          
-          // Risk distribution
+
           const score = node.risk?.score ?? 0
-          if (score >= 70) {
-            riskDistribution.critical++
-          } else if (score >= 40) {
-            riskDistribution.high++
-          } else if (score >= 20) {
-            riskDistribution.medium++
-          } else if (score > 0) {
-            riskDistribution.low++
-          } else {
-            riskDistribution.none++
-          }
-          
+          if (score >= 70) riskDistribution.critical++
+          else if (score >= 40) riskDistribution.high++
+          else if (score >= 20) riskDistribution.medium++
+          else if (score > 0) riskDistribution.low++
+          else riskDistribution.none++
+
           if (score > 0) {
             totalRisk += score
             riskCount++
-            // Only keep top candidates to limit memory - more aggressive trimming
             if (riskyNodes.length < topRiskyNodesLimit) {
-              riskyNodes.push({node, score})
+              riskyNodes.push({ node, score })
             } else if (score > riskyNodes[riskyNodes.length - 1].score) {
-              riskyNodes.push({node, score})
+              riskyNodes.push({ node, score })
               riskyNodes.sort((a, b) => b.score - a.score)
               riskyNodes.length = topRiskyNodesLimit
             }
           }
-          
-          // Tier exposure
+
           if (node.type === 'Role') {
             const tier = node.properties?.tier
             if (tier === 'tier0') tierExposure.tier0Count++
@@ -172,21 +162,11 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
               const tier0 = (privilegeReason as any).rolesReachableTier0 || 0
               const tier1 = (privilegeReason as any).rolesReachableTier1 || 0
               const tier2 = (privilegeReason as any).rolesReachableTier2 || 0
-              
-              if (tier0 > 0) {
-                tierExposure.spWithTier0++
-                tierExposure.totalTier0Roles += tier0
-              }
-              if (tier1 > 0) {
-                tierExposure.spWithTier1++
-                tierExposure.totalTier1Roles += tier1
-              }
-              if (tier2 > 0) {
-                tierExposure.spWithTier2++
-                tierExposure.totalTier2Roles += tier2
-              }
+              if (tier0 > 0) { tierExposure.spWithTier0++; tierExposure.totalTier0Roles += tier0 }
+              if (tier1 > 0) { tierExposure.spWithTier1++; tierExposure.totalTier1Roles += tier1 }
+              if (tier2 > 0) { tierExposure.spWithTier2++; tierExposure.totalTier2Roles += tier2 }
             }
-          } else if (node.type === 'TenantPolicy' && 
+          } else if (node.type === 'TenantPolicy' &&
                      node.properties?.policyType === 'externalIdentityPosture') {
             tenantPosture = {
               collectionAttempted: node.properties.collectionAttempted ?? false,
@@ -198,40 +178,28 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
             }
           }
         }
-        
-        // Update progress for nodes processing
-        const nodeProgress = Math.floor(((i + CHUNK_SIZE) / totalNodes) * 50) // 50% for nodes
-        setProgress(Math.min(nodeProgress, 50))
-        
-        // Yield with longer delay for iOS Safari
+
+        setProgress(Math.min(Math.floor(((i + CHUNK_SIZE) / totalNodes) * 50), 50))
         await sleep(YIELD_DELAY_MS)
       }
-      
+
       if (cancelled) return
-      
-      // Process edges in chunks with reduced processing
-      for (let i = 0; i < edges.length; i += CHUNK_SIZE * 2) { // Larger chunks for edges (simpler processing)
+
+      for (let i = 0; i < edges.length; i += CHUNK_SIZE * 2) {
         if (cancelled) return
-        
         const chunk = edges.slice(i, i + CHUNK_SIZE * 2)
         for (const edge of chunk) {
           edgesByType[edge.type] = (edgesByType[edge.type] ?? 0) + 1
         }
-        
-        // Update progress for edges processing  
-        const edgeProgress = 50 + Math.floor(((i + CHUNK_SIZE * 2) / totalEdges) * 50) // 50-100%
-        setProgress(Math.min(edgeProgress, 100))
-        
+        setProgress(Math.min(50 + Math.floor(((i + CHUNK_SIZE * 2) / totalEdges) * 50), 100))
         await sleep(YIELD_DELAY_MS)
       }
-      
+
       if (cancelled) return
-      
-      // Final sort - riskyNodes should already be mostly sorted
+
       const topRiskyNodes = riskyNodes.slice(0, 10).map(item => item.node)
-      
       const avgRiskScore = riskCount > 0 ? totalRisk / riskCount : 0
-      
+
       setStats({
         totalNodes: nodes.length,
         totalEdges: edges.length,
@@ -245,63 +213,52 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
         tenantPosture,
         tierExposure,
       })
-      
+
       setIsCalculating(false)
       setProgress(0)
     }
-    
-    timeoutId = window.setTimeout(() => {
-      if (!cancelled) {
-        calculateStats()
-      }
-    }, 100) as unknown as number
-    
-    return () => {
-      cancelled = true
-      if (timeoutId) {
-        clearTimeout(timeoutId)
-      }
-    }
-  }, [userReady, nodes, edges])
-  
-  // Show prompt for large datasets on mobile
-  if (!userReady && isLargeDataset) {
-    // For very large datasets on iOS, completely disable Dashboard to prevent crashes
-    const isVeryLarge = nodes.length > 20000 || edges.length > 30000
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
-    
-    if (isIOS && isVeryLarge) {
-      return (
-        <div className="dashboard-view">
-          <div className="dashboard-view__header">
-            <h2>Dashboard Overview</h2>
-            <p className="dashboard-view__subtitle">
-              Very large dataset ({nodes.length.toLocaleString()} nodes, {edges.length.toLocaleString()} edges)
+
+    calculateStats()
+
+    return () => { cancelled = true }
+  }, [userReady, disabledOnIOS, nodes, edges])
+
+  // iOS with large dataset — permanently disabled, no prompts, no computation
+  if (disabledOnIOS) {
+    return (
+      <div className="dashboard-view">
+        <div className="dashboard-view__header">
+          <h2>Dashboard Overview</h2>
+          <p className="dashboard-view__subtitle">
+            {nodes.length.toLocaleString()} nodes · {edges.length.toLocaleString()} edges
+          </p>
+        </div>
+        <div className="dashboard-view__loading">
+          <div className="dashboard-view__large-dataset-warning">
+            <p>🚫 Dashboard statistics are disabled on iOS for this dataset size.</p>
+            <p>
+              <strong>{nodes.length.toLocaleString()} nodes and {edges.length.toLocaleString()} edges</strong> exceed
+              what iOS Safari can safely process in-browser.
+            </p>
+            <div style={{ marginTop: '1.5rem', textAlign: 'left', maxWidth: '400px' }}>
+              <p><strong>Use these views instead:</strong></p>
+              <ul style={{ paddingLeft: '1.5rem', lineHeight: '1.8' }}>
+                <li><strong>Table View</strong> — browse and filter all nodes</li>
+                <li><strong>Tree View</strong> — explore hierarchical relationships</li>
+                <li><strong>Matrix View</strong> — analyse edge type patterns</li>
+              </ul>
+            </div>
+            <p className="dashboard-view__hint" style={{ marginTop: '1.5rem' }}>
+              💡 For full Dashboard features, use a desktop browser.
             </p>
           </div>
-          <div className="dashboard-view__loading">
-            <div className="dashboard-view__large-dataset-warning">
-              <p>🚫 Dashboard statistics are disabled for very large datasets on iOS to prevent crashes.</p>
-              <p><strong>This dataset has {nodes.length.toLocaleString()} nodes and {edges.length.toLocaleString()} edges.</strong></p>
-              <p>iOS Safari has strict memory limits that cause crashes when processing datasets of this size.</p>
-              <div style={{ marginTop: '1.5rem', textAlign: 'left', maxWidth: '400px' }}>
-                <p><strong>Recommended alternatives:</strong></p>
-                <ul style={{ paddingLeft: '1.5rem', lineHeight: '1.8' }}>
-                  <li><strong>Table View</strong> - Efficiently browse and filter all nodes</li>
-                  <li><strong>Tree View</strong> - Explore hierarchical relationships</li>
-                  <li><strong>Matrix View</strong> - Analyze edge type patterns</li>
-                  <li><strong>Graph View</strong> - Visual network exploration</li>
-                </ul>
-              </div>
-              <p className="dashboard-view__hint" style={{ marginTop: '1.5rem' }}>
-                💡 For full Dashboard features with large datasets, please use a desktop browser or reduce the dataset size using filters.
-              </p>
-            </div>
-          </div>
         </div>
-      )
-    }
-    
+      </div>
+    )
+  }
+
+  // Other mobile with large dataset — prompt before computing
+  if (!userReady && requiresPrompt) {
     return (
       <div className="dashboard-view">
         <div className="dashboard-view__header">
@@ -312,23 +269,22 @@ export function DashboardView({ nodes, edges, onSelection }: DashboardViewProps)
         </div>
         <div className="dashboard-view__loading">
           <div className="dashboard-view__large-dataset-warning">
-            <p>⚠️ This dataset is large and may take significant time to process on mobile devices.</p>
-            <p>The Dashboard will calculate statistics for all {nodes.length.toLocaleString()} nodes and {edges.length.toLocaleString()} edges.</p>
-            <button 
+            <p>⚠️ This dataset is large and may be slow to process on mobile.</p>
+            <button
               className="dashboard-view__start-button"
               onClick={() => setUserReady(true)}
             >
               Calculate Dashboard Statistics
             </button>
             <p className="dashboard-view__hint">
-              Tip: Other views (Table, Tree, Matrix, Graph) are available and may be more responsive for large datasets.
+              Table, Tree and Matrix views are available and more responsive for large datasets.
             </p>
           </div>
         </div>
       </div>
     )
   }
-  
+
   // Show loading state while calculating
   if (!stats || isCalculating) {
     return (
