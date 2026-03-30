@@ -5,7 +5,7 @@
 
 # OID-See
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/OID-See/OID-See)
+[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/OID-See/OID-See)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-stable-brightgreen.svg)](RELEASE_NOTES_v1.0.md)
 
@@ -13,7 +13,18 @@
 
 OID-See is a comprehensive security analysis tool for Microsoft Entra ID (Azure AD) that helps you discover, analyze, and visualize risky third-party applications. The scanner collects data using Microsoft Graph, performs optional enrichment, and generates an interactive graph visualization that runs entirely in your browser—no telemetry, no servers, completely private.
 
-## 🎉 Version 1.0 Released!
+## 🔧 Version 1.0.1 Released!
+
+OID-See v1.0.1 is a maintenance release that fixes critical accuracy and performance issues, plus inverts the ownership scoring model:
+
+- ✅ **Ownership Scoring Inversion**: Ownership now treated as a risk factor (based on Glenn Van Rymenant's analysis) rather than security control
+- ✅ **Accurate App Assignment Enumeration**: Fixed incorrect user count approximations by fetching actual transitive member counts
+- ✅ **Graph View Performance**: Eliminated 7-second load delays and slow view switching (700-7000ms → <100ms)
+- ✅ **Button State Fix**: Resolved graph view button getting stuck in loading state
+
+[📖 Read the full v1.0.1 Release Notes →](RELEASE_NOTES_v1.0.1.md)
+
+## 🎉 Version 1.0 - Production Ready!
 
 OID-See v1.0 introduces intelligent **Entra Role Tiering** and **Privileged Scope Classification** for production-grade security analysis:
 
@@ -43,15 +54,37 @@ OID-See provides:
 # Install dependencies
 pip install -r requirements.txt
 
-# Run scanner (interactive device code authentication)
-python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --out scan-results.json
+# Run scanner with interactive browser authentication (most user-friendly)
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method interactive-browser --out scan-results.json
+
+# Run scanner with Azure CLI authentication (fastest for developers)
+az login
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method azure-cli --out scan-results.json
+
+# Run scanner with default credential chain (flexible)
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method default --out scan-results.json
+
+# Run scanner with client secret authentication (non-interactive)
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method client-secret --client-id "YOUR_CLIENT_ID" --client-secret "YOUR_CLIENT_SECRET" --out scan-results.json
 
 # Generate both JSON export and HTML report
-python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --generate-report --out scan-results.json
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method interactive-browser --generate-report --out scan-results.json
 
 # With enrichment enabled (requires dnspython and ipwhois packages)
-python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --out scan-results.json
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method interactive-browser --out scan-results.json
 ```
+
+#### Authentication Methods
+
+OID-See supports multiple authentication methods:
+
+| Method | Description | Best For |
+|--------|-------------|----------|
+| `interactive-browser` | Opens system's default browser for authentication (recommended for most users) | Standard desktop use |
+| `azure-cli` | Uses existing Azure CLI login session | Developers who use az login |
+| `default` | Tries multiple credential methods in sequence (environment variables → managed identity → Azure CLI → interactive browser) | Flexible development |
+| `client-secret` | Uses client ID and client secret (service principal) | Non-interactive automation |
+| `device-code` | Uses device code flow for SSH/limited UI environments | Legacy or restricted environments |
 
 ### 2. Review the Report (Optional)
 
@@ -185,7 +218,38 @@ python3 test_integration_e2e.py
 
 For detailed information about changes and releases:
 - **[CHANGELOG.md](CHANGELOG.md)** - Complete version history and changes
-- **[RELEASE_NOTES.md](RELEASE_NOTES.md)** - Detailed release documentation
+- **[RELEASE_NOTES_v1.0.1.md](RELEASE_NOTES_v1.0.1.md)** - v1.0.1 maintenance release details
+- **[RELEASE_NOTES_v1.0.md](RELEASE_NOTES_v1.0.md)** - v1.0.0 major release details
+- **[RELEASE_NOTES.md](RELEASE_NOTES.md)** - Historical release documentation
+
+## ⚡ Performance & Architecture
+
+OID-See uses modern web technologies to handle large datasets efficiently:
+
+### Web Workers for Responsive UI
+
+Heavy computational tasks run in dedicated web workers to keep the UI responsive:
+
+- **File Reading & JSON Parsing**: Large files are read and parsed off the main thread using `FileReaderSync`
+- **Filtering Operations**: Query processing and filtering can handle thousands of nodes without blocking
+- **Layout Computation**: Graph layout calculations run in background workers
+- **Risk Analysis**: Statistics and risk computation execute in parallel
+
+See [`src/workers/README.md`](src/workers/README.md) for detailed worker architecture documentation.
+
+### Optimized Data Processing
+
+- **Batch Processing**: Large datasets are processed in batches with progress tracking
+- **Incremental Loading**: Dashboard and alternative views load first, graph view processes in background
+- **Cancellable Operations**: Long-running tasks can be cancelled by the user
+- **Progressive Enhancement**: UI remains interactive even during heavy computation
+
+### Scalability
+
+- **Graph View**: Optimized for up to 3,000 nodes with automatic truncation for larger datasets
+- **Table View**: Virtual scrolling handles 50,000+ nodes efficiently
+- **Dashboard View**: Statistical summaries load instantly regardless of dataset size
+- **Worker Pool**: Parallel processing using multiple CPU cores when available
 
 ## Deploy to Netlify
 

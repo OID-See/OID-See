@@ -69,15 +69,15 @@ export function TreeView({ nodes, edges, onSelection, onVisualize }: TreeViewPro
         : 0
       const maxRisk = riskScores.length > 0 ? Math.max(...riskScores) : 0
 
-      // Sort nodes within group by risk score
-      const sortedNodes = [...typeNodes].sort((a, b) => {
+      // Sort nodes within group by risk score (in-place to avoid copying)
+      typeNodes.sort((a, b) => {
         const scoreA = a.risk?.score ?? 0
         const scoreB = b.risk?.score ?? 0
         if (scoreA !== scoreB) return scoreB - scoreA
         return a.displayName.localeCompare(b.displayName)
       })
 
-      const children: TreeNode[] = sortedNodes.map(node => ({
+      const children: TreeNode[] = typeNodes.map(node => ({
         id: node.id,
         label: node.displayName,
         type: 'node' as const,

@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-01-18
+
+### Changed
+- **Ownership Scoring Inversion**: Application ownership is now treated as a risk factor rather than a security control, based on Glenn Van Rymenant's analysis showing that ownership grants change authority over trusted identity objects. Per [appgovscore.com analysis](https://www.appgovscore.com/blog/entra-id-application-ownership-risks-problems), apps with no owners have reduced mutation attack surface; apps with user owners have highest risk.
+  - Deprecated `NO_OWNERS` risk contributor (weight set to 0 for backward compatibility)
+  - Added `HAS_OWNERS_USER` (+15 points) for user principal owners
+  - Added `HAS_OWNERS_SP` (+8 points) for service principal owners  
+  - Added `HAS_OWNERS_UNKNOWN` (+5 points) for group/role owners
+  - Added `categorize_owners_by_type()` helper using `@odata.type` from directory cache
+  - ServicePrincipal nodes now include `ownershipInsights` property with breakdown by owner type
+  - Updated viewer query from "Without Owners" to "With Owners (Change Authority)"
+  - Updated report metrics from `apps_without_owners` to `apps_with_owners`
+  - Documentation updated in `docs/schema.md` and `docs/scoring-logic.md` with new risk reason codes
+
+### Fixed
+- **App Assignment Enumeration**: Fixed incorrect count of assigned users when groups are assigned to service principals. The scanner now fetches actual transitive member counts from Microsoft Graph API instead of using a hardcoded approximation of 5 users per group. This ensures accurate reporting of reachable users in risk scoring and exports.
+  - Added `fetch_group_member_count()` method to query Microsoft Graph's `transitiveMembers/$count` endpoint
+  - Added `fetch_group_member_counts_batched()` method using Microsoft Graph batch API for optimal performance
+  - Batch API processes up to 20 groups per request, with multi-threading for parallel batch execution
+  - Performance: 974 groups now process in significantly less time using batched API vs individual requests
+  - Added caching for group member counts to avoid redundant API calls
+  - Updated risk scoring to use actual member counts in `ASSIGNED_TO` contributor
+  - Changed risk reason message from "approximating ~N users" to "reaching N users" for accuracy
+
+- **Graph View Button State & Performance**: Fixed critical UI issues where graph view button remained stuck in loading state and eliminated severe performance regressions when loading large datasets.
+  - Fixed graph button remaining disabled after file upload by properly clearing stale data state
+  - Eliminated 7-second delays when loading large files (12k+ nodes) by skipping unnecessary filter operations on initial load
+  - Optimized empty query case: skip filter worker entirely when query is empty and lens is 'full'
+  - Memoized `filteredNodes` and `filteredEdges` to prevent expensive `.map()` operations on every render
+  - Used React 19's `startTransition` to mark view mode changes as non-urgent, keeping UI responsive
+  - Optimized view components to eliminate expensive array operations on 12k+ items:
+    - TableView: Cast objects directly instead of using spread operator
+    - DashboardView: Build top risky nodes list incrementally
+    - TreeView: Sort arrays in-place instead of creating copies
+  - Performance improvement: View switching now completes in <100ms vs 700-7000ms before
+
 ## [1.0.0] - 2026-01-05
 
 ### 🎉 Major Release - v1.0 GA

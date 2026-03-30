@@ -417,6 +417,27 @@ Identity laundering and publisher trust indicators (computed from Graph data and
 - `mixedReplyUrlDomains`: Boolean true if multiple distinct eTLD+1 domains are used
 - `nonAlignedDomains`: Array of domains that don't align with expected vendor domains
 
+### ownershipInsights Structure
+
+Application ownership breakdown by principal type (computed from Microsoft Graph owners collection):
+
+```json
+{
+  "totalOwners": 3,
+  "userOwners": 2,
+  "spOwners": 1,
+  "unknownOwners": 0
+}
+```
+
+**Fields**:
+- `totalOwners`: Total count of owner principals
+- `userOwners`: Count of user principal owners (highest mutation risk)
+- `spOwners`: Count of service principal owners (moderate mutation risk)
+- `unknownOwners`: Count of group, directory role, or unresolved owners
+
+**Note**: Ownership represents change authority over application/service principal objects. Per Glenn Van Rymenant's analysis ([Entra ID Application Ownership Risks](https://www.appgovscore.com/blog/entra-id-application-ownership-risks-problems)), ownership is a risk factor rather than a security control. Applications with user owners present higher risk than those with service principal owners or no owners.
+
 ### replyUrlEnrichment Structure
 
 Optional enrichment data from DNS/RDAP/IP WHOIS lookups (null when enrichment disabled):
@@ -880,9 +901,9 @@ All ServicePrincipal nodes include a risk assessment:
         "message": "Application permissions granted (Directory.Read.All)"
       },
       {
-        "code": "NO_OWNERS",
+        "code": "HAS_OWNERS_USER",
         "weight": 15,
-        "message": "No owners assigned to application"
+        "message": "Application has user principal owners. Ownership grants principals change authority over the app/SP object and can increase risk. (count: 2)"
       }
     ]
   }
@@ -1061,7 +1082,7 @@ All ServicePrincipal nodes include a risk assessment:
           {"code": "REPLYURL_OUTLIER_DOMAIN", "weight": 10, "message": "Non-aligned domains"},
           {"code": "CREDENTIALS_PRESENT", "weight": 10, "message": "Credentials present"},
           {"code": "LONG_LIVED_SECRET", "weight": 10, "message": "Secret lifetime > 180 days"},
-          {"code": "NO_OWNERS", "weight": 15, "message": "No owners assigned"}
+          {"code": "HAS_OWNERS_USER", "weight": 15, "message": "Application has user principal owners (count: 1)"}
         ]
       }
     }

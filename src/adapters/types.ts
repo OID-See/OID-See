@@ -73,7 +73,7 @@ export type OidSeeExport = {
   tenant: { tenantId: string; displayName?: string; region?: string; cloud?: string }
   collection?: any
   nodes: OidSeeNode[]
-  edges: OidSeeEdge[]
+  edges?: OidSeeEdge[]
   findings?: any[]
   metrics?: any
 }
@@ -84,7 +84,8 @@ export function isOidSeeExport(v: any): v is OidSeeExport {
   if (v.format.name !== 'oidsee-graph') return false
   if (typeof v.format.version !== 'string') return false
   if (!/^1\.(0|[1-9]\d*)(\.[0-9]+)?$/.test(v.format.version)) return false
-  if (!Array.isArray(v.nodes) || !Array.isArray(v.edges)) return false
+  if (!Array.isArray(v.nodes)) return false
+  if (v.edges !== undefined && v.edges !== null && !Array.isArray(v.edges)) return false
   if (!v.tenant || typeof v.tenant !== 'object' || typeof v.tenant.tenantId !== 'string') return false
   return true
 }
