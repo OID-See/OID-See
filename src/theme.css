@@ -108,7 +108,7 @@ body{
 .main{
   flex:1;
   display:grid;
-  grid-template-columns: 420px 8px 1fr 8px 360px;
+  grid-template-columns: 1fr 8px 360px;
   grid-auto-flow: column;
   gap: 0;
   padding: 1rem;
