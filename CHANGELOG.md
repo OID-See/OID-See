@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `src/workers/dataWorker.ts`: single Web Worker (Vite module worker syntax) handles all heavy processing — JSON parsing, filter/lens evaluation (`applyFilter`), and vis-network graph conversion — so the main thread is never blocked during import or filtering
+- `src/filters/lens.ts`: `lensEdgeAllowed()` extracted and exported for shared use by the worker and main thread
+- iOS Safari protection: Graph tab permanently disabled on all iOS devices (Apple requires all iOS browsers to use the WebKit engine, which runs out of memory on large vis-network canvases); Table, Tree, Matrix, and Dashboard views work fully on iOS
+- File size displayed in the loading overlay before parsing begins
+- Large dataset warning InfoDialog shown after loading when nodeCount > 3,000 or edgeCount > 4,500
+- Drag-and-drop support: drop an OID-See JSON export onto the main panel area to load it
+
+### Removed
+- Input panel (left-side JSON editor): removed entirely — no more paste, Format button, or Render button; was also a source of main-thread blocking via highlight.js syntax highlighting on large JSON
+- `src/workers/WorkerManager.ts` and associated multi-worker files (superseded by the simpler single-worker `dataWorker.ts`)
+
+### Changed
+- Graph view is now lazy-loaded: the vis-network canvas is only initialised when the Graph tab is selected or "Visualise" is clicked from Table/Tree view
+- `filteredNodes` / `filteredEdges` are now driven by `FILTERED` messages from the worker; state updates wrapped in `startTransition` to keep the UI responsive
+- Layout changed from 3-panel (input + view + details) to 2-panel (view + details)
+- Graph view capped at 3,000 highest-risk nodes / 4,500 edges; Table, Tree, Matrix, and Dashboard views show the full dataset (30k+ nodes)
+
+### Performance
+- 30k+ node tenant exports now load and filter without blocking the UI thread
+- iOS Safari no longer crashes or becomes unresponsive on import
+
 ## [1.0.1] - 2026-01-18
 
 ### Changed

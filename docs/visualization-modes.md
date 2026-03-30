@@ -347,11 +347,11 @@ Planned improvements for visualization modes:
 ## Technical Implementation
 
 The alternative visualization modes are implemented using:
-- **React 18**: Component-based architecture with hooks
+- **React 19**: Component-based architecture with hooks and `startTransition`
 - **TypeScript**: Type-safe development
 - **react-window**: Virtual scrolling for Table and Tree views
 - **D3.js**: Matrix visualization and charts
 - **CSS Grid**: Responsive layouts
-- **Web Workers** (future): Background processing for large datasets
+- **Web Worker** (`src/workers/dataWorker.ts`): All JSON parsing and filter/lens evaluation runs off the main thread; the UI never blocks on import or filtering
 
 All views operate entirely client-side with no server dependencies.
