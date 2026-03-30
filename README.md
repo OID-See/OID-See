@@ -54,15 +54,37 @@ OID-See provides:
 # Install dependencies
 pip install -r requirements.txt
 
-# Run scanner (interactive device code authentication)
-python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --out scan-results.json
+# Run scanner with interactive browser authentication (most user-friendly)
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method interactive-browser --out scan-results.json
+
+# Run scanner with Azure CLI authentication (fastest for developers)
+az login
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method azure-cli --out scan-results.json
+
+# Run scanner with default credential chain (flexible)
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method default --out scan-results.json
+
+# Run scanner with client secret authentication (non-interactive)
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method client-secret --client-id "YOUR_CLIENT_ID" --client-secret "YOUR_CLIENT_SECRET" --out scan-results.json
 
 # Generate both JSON export and HTML report
-python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --generate-report --out scan-results.json
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method interactive-browser --generate-report --out scan-results.json
 
 # With enrichment enabled (requires dnspython and ipwhois packages)
-python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --out scan-results.json
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method interactive-browser --out scan-results.json
 ```
+
+#### Authentication Methods
+
+OID-See supports multiple authentication methods:
+
+| Method | Description | Best For |
+|--------|-------------|----------|
+| `interactive-browser` | Opens system's default browser for authentication (recommended for most users) | Standard desktop use |
+| `azure-cli` | Uses existing Azure CLI login session | Developers who use az login |
+| `default` | Tries multiple credential methods in sequence (environment variables → managed identity → Azure CLI → interactive browser) | Flexible development |
+| `client-secret` | Uses client ID and client secret (service principal) | Non-interactive automation |
+| `device-code` | Uses device code flow for SSH/limited UI environments | Legacy or restricted environments |
 
 ### 2. Review the Report (Optional)
 
