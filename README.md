@@ -5,13 +5,24 @@
 
 # OID-See
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/OID-See/OID-See)
+[![Version](https://img.shields.io/badge/version-1.1.1-blue.svg)](https://github.com/OID-See/OID-See)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-stable-brightgreen.svg)](RELEASE_NOTES_v1.0.md)
 
 **Visualize and assess security risks in your Microsoft Entra ID tenant's third-party and multi-tenant applications.**
 
 OID-See is a comprehensive security analysis tool for Microsoft Entra ID (Azure AD) that helps you discover, analyze, and visualize risky third-party applications. The scanner collects data using Microsoft Graph, performs optional enrichment, and generates an interactive graph visualization that runs entirely in your browser—no telemetry, no servers, completely private.
+
+## 🔐 Version 1.1.1 — Scanner Intelligence Release!
+
+OID-See v1.1.1 improves scope and permission risk accuracy using Microsoft's official permission tiering data, and ensures first-party app detection works reliably even when offline:
+
+- ✅ **MS Permissions Tiering**: Scanner fetches Microsoft Graph's official privilege levels (1–5) for every permission — scope risk classes now reflect Microsoft's own assessments, not just name patterns
+- ✅ **New `HAS_HIGH_PRIVILEGE_PERMISSION` Contributor**: Fires when any scope is officially rated MS level ≥ 4 — weight 15 for level 4, weight 25 for level 5
+- ✅ **Graceful Degradation**: Falls back to pattern-matching if the remote fetch fails — no scanner changes required for offline environments
+- ✅ **First-Party App Fallback**: ~90 well-known Microsoft app IDs now bundled in `data/microsoft_first_party_apps_fallback.json` — first-party detection works fully offline
+
+[📖 Read the full v1.1.1 Release Notes →](RELEASE_NOTES_v1.1.1.md)
 
 ## 🚀 Version 1.1.0 — Large Tenant Performance Overhaul!
 

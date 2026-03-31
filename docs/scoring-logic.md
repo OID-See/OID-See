@@ -167,7 +167,38 @@ flowchart TD
 
 **Risk Rationale**: Write permissions allow modification of data, increasing abuse potential.
 
-#### HAS_TOO_MANY_SCOPES (+15)
+#### HAS_HIGH_PRIVILEGE_PERMISSION (+15 or +25)
+
+**Description**: One or more delegated scopes confirmed at Microsoft privilege level 4 or 5 in Microsoft Graph's official `permissions.json`
+
+**Weight Calculation**:
+
+| MS Privilege Level | Weight | Meaning |
+|-------------------|--------|---------|
+| 5 | 25 | Near-admin (e.g., `RoleManagement.ReadWrite.Directory`) |
+| 4 | 15 | Elevated write/read (e.g., `User.ReadWrite.All`, `Group.ReadWrite.All`) |
+| 1–3 | 0 | Not triggered |
+
+**Data Source**: `https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/refs/heads/master/permissions/new/permissions.json` — fetched at scan time, cached in memory, updated weekly by the Microsoft Graph team.
+
+**Relationship to `HAS_PRIVILEGED_SCOPES`**: This contributor is **additive** to `HAS_PRIVILEGED_SCOPES`. It fires on top of the pattern-match contributor because it represents official Microsoft confirmation of elevated privilege, not just a name-pattern match.
+
+**Graceful degradation**: If the permissions.json fetch fails, this contributor does not fire. Pattern-matching contributors (`HAS_PRIVILEGED_SCOPES`, `HAS_TOO_MANY_SCOPES`) remain fully active as fallback.
+
+**Scope coverage**: Only covers Microsoft Graph permissions. Permissions for other resource APIs (e.g., Azure Service Management, legacy Exchange scopes) continue to use pattern-matching only.
+
+**Example**:
+```json
+{
+  "code": "HAS_HIGH_PRIVILEGE_PERMISSION",
+  "weight": 25,
+  "message": "Delegated scope confirmed at MS privilege level 5 (near-admin): RoleManagement.ReadWrite.Directory"
+}
+```
+
+**Risk Rationale**: Microsoft's privilege levels reflect operational risk from that team's direct knowledge of what each permission can access. A level-5 permission can modify tenant-wide directory configuration and roles — a much higher blast radius than a typical write scope.
+
+
 
 **Description**: Delegated consent is overly broad
 

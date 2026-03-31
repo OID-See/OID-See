@@ -71,8 +71,22 @@ MICROSOFT_TENANT_IDS = [
 # Attribution: https://github.com/merill/microsoft-info by Merill Fernando
 MERILL_MICROSOFT_APPS_URL = "https://raw.githubusercontent.com/merill/microsoft-info/main/_info/MicrosoftApps.json"
 
+# URL for Microsoft's official Graph permissions tiering data (privilege levels 1-5 per permission).
+# Maintained by the Microsoft Graph team and updated weekly.
+# Issue #56: https://github.com/OID-See/OID-See/issues/56
+MSFT_PERMISSIONS_URL = (
+    "https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content"
+    "/refs/heads/master/permissions/new/permissions.json"
+)
+
 # Global cache for Microsoft first-party apps
 _MICROSOFT_APPS_CACHE: Optional[Dict[str, Dict[str, Any]]] = None
+
+# Global cache for Microsoft permissions tiering data.
+# Structure: { "PermissionName": { "schemes": { "DelegatedWork": { "privilegeLevel": int }, ... } } }
+_MSFT_PERMISSIONS_CACHE: Optional[Dict[str, Any]] = None
+# Case-insensitive lookup index: lowercased name -> original-case name
+_MSFT_PERMISSIONS_INDEX: Optional[Dict[str, str]] = None
 
 
 def _fetch_microsoft_apps_list() -> Dict[str, Dict[str, Any]]:
@@ -89,7 +103,8 @@ def _fetch_microsoft_apps_list() -> Dict[str, Dict[str, Any]]:
     if _MICROSOFT_APPS_CACHE is not None:
         return _MICROSOFT_APPS_CACHE
     
-    apps_dict = {}
+    # Start with the static fallback so offline mode still works
+    apps_dict = {app["AppId"].lower(): app for app in _load_static_fallback_apps()}
     
     try:
         print(f"Fetching Microsoft first-party apps list from Merill's repository...")
@@ -98,21 +113,112 @@ def _fetch_microsoft_apps_list() -> Dict[str, Dict[str, Any]]:
         
         apps_list = response.json()
         
-        # Convert list to dict keyed by appId for fast lookup
+        # Merill's data takes precedence over the static fallback
         for app in apps_list:
             app_id = app.get("AppId")
             if app_id:
                 apps_dict[app_id.lower()] = app
         
-        print(f"Loaded {len(apps_dict)} Microsoft first-party apps from Merill's list")
+        print(f"Loaded {len(apps_dict)} Microsoft first-party apps ({len(apps_list)} from Merill, fallback merged)")
         _MICROSOFT_APPS_CACHE = apps_dict
         return apps_dict
         
     except Exception as e:
         print(f"Warning: Could not fetch Microsoft apps list from Merill's repository: {e}")
-        print("Falling back to tenant ID-based detection only")
-        _MICROSOFT_APPS_CACHE = {}
+        print(f"Using static fallback list only ({len(apps_dict)} apps)")
+        _MICROSOFT_APPS_CACHE = apps_dict
+        return apps_dict
+
+
+def _load_static_fallback_apps() -> List[Dict[str, Any]]:
+    """
+    Load the curated static list of well-known Microsoft first-party apps.
+
+    The file covers commonly-seen portal, service, and platform apps from
+    Microsoft documentation that may not appear in Merill's dynamic list.
+    Issue #57: https://github.com/OID-See/OID-See/issues/57
+
+    Returns a list of app dicts (AppId, AppDisplayName, Source).
+    """
+    fallback_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "microsoft_first_party_apps_fallback.json")
+    try:
+        with open(fallback_path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Warning: Could not load static first-party apps fallback ({fallback_path}): {e}")
+        return []
+
+
+def _fetch_microsoft_permissions() -> Dict[str, Any]:
+    """
+    Fetch and cache Microsoft's official Graph permissions tiering data.
+
+    Source: microsoft-graph-devx-content (updated weekly by the MS Graph team).
+    Each permission entry contains privilege levels 1-5 per auth scheme:
+      DelegatedWork, DelegatedPersonal, Application.
+    Level 1 = least privileged; Level 5 = highest privilege.
+
+    Issue #56: https://github.com/OID-See/OID-See/issues/56
+
+    Returns a dict: { "PermissionName": { "schemes": { scheme: { "privilegeLevel": int } } } }
+    On failure returns an empty dict (graceful degradation — pattern matching takes over).
+    """
+    global _MSFT_PERMISSIONS_CACHE, _MSFT_PERMISSIONS_INDEX
+    
+    if _MSFT_PERMISSIONS_CACHE is not None:
+        return _MSFT_PERMISSIONS_CACHE
+    
+    try:
+        print("Fetching Microsoft Graph permissions tiering data...")
+        response = requests.get(MSFT_PERMISSIONS_URL, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+        permissions = data.get("permissions", {})
+        _MSFT_PERMISSIONS_CACHE = permissions
+        # Build a case-insensitive lookup index once to avoid O(n) scans
+        _MSFT_PERMISSIONS_INDEX = {k.lower(): k for k in permissions}
+        print(f"Loaded privilege levels for {len(permissions)} Microsoft Graph permissions")
+        return permissions
+    except Exception as e:
+        print(f"Warning: Could not fetch Microsoft permissions tiering data: {e}")
+        print("Falling back to pattern-based scope/app-role classification only")
+        _MSFT_PERMISSIONS_CACHE = {}
+        _MSFT_PERMISSIONS_INDEX = {}
         return {}
+
+
+def get_permission_privilege_level(name: str, scheme: str = "DelegatedWork") -> Optional[int]:
+    """
+    Return Microsoft's official privilege level (1–5) for a permission in a given scheme.
+
+    Args:
+        name:   Permission name, e.g. "Mail.ReadWrite" or "Directory.ReadWrite.All".
+        scheme: One of "DelegatedWork", "DelegatedPersonal", or "Application".
+
+    Returns:
+        Integer 1–5 if found in Microsoft's tiering data, otherwise None.
+        Level 5 = highest privilege (near admin-level); level 1 = lowest.
+    """
+    permissions = _fetch_microsoft_permissions()
+    if not permissions:
+        return None
+
+    # Try exact match first
+    perm = permissions.get(name)
+    if perm is None:
+        # Fall back to case-insensitive lookup via the pre-built index
+        index = _MSFT_PERMISSIONS_INDEX or {}
+        canonical = index.get(name.lower())
+        if canonical:
+            perm = permissions.get(canonical)
+
+    if not perm:
+        return None
+
+    scheme_data = perm.get("schemes", {}).get(scheme)
+    if scheme_data:
+        return scheme_data.get("privilegeLevel")
+    return None
 
 
 def classify_app_ownership(app_id: str, app_owner_org_id: Optional[str], 
@@ -733,22 +839,24 @@ class DirectoryCache:
 # Risk heuristics (lightweight)
 # -----------------------------
 
-HIGH_RISK_DELEGATED = {
-    # not exhaustive; extend later
+# Offline fallback set for delegated scopes that are unconditionally high-risk.
+# These mirror the entries in Microsoft's permissions.json at privilege level 5 and are
+# used only when the remote tiering data cannot be fetched (graceful degradation).
+# When the tiering data IS available this set is effectively superseded.
+HIGH_RISK_DELEGATED_FALLBACK = {
     "Directory.AccessAsUser.All",
     "Directory.ReadWrite.All",
     "RoleManagement.ReadWrite.Directory",
     "User.ReadWrite.All",
     "Mail.ReadWrite",
-    "Mail.Read",
-    "offline_access",  # persistence (separately tagged)
+    "offline_access",  # persistence (tagged separately via OFFLINE_ACCESS_PERSISTENCE)
 }
 
 IMPERSONATION_MARKERS = {"user_impersonation", "access_as_user"}
 
 
 def classify_app_role_value(name: Optional[str]) -> int:
-    """Classify app role value based on loaded configuration."""
+    """Classify app role value based on loaded configuration, refined by MS privilege tiering."""
     config = SCORING_CONFIG.get("classify_app_role_value", {})
     weights = config.get("weights", {})
     markers = config.get("markers", {})
@@ -760,36 +868,74 @@ def classify_app_role_value(name: Optional[str]) -> int:
     
     n = name.lower()
     
+    # Pattern-matched weight (existing logic)
+    pattern_weight = default_weight
+
     # Check readwrite.all (highest priority)
     readwrite_all_markers = markers.get("readwrite_all", [])
     readwrite_all_weight = weights.get("readwrite_all", 60)
     if any(m in n for m in readwrite_all_markers):
-        return readwrite_all_weight
-    
-    # Check action privileged (second priority)
-    action_privileged_markers = markers.get("action_privileged", [])
-    action_privileged_weight = weights.get("action_privileged", 55)
-    if any(m in n for m in action_privileged_markers):
-        return action_privileged_weight
-    
-    # Check high write markers
-    high_write_markers = markers.get("high_write_markers", [])
-    high_write_weight = weights.get("high_write_markers", 50)
-    if any(m in n for m in high_write_markers):
-        return high_write_weight
-    
-    # Check high read markers
-    high_read_markers = markers.get("high_read_markers", [])
-    high_read_weight = weights.get("high_read_markers", 25)
-    if any(m in n for m in high_read_markers):
-        return high_read_weight
-    
-    return default_weight
+        pattern_weight = readwrite_all_weight
+    else:
+        # Check action privileged (second priority)
+        action_privileged_markers = markers.get("action_privileged", [])
+        action_privileged_weight = weights.get("action_privileged", 55)
+        if any(m in n for m in action_privileged_markers):
+            pattern_weight = action_privileged_weight
+        else:
+            # Check high write markers
+            high_write_markers = markers.get("high_write_markers", [])
+            high_write_weight = weights.get("high_write_markers", 50)
+            if any(m in n for m in high_write_markers):
+                pattern_weight = high_write_weight
+            else:
+                # Check high read markers
+                high_read_markers = markers.get("high_read_markers", [])
+                high_read_weight = weights.get("high_read_markers", 25)
+                if any(m in n for m in high_read_markers):
+                    pattern_weight = high_read_weight
+
+    # Refine using Microsoft's official Application-scheme privilege level
+    ms_level = get_permission_privilege_level(name, scheme="Application")
+    if ms_level is not None:
+        ms_weight = _privilege_level_to_approle_weight(ms_level, weights)
+        return max(pattern_weight, ms_weight)
+
+    return pattern_weight
+
+
+# Privilege level → app role weight mapping (mirrors the classify_app_role_value tiers)
+_PRIVILEGE_LEVEL_TO_APPROLE_WEIGHT: Dict[int, str] = {
+    5: "readwrite_all",        # highest privilege → readwrite_all weight
+    4: "action_privileged",    # high privilege → action_privileged weight
+    3: "high_write_markers",   # medium-high → high_write weight
+    2: "high_read_markers",    # medium → high_read weight
+    1: "default",              # low → default weight (treat as low-risk)
+}
+
+
+def _privilege_level_to_approle_weight(level: int, weights: Dict[str, int]) -> int:
+    """Map a Microsoft privilege level (1-5) to an app role weight using the scoring config."""
+    weight_key = _PRIVILEGE_LEVEL_TO_APPROLE_WEIGHT.get(level, "default")
+    fallback = {
+        "readwrite_all": 60,
+        "action_privileged": 55,
+        "high_write_markers": 50,
+        "high_read_markers": 25,
+        "default": 35,
+    }
+    return weights.get(weight_key, fallback.get(weight_key, 35))
 
 
 def classify_scopes(scopes: Set[str]) -> Dict[str, Any]:
     """
     Classify scopes and determine risk level based on loaded configuration with priority.
+
+    Each scope is classified first by name patterns, then optionally upgraded using
+    Microsoft's official privilege level (1–5) from the Graph permissions tiering data.
+    The highest privilege level across all delegated scopes is tracked and returned
+    so callers can fire additional scoring contributors when MS confirms high privilege.
+
     Returns edge type (always HAS_SCOPES) with metadata about risk class and weight.
     """
     config = SCORING_CONFIG.get("classify_scopes", {})
@@ -800,30 +946,57 @@ def classify_scopes(scopes: Set[str]) -> Dict[str, Any]:
     too_broad = []
     write_privileged = []
     regular = []
-    
+    high_privilege_scopes: List[Dict[str, Any]] = []  # scopes with MS privilege level >= 4
+    max_privilege_level: Optional[int] = None
+
     # Get action patterns from config
     action_config = classifications.get("action_privileged", {})
     action_patterns = action_config.get("patterns", [".action"])
     
     for scope in scopes:
         scope_lower = scope.lower()
-        
-        # Priority 1: ReadWrite.All (near-admin level)
+
+        # --- Pattern-based classification (existing logic) ---
         if "readwrite.all" in scope_lower:
-            readwrite_all.append(scope)
-        # Priority 2: Action permissions (state-changing operations)
+            pattern_class = "readwrite_all"
         elif any(pattern in scope_lower for pattern in action_patterns):
-            action_privileged.append(scope)
-        # Priority 3: Too broadly scoped (.All)
+            pattern_class = "action_privileged"
         elif scope_lower.endswith(".all"):
-            too_broad.append(scope)
-        # Priority 4: Write privileged
+            pattern_class = "too_broad"
         elif "write" in scope_lower or "readwrite" in scope_lower:
+            pattern_class = "write_privileged"
+        else:
+            pattern_class = "regular"
+
+        # --- MS privilege level override (issue #56) ---
+        # Try DelegatedWork first; fall back to DelegatedPersonal for personal-account scopes
+        ms_level = get_permission_privilege_level(scope, "DelegatedWork")
+        if ms_level is None:
+            ms_level = get_permission_privilege_level(scope, "DelegatedPersonal")
+
+        if ms_level is not None:
+            if max_privilege_level is None or ms_level > max_privilege_level:
+                max_privilege_level = ms_level
+            if ms_level >= 4:
+                high_privilege_scopes.append({"scope": scope, "privilegeLevel": ms_level})
+            # Upgrade the classification when MS rates this scope higher than patterns suggest
+            ms_class = _privilege_level_to_scope_class(ms_level)
+            final_class = _higher_scope_class(pattern_class, ms_class)
+        else:
+            final_class = pattern_class
+
+        if final_class == "readwrite_all":
+            readwrite_all.append(scope)
+        elif final_class == "action_privileged":
+            action_privileged.append(scope)
+        elif final_class == "too_broad":
+            too_broad.append(scope)
+        elif final_class == "write_privileged":
             write_privileged.append(scope)
         else:
             regular.append(scope)
     
-    # Determine classification and risk weight based on highest priority present
+    # Determine overall classification and risk weight based on highest priority bucket
     readwrite_all_config = classifications.get("readwrite_all", {})
     action_privileged_config = classifications.get("action_privileged", {})
     too_broad_config = classifications.get("too_broad", {})
@@ -846,7 +1019,6 @@ def classify_scopes(scopes: Set[str]) -> Dict[str, Any]:
         classification = regular_config.get("classification_label", "regular")
         risk_weight = regular_config.get("risk_weight", 0)
     
-    # Always use HAS_SCOPES edge type with metadata
     return {
         "edge_type": "HAS_SCOPES",
         "classification": classification,
@@ -856,7 +1028,31 @@ def classify_scopes(scopes: Set[str]) -> Dict[str, Any]:
         "too_broad": too_broad,
         "write_privileged": write_privileged,
         "regular": regular,
+        "max_privilege_level": max_privilege_level,
+        "high_privilege_scopes": high_privilege_scopes,
     }
+
+
+# Ordered list of scope risk classes from lowest to highest priority
+_SCOPE_CLASS_PRIORITY = ["regular", "too_broad", "write_privileged", "action_privileged", "readwrite_all"]
+
+
+def _privilege_level_to_scope_class(level: int) -> str:
+    """Map a Microsoft privilege level (1-5) to a scope risk class."""
+    if level >= 5:
+        return "readwrite_all"
+    if level == 4:
+        return "write_privileged"
+    if level == 3:
+        return "too_broad"
+    return "regular"
+
+
+def _higher_scope_class(class_a: str, class_b: str) -> str:
+    """Return whichever scope risk class is higher priority."""
+    priority_a = _SCOPE_CLASS_PRIORITY.index(class_a) if class_a in _SCOPE_CLASS_PRIORITY else 0
+    priority_b = _SCOPE_CLASS_PRIORITY.index(class_b) if class_b in _SCOPE_CLASS_PRIORITY else 0
+    return class_a if priority_a >= priority_b else class_b
 
 
 def get_role_tier(role_template_id: str) -> Optional[str]:
@@ -2044,6 +2240,8 @@ def compute_risk_for_sp(
     # HAS_PRIVILEGED_SCOPES - unified scope risk based on classification
     # Calculate max scope risk weight from delegated_scopes_by_resource
     max_scope_risk_weight = 0
+    max_ms_privilege_level: Optional[int] = None  # highest MS privilege level seen across all scopes
+    all_high_privilege_scopes: List[Dict[str, Any]] = []
     scope_risk_details = {
         "readwrite_all_count": 0,
         "action_privileged_count": 0,
@@ -2067,6 +2265,13 @@ def compute_risk_for_sp(
             scope_risk_details["action_privileged_count"] += len(classification.get("action_privileged", []))
             scope_risk_details["too_broad_count"] += len(classification.get("too_broad", []))
             scope_risk_details["write_privileged_count"] += len(classification.get("write_privileged", []))
+
+            # Collect MS privilege level data (issue #56)
+            resource_max_level = classification.get("max_privilege_level")
+            if resource_max_level is not None:
+                if max_ms_privilege_level is None or resource_max_level > max_ms_privilege_level:
+                    max_ms_privilege_level = resource_max_level
+            all_high_privilege_scopes.extend(classification.get("high_privilege_scopes", []))
     
     if max_scope_risk_weight > 0:
         privileged_config = contributors.get("HAS_PRIVILEGED_SCOPES", {})
@@ -2095,6 +2300,32 @@ def compute_risk_for_sp(
             "weight": weight,
             "scopeRiskClass": risk_class,
             "scopeRiskDetails": scope_risk_details,
+        })
+
+    # HAS_HIGH_PRIVILEGE_PERMISSION (issue #56)
+    # Fires when Microsoft's official permissions tiering data confirms that one or more
+    # delegated scopes carry privilege level 4 or 5 — providing authoritative confirmation
+    # beyond pattern-matching alone.  Only applied when the tiering data is available
+    # (max_ms_privilege_level is not None).
+    if max_ms_privilege_level is not None and max_ms_privilege_level >= 4:
+        hhp_config = contributors.get("HAS_HIGH_PRIVILEGE_PERMISSION", {})
+        if max_ms_privilege_level >= 5:
+            weight = hhp_config.get("weight_level5", 25)
+        else:
+            weight = hhp_config.get("weight_level4", 15)
+        scope_names = ", ".join(s["scope"] for s in all_high_privilege_scopes[:3])
+        suffix = f" (+{len(all_high_privilege_scopes) - 3} more)" if len(all_high_privilege_scopes) > 3 else ""
+        message = (
+            f"Microsoft confirms privilege level {max_ms_privilege_level}/5 "
+            f"for delegated scope(s): {scope_names}{suffix}"
+        )
+        score += weight
+        reasons.append({
+            "code": "HAS_HIGH_PRIVILEGE_PERMISSION",
+            "message": message,
+            "weight": weight,
+            "msPrivilegeLevel": max_ms_privilege_level,
+            "highPrivilegeScopes": all_high_privilege_scopes,
         })
 
     # OFFLINE_ACCESS_PERSISTENCE (offline_access)
