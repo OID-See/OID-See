@@ -129,7 +129,9 @@ python oidsee_scanner.py --tenant-id <TENANT_ID> --auth-method default --out sca
 
 ---
 
+### ⚡ Lazy Graph Loading
 
+**Problem**: Previously, switching to any view after import would trigger vis-network graph data preparation, even if the user never opened the Graph tab.
 
 **Solution**: The vis-network canvas is now only initialised when the user explicitly:
 - Clicks the Graph tab

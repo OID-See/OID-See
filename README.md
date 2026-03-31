@@ -26,7 +26,7 @@ OID-See v1.1.0 is a major performance release focused on real-world tenant scale
 - ✅ **8 New Filter Presets**: Cross-tenant and posture-aware filters — External Identity Posture, Permissive Tenant Posture, Hardened Tenant Posture, Permissive Guest Access, Permissive Cross-Tenant Default, Posture Amplified Risk, Third-Party Apps, Multi-Tenant Sign-In Audience
 - ✅ **New Scanner Auth Methods**: `--auth-method interactive-browser | azure-cli | default | device-code | client-secret` — thanks to [@SuryenduB](https://github.com/SuryenduB) for this contribution ([PR #74](https://github.com/OID-See/OID-See/pull/74))
 
-[📖 Read the full v1.1.0 Release Notes →](RELEASE_NOTES_v1.1.md)
+[📖 Read the full v1.1.0 Release Notes →](RELEASE_NOTES.md)
 
 ## 🔧 Version 1.0.1 Released!
 
@@ -37,7 +37,7 @@ OID-See v1.0.1 is a maintenance release that fixes critical accuracy and perform
 - ✅ **Graph View Performance**: Eliminated 7-second load delays and slow view switching (700-7000ms → <100ms)
 - ✅ **Button State Fix**: Resolved graph view button getting stuck in loading state
 
-[📖 Read the full v1.0.1 Release Notes →](RELEASE_NOTES_v1.0.1.md)
+[📖 Read the full v1.0.1 Release Notes →](RELEASE_NOTES.md)
 
 ## 🎉 Version 1.0 - Production Ready!
 
@@ -48,7 +48,7 @@ OID-See v1.0 introduces intelligent **Entra Role Tiering** and **Privileged Scop
 - ✅ **Explainable Security**: Detailed tier breakdowns and scope classifications in every risk score
 - ✅ **Production Ready**: Metadata-driven architecture, comprehensive testing, zero vulnerabilities
 
-[📖 Read the full v1.0 Release Notes →](RELEASE_NOTES_v1.0.md)
+[📖 Read the full v1.0 Release Notes →](RELEASE_NOTES.md)
 
 ## 🎯 What is OID-See?
 
@@ -233,9 +233,7 @@ python3 test_integration_e2e.py
 
 For detailed information about changes and releases:
 - **[CHANGELOG.md](CHANGELOG.md)** - Complete version history and changes
-- **[RELEASE_NOTES_v1.0.1.md](RELEASE_NOTES_v1.0.1.md)** - v1.0.1 maintenance release details
-- **[RELEASE_NOTES_v1.0.md](RELEASE_NOTES_v1.0.md)** - v1.0.0 major release details
-- **[RELEASE_NOTES.md](RELEASE_NOTES.md)** - Historical release documentation
+- **[RELEASE_NOTES.md](RELEASE_NOTES.md)** - Full release notes for all versions (v1.1.0 → private-beta-1)
 
 ## ⚡ Performance & Architecture
 
