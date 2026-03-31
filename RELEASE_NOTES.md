@@ -4,6 +4,7 @@ All releases, newest first.
 
 | Version | Date | Type |
 |---------|------|------|
+| [v1.1.1](#release-notes---oid-see-v111) | April 14, 2026 | Scanner intelligence release |
 | [v1.1.0](#release-notes---oid-see-v110) | March 31, 2026 | Major feature release |
 | [v1.0.1](#release-notes---oid-see-v101) | January 18, 2026 | Maintenance release |
 | [v1.0.0](#release-notes---oid-see-v100) | January 5, 2026 | Production release |
@@ -11,6 +12,37 @@ All releases, newest first.
 | [private-beta-1](#release-notes---private-beta-1) | Nov 2025 | Beta release |
 
 ---
+
+# Release Notes - OID-See v1.1.1
+
+## 🔐 Scanner Intelligence Release — April 14, 2026
+
+OID-See v1.1.1 makes scope and permission risk classification more accurate by integrating Microsoft's official permission privilege levels, and improves first-party app detection reliability with a bundled offline fallback list.
+
+## What's Changed
+
+### 📊 Microsoft Permissions Tiering (Issue [#56](https://github.com/OID-See/OID-See/issues/56))
+
+The scanner now fetches Microsoft Graph's official `permissions.json` at scan time to obtain privilege levels (1–5) for every Graph permission. These levels override the existing pattern-matching classification when they represent a higher risk class. Adds a new `HAS_HIGH_PRIVILEGE_PERMISSION` contributor (weight 15 for level ≥ 4, weight 25 for level 5). Gracefully degrades to pattern-matching when offline.
+
+| MS Level | Meaning | Contributor weight |
+|----------|---------|-------------------|
+| 5 | Near-admin | +25 |
+| 4 | Elevated write/read | +15 |
+| 1–3 | Low–moderate | No additional contributor |
+
+### 🏢 Expanded First-Party App Coverage (Issue [#57](https://github.com/OID-See/OID-See/issues/57))
+
+`data/microsoft_first_party_apps_fallback.json` (~90 well-known MS apps) is now bundled with the scanner. `_fetch_microsoft_apps_list()` seeds the lookup with this fallback before merging Merill's live data (Merill wins on collision). First-party detection now works fully offline.
+
+## Upgrade Guide
+
+No changes required. Both features are fully additive and backward-compatible. No new Python dependencies.
+
+[📖 Read the full v1.1.1 Release Notes →](RELEASE_NOTES_v1.1.1.md)
+
+---
+
 # Release Notes - OID-See v1.1.0
 
 ## 🚀 Major Performance Release — March 31, 2026
