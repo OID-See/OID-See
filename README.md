@@ -23,7 +23,7 @@ OID-See v1.1.0 is a major performance release focused on real-world tenant scale
 - ✅ **Lazy Graph Loading**: vis-network canvas only initialised when the Graph tab is actually opened
 - ✅ **30k+ Node Scale**: Table, Tree, Matrix and Dashboard views handle full tenant exports with no truncation
 - ✅ **External Identity Posture**: New scanner stage collects guest access and cross-tenant policies; Dashboard shows posture card; `EXTERNAL_IDENTITY_POSTURE_AMPLIFIER` risk contributor amplifies high-risk apps in permissive tenants
-- ✅ **8 New Filter Presets**: Cross-tenant and posture-aware filters — Permissive Tenant Posture, Hardened Tenant Posture, Permissive Guest Access, Permissive Cross-Tenant Default, Posture Amplified Risk, Third-Party Apps, Multi-Tenant Sign-In Audience, and more
+- ✅ **8 New Filter Presets**: Cross-tenant and posture-aware filters — External Identity Posture, Permissive Tenant Posture, Hardened Tenant Posture, Permissive Guest Access, Permissive Cross-Tenant Default, Posture Amplified Risk, Third-Party Apps, Multi-Tenant Sign-In Audience
 
 [📖 Read the full v1.1.0 Release Notes →](RELEASE_NOTES_v1.1.md)
 

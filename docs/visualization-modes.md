@@ -14,22 +14,22 @@ The viewer includes five distinct visualization modes accessible via the **View*
 
 ## 1. Graph View (Traditional)
 
-The original network visualization mode, best suited for datasets under 1,000 nodes.
+The original network visualization mode. For large datasets, the graph automatically renders only the top 3,000 highest-risk nodes so performance stays smooth on any device.
 
 **Features:**
 - Interactive force-directed graph layout
 - Node dragging and repositioning
 - Zoom and pan controls
 - Real-time filtering and lens switching
+- Automatic cap at 3,000 highest-risk nodes for large datasets
 
 **When to use:**
 - Exploring relationships between specific entities
 - Investigating security paths and attack vectors
-- Small to medium datasets (< 1,000 nodes)
+- Any dataset size (large datasets are automatically capped)
 
 **Limitations:**
-- Performance degrades with large datasets (10,000+ nodes)
-- Can become visually cluttered with many connections
+- For datasets over 3,000 nodes, only the highest-risk nodes are shown — use Table/Tree/Matrix views to access the full dataset
 
 ## 2. Table View
 
@@ -248,7 +248,7 @@ Use the **View** selector in the header to switch between modes:
 
 | View Mode  | Max Recommended Size | Rendering Time | Memory Usage | Best For |
 |-----------|---------------------|----------------|--------------|----------|
-| Graph     | 1,000 nodes         | 2-5s          | High         | Exploration, small datasets |
+| Graph     | Any size (capped at 3,000 highest-risk nodes) | 2-5s | High | Exploration, risk investigation |
 | Table     | 100,000+ nodes      | < 1s          | Low          | Large datasets, searching |
 | Tree      | 100,000+ nodes      | < 1s          | Medium       | Hierarchical data, type analysis |
 | Matrix    | 100,000 edges       | < 1s          | Low          | Relationship patterns |
@@ -256,17 +256,13 @@ Use the **View** selector in the header to switch between modes:
 
 ## Tips and Best Practices
 
-### For Large Datasets (10,000+ nodes)
+### For Any Dataset Size
 1. **Start with Dashboard View**: Get an overview of the dataset composition and top risks
-2. **Use Table View for search**: Find specific nodes quickly with search and filters
-3. **Use Tree View for type analysis**: Understand risk distribution across node types
-4. **Use Matrix View for patterns**: Identify relationship anomalies
-5. **Use Hybrid Approach**: Visualize only relevant subsets in Graph View
-
-### For Small to Medium Datasets (< 1,000 nodes)
-1. **Start with Graph View**: Visual exploration is efficient and intuitive
-2. **Switch to Table View**: For sorting and bulk operations
-3. **Use Dashboard View**: For summary statistics and reporting
+2. **Use Graph View**: Automatically shows the 3,000 highest-risk nodes on any device
+3. **Use Table View for search**: Find specific nodes quickly with search and filters
+4. **Use Tree View for type analysis**: Understand risk distribution across node types
+5. **Use Matrix View for patterns**: Identify relationship anomalies
+6. **Use Hybrid Approach**: Visualize only relevant subsets in Graph View
 
 ### For Investigations
 1. **Dashboard**: Identify top risks and critical paths
