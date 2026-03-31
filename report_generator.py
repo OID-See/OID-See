@@ -199,9 +199,11 @@ def _extract_metrics(export_data: Dict[str, Any]) -> Dict[str, Any]:
             None
         )
         if privilege_reason and privilege_reason.get('tierBreakdown'):
+            tier_breakdown = privilege_reason.get('tierBreakdown', [])
+            tier0_entry = next((t for t in tier_breakdown if t.get('tier') == 'tier0'), {})
             top_tier0_roles.append({
                 'sp': sp,
-                'roles': privilege_reason.get('tierBreakdown', {}).get('tier0', [])
+                'roles': tier0_entry.get('roles', [])
             })
     
     # Extract tenant posture if available
