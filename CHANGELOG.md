@@ -7,12 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- 8 new built-in filter presets covering cross-tenant and external identity posture signals: **External Identity Posture**, **Permissive Tenant Posture**, **Hardened Tenant Posture**, **Permissive Guest Access**, **Permissive Cross-Tenant Default**, **Posture Amplified Risk** (SPs amplified by `EXTERNAL_IDENTITY_POSTURE_AMPLIFIER`), **Third-Party Apps**, and **Multi-Tenant Sign-In Audience**
+
+### Changed
+- Graph view is now available on **all browsers including iOS Safari** — the existing 3,000 highest-risk node cap is sufficient to keep vis-network stable on any device; the iOS-specific graph disable has been removed. Table, Tree, Matrix, and Dashboard views still show the full dataset uncapped.
+
+### Fixed
+- `report_generator.py` `extract_metrics`: `tierBreakdown` is a list of objects (each with a `tier` key), not a dict keyed by tier name. Calling `.get('tier0')` on a list raised `'list' object has no attribute 'get'` when `--generate-report` was used. The code now iterates the list to locate the `tier0` entry before accessing its roles.
+
 ## [1.1.0] - 2026-03-30
 
 ### Added
 - `src/workers/dataWorker.ts`: single Web Worker (Vite module worker syntax) handles all heavy processing — JSON parsing, filter/lens evaluation (`applyFilter`), and vis-network graph conversion — so the main thread is never blocked during import or filtering
 - `src/filters/lens.ts`: `lensEdgeAllowed()` extracted and exported for shared use by the worker and main thread
-- iOS Safari protection: Graph tab permanently disabled on all iOS devices (Apple requires all iOS browsers to use the WebKit engine, which runs out of memory on large vis-network canvases); Table, Tree, Matrix, and Dashboard views work fully on iOS
 - File size displayed in the loading overlay before parsing begins
 - Large dataset warning InfoDialog shown after loading when nodeCount > 3,000 or edgeCount > 4,500
 - Drag-and-drop support: drop an OID-See JSON export onto the main panel area to load it
@@ -29,7 +37,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 - 30k+ node tenant exports now load and filter without blocking the UI thread
-- iOS Safari no longer crashes or becomes unresponsive on import
 
 ## [1.0.1] - 2026-01-18
 

@@ -45,11 +45,10 @@ All heavy processing runs in a single Vite module Web Worker (`src/workers/dataW
 
 ### Large Dataset Behaviour
 
-- **Graph View**: Capped at 3,000 highest-risk nodes and 4,500 edges. A warning InfoDialog is shown after load when these thresholds are exceeded.
+- **Graph View**: Capped at 3,000 highest-risk nodes and 4,500 edges. A warning InfoDialog is shown after load when these thresholds are exceeded. This cap applies on all browsers including iOS Safari.
 - **Table / Tree / Matrix / Dashboard**: Show the full dataset — no cap.
 - **File size**: Displayed in the loading overlay before parsing begins.
 - **Graph View lazy loading**: The vis-network canvas is only initialised when the user clicks the Graph tab or clicks "Visualise" from Table/Tree view.
-- **iOS Safari**: Graph View is permanently disabled on all iOS devices. Apple requires all iOS browsers to use the WebKit engine, which runs out of memory on large vis-network canvases. All other views work normally on iOS.
 
 ### Input Panel Removed
 
@@ -784,6 +783,6 @@ The Web Worker architecture (`dataWorker.ts`) and the alternative visualization 
 4. ✅ **Matrix view** — relationship heat map
 5. ✅ **Dashboard view** — metrics and risk summary
 6. ✅ **Lazy graph loading** — vis-network only initialised on demand
-7. ✅ **iOS Safari protection** — Graph tab disabled on all iOS devices
+7. ✅ **Universal graph support** — Graph tab available on all browsers; 3,000-node cap provides stable canvas memory on any device
 8. ✅ **File size display** — shown in loading overlay before parse begins
 9. ✅ **Large dataset warning** — InfoDialog shown when nodeCount > 3,000 or edgeCount > 4,500

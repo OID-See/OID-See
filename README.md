@@ -15,13 +15,15 @@ OID-See is a comprehensive security analysis tool for Microsoft Entra ID (Azure 
 
 ## 🚀 Version 1.1.0 — Large Tenant Performance Overhaul!
 
-OID-See v1.1.0 is a major performance release focused on real-world tenant scale (30k+ nodes, 50k+ edges) and mobile browser reliability:
+OID-See v1.1.0 is a major performance release focused on real-world tenant scale (30k+ nodes, 50k+ edges) with new cross-tenant / external identity posture scanning:
 
 - ✅ **Web Worker Architecture**: All JSON parsing, filtering, and graph conversion moved off the main thread — UI never blocks
 - ✅ **Input Panel Removed**: No more paste/Render workflow; load directly from file or sample
-- ✅ **iOS Safari Support**: Graph tab safely disabled on iOS (WebKit OOM protection); all other views work fully
+- ✅ **Graph View on All Devices**: Graph tab works on iOS Safari and all browsers — capped at 3,000 highest-risk nodes for canvas stability
 - ✅ **Lazy Graph Loading**: vis-network canvas only initialised when the Graph tab is actually opened
 - ✅ **30k+ Node Scale**: Table, Tree, Matrix and Dashboard views handle full tenant exports with no truncation
+- ✅ **External Identity Posture**: New scanner stage collects guest access and cross-tenant policies; Dashboard shows posture card; `EXTERNAL_IDENTITY_POSTURE_AMPLIFIER` risk contributor amplifies high-risk apps in permissive tenants
+- ✅ **8 New Filter Presets**: Cross-tenant and posture-aware filters — Permissive Tenant Posture, Hardened Tenant Posture, Permissive Guest Access, Permissive Cross-Tenant Default, Posture Amplified Risk, Third-Party Apps, Multi-Tenant Sign-In Audience, and more
 
 [📖 Read the full v1.1.0 Release Notes →](RELEASE_NOTES_v1.1.md)
 

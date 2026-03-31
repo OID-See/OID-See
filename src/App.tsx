@@ -79,6 +79,15 @@ const PRESET_QUERIES: SavedQuery[] = [
   { name: 'High Risk with Credentials', query: 'n.risk.score>=70 n.properties.credentialInsights.active_password_credentials>0' },
   { name: 'Unverified with Offline Access', query: 'n.properties.verifiedPublisher.displayName=null e.type=HAS_OFFLINE_ACCESS' },
   { name: 'Impersonation Capable Service Principals', query: 'e.type=CAN_IMPERSONATE e.properties.markers~user_impersonation' },
+  // External identity & cross-tenant posture
+  { name: 'External Identity Posture', query: 'n.type=TenantPolicy' },
+  { name: 'Permissive Tenant Posture', query: 'n.type=TenantPolicy n.properties.postureRating=permissive' },
+  { name: 'Hardened Tenant Posture', query: 'n.type=TenantPolicy n.properties.postureRating=hardened' },
+  { name: 'Permissive Guest Access', query: 'n.type=TenantPolicy n.properties.guestAccess=permissive' },
+  { name: 'Permissive Cross-Tenant Default', query: 'n.type=TenantPolicy n.properties.crossTenantDefaultStance=permissive' },
+  { name: 'Posture Amplified Risk', query: 'n.risk.reasons~EXTERNAL_IDENTITY_POSTURE_AMPLIFIER' },
+  { name: 'Third-Party Apps', query: 'n.type=ServicePrincipal n.properties.appOwnership~3rd' },
+  { name: 'Multi-Tenant Sign-In Audience', query: 'n.type=ServicePrincipal n.properties.signInAudience~Multiple' },
 ]
 
 function loadPhysicsConfig(): PhysicsConfig {
@@ -246,8 +255,7 @@ export default function App() {
             setPhysicsConfig(physicsDisabled)
             savePhysicsConfig(physicsDisabled)
           }
-          const ready: ViewMode[] = ['dashboard', 'table', 'tree', 'matrix']
-          if (!isIOS()) ready.push('graph')
+          const ready: ViewMode[] = ['dashboard', 'table', 'tree', 'matrix', 'graph']
           setViewsReady(new Set(ready))
           setLoading(false)
           setLoadingProgress('')
@@ -422,7 +430,7 @@ export default function App() {
 
   // ─── Graph view (loaded on demand via worker) ──────────────────────────────
   const loadGraphView = useCallback((subsetNodeIds?: string[]) => {
-    if (isIOS() || totalNodeCount === 0) return
+    if (totalNodeCount === 0) return
     workerRef.current?.postMessage({ type: 'ABORT_GRAPH' })
     setGraphViewLoading(true)
     setLoadingProgress('Building graph view…')
@@ -465,7 +473,6 @@ export default function App() {
 
   function handleVisualizeNodes(nodeIds: string[]) {
     if (nodeIds.length === 0) return
-    if (isIOS()) { alert('Graph view is not available on iOS. Use Table View to explore your data.'); return }
     if (nodeIds.length > MAX_SUBSET_VISUALIZATION_NODES) {
       alert(`Selection too large (${nodeIds.length} nodes). Please select ${MAX_SUBSET_VISUALIZATION_NODES} or fewer nodes for graph visualization.`)
       return
@@ -482,7 +489,7 @@ export default function App() {
 
   function handleViewModeChange(mode: ViewMode) {
     setViewMode(mode)
-    if (mode === 'graph' && !data && !graphViewLoading && !isIOS()) loadGraphView()
+    if (mode === 'graph' && !data && !graphViewLoading) loadGraphView()
   }
 
   function handleDetailsResize(delta: number) {
@@ -684,15 +691,7 @@ export default function App() {
             <>
               {viewMode === 'graph' && (
                 <>
-                  {isIOS() ? (
-                    <div className="empty">
-                      <div className="empty__title">Graph view unavailable on iOS</div>
-                      <div className="empty__msg">
-                        Graph rendering is not supported on iOS due to memory limits.
-                        Use Table, Tree, Matrix or Dashboard to explore your data.
-                      </div>
-                    </div>
-                  ) : graphViewLoading ? (
+                  {graphViewLoading ? (
                     <div className="empty">
                       <div className="empty__title">Loading graph…</div>
                       <div className="empty__msg">Building graph view. This may take a moment for large datasets.</div>

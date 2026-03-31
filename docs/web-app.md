@@ -91,6 +91,24 @@ Manage your saved filter queries:
 - Risk level queries (High/Medium/Low Risk)
 - Edge type filters (Can Impersonate, Has App Roles, etc.)
 - Specific risk queries (Unverified Publishers, No Owners, etc.)
+- **External identity & cross-tenant posture** (see below)
+
+#### External Identity & Cross-Tenant Posture Presets
+
+These presets surface signals from the `TenantPolicy` node (created by the scanner's external identity posture stage) and from the `EXTERNAL_IDENTITY_POSTURE_AMPLIFIER` risk contributor:
+
+| Preset | Query | What it finds |
+|--------|-------|--------------|
+| External Identity Posture | `n.type=TenantPolicy` | The tenant posture summary node |
+| Permissive Tenant Posture | `n.type=TenantPolicy n.properties.postureRating=permissive` | Tenants with a permissive overall posture |
+| Hardened Tenant Posture | `n.type=TenantPolicy n.properties.postureRating=hardened` | Tenants with a hardened posture |
+| Permissive Guest Access | `n.type=TenantPolicy n.properties.guestAccess=permissive` | Tenants allowing broad guest access |
+| Permissive Cross-Tenant Default | `n.type=TenantPolicy n.properties.crossTenantDefaultStance=permissive` | Tenants with open cross-tenant defaults |
+| Posture Amplified Risk | `n.risk.reasons~EXTERNAL_IDENTITY_POSTURE_AMPLIFIER` | Service principals that received a risk score boost due to permissive tenant posture |
+| Third-Party Apps | `n.type=ServicePrincipal n.properties.appOwnership~3rd` | External (3rd-party) service principals |
+| Multi-Tenant Sign-In Audience | `n.type=ServicePrincipal n.properties.signInAudience~Multiple` | SPs registered for multi-tenant sign-in audiences |
+
+> **Note**: `TenantPolicy` nodes only appear when the scanner was run with sufficient permissions to collect `authorizationPolicy` and `crossTenantAccessPolicy`. These calls are opportunistic — the scanner proceeds normally if they fail.
 
 ### Filter Query Syntax
 
@@ -556,7 +574,6 @@ View Microsoft first-party apps to understand expected patterns.
 1. Check the error dialog for validation issues
 2. Verify JSON format matches the OID-See schema
 3. Check browser console for detailed error messages
-4. Note: Graph tab is permanently disabled on iOS devices (WebKit limitation — use Table, Tree, Matrix, or Dashboard views instead)
 
 ### Performance Issues
 
@@ -618,7 +635,7 @@ Graph View is capped at **3,000 highest-risk nodes** and **4,500 edges** to main
 
 **Graph View** is lazy-loaded: the vis-network canvas is only initialised when you click the Graph tab or click "Visualise" from Table/Tree view.
 
-> **iOS Safari**: Graph View is permanently disabled on all iOS devices. Apple requires all iOS browsers to use the WebKit engine, which runs out of memory on large vis-network canvases. All other views work normally on iOS.
+> **Note**: Physics simulation is automatically disabled for large graphs (datasets with ≥5,000 nodes) to keep the canvas responsive. You can re-enable it manually via the Physics controls.
 
 ### Data Privacy
 

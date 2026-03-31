@@ -2,7 +2,7 @@
 
 ## 🚀 Major Performance Release — March 30, 2026
 
-OID-See v1.1.0 is a major architectural overhaul of the web viewer focused on real-world tenant scale. Testing with genuine enterprise tenants revealed that the previous architecture blocked the browser main thread during import of large exports (30k+ nodes, 50k+ edges), causing iOS Safari to crash and desktop browsers to show "page not responding" dialogs. This release eliminates those problems entirely by moving all heavy processing to a Web Worker.
+OID-See v1.1.0 is a major architectural overhaul of the web viewer focused on real-world tenant scale. Testing with genuine enterprise tenants revealed that the previous architecture blocked the browser main thread during import of large exports (30k+ nodes, 50k+ edges), causing desktop browsers to show "page not responding" dialogs. This release eliminates those problems entirely by moving all heavy processing to a Web Worker, adds cross-tenant / external identity posture scanning, and introduces a full set of posture-aware filter presets.
 
 ## What's Changed
 
@@ -39,7 +39,7 @@ A single stateful worker holds all data internally (`allNodes`, `allEdges`). Thi
 |----------|--------|--------|
 | 5MB file import (UI responsiveness) | Main thread blocked ~60s | Main thread never blocked |
 | 30k node tenant initial display | Browser "not responding" dialog | Sub-second UI update |
-| iOS Safari import | Full browser crash | Loads cleanly (graph view disabled) |
+| iOS Safari import | Full browser crash | Loads cleanly; graph capped at 3k nodes |
 | Filtering 80k objects | UI freeze during filter | Worker processes asynchronously |
 | Graph conversion (3k nodes) | Main thread blocked | Worker thread, ~50-100ms |
 
@@ -57,17 +57,44 @@ A single stateful worker holds all data internally (`allNodes`, `allEdges`). Thi
 - ✅ "Load sample" sends the bundled sample object via the worker
 - ✅ Drag-and-drop onto the main panel area still works
 
-### 📱 iOS Safari Protection
+### 📱 Graph View on All Devices
 
-**Problem**: All iOS browsers (Safari, Chrome, Firefox, Edge) are required by Apple to use the WebKit engine. WebKit has strict memory limits that cause it to kill tabs when vis-network attempts to allocate canvas memory for 3,000+ node graphs.
+The Graph tab is now available on **all browsers including iOS Safari**. The existing 3,000 highest-risk node cap keeps vis-network stable regardless of device memory. Testing with 27,537 nodes / 50,017 edges confirmed fast, smooth operation on both desktop and mobile.
 
-**Solution**: The Graph tab is permanently disabled on all iOS devices. A clear message explains why and directs users to Table, Tree, Matrix, or Dashboard views — all of which work fully on iOS.
+- ✅ Graph tab enabled on all browsers (iOS Safari, Chrome iOS, Firefox iOS, all desktop browsers)
+- ✅ 3,000 highest-risk nodes / 4,500 edges cap ensures stable canvas memory usage
+- ✅ Physics simulation automatically disabled for large graphs (≥5,000 nodes in dataset)
+- ✅ Dashboard iOS restrictions remain in place for the stats computation path (unrelated to graph canvas)
 
-- ✅ `isIOS()` detection runs synchronously at render time (not in a useEffect, avoiding state race conditions)
-- ✅ Graph tab shows a tooltip explaining the limitation
-- ✅ Dashboard, Table, Tree, and Matrix views are fully functional on iOS
+### 🌐 External Identity & Cross-Tenant Posture
 
-### 🦥 Lazy Graph Loading
+**New scanner capability**: `oidsee_scanner.py` now collects tenant-level guest access and cross-tenant access policies from Microsoft Graph and emits a `TenantPolicy` node (type `externalIdentityPosture`) into the export.
+
+**Signals collected**:
+| Signal | Graph endpoint | Values |
+|--------|---------------|--------|
+| Guest access level | `/policies/authorizationPolicy` | `restricted`, `limited`, `permissive` |
+| Cross-tenant default stance | `/policies/crossTenantAccessPolicy` | `restrictive`, `moderate`, `permissive` |
+| Overall posture rating | Derived | `hardened`, `moderate`, `permissive`, `unknown` |
+
+**`EXTERNAL_IDENTITY_POSTURE_AMPLIFIER` risk contributor**: When posture is `permissive` and a service principal already has high-risk indicators (broad reachability, governance risk, unverified publisher with privilege, or first-party reachability), it receives a +8 score amplifier. This reflects that a permissive external identity stance increases the blast radius of a compromised or malicious app.
+
+**Dashboard**: A posture card is displayed in the Dashboard when the `TenantPolicy` node is present in the export, summarising guest access and cross-tenant stance.
+
+**New preset filters** for cross-tenant / posture investigation:
+
+| Filter name | What it finds |
+|-------------|--------------|
+| External Identity Posture | The `TenantPolicy` node (summary card) |
+| Permissive Tenant Posture | Tenants rated `permissive` overall |
+| Hardened Tenant Posture | Tenants rated `hardened` overall |
+| Permissive Guest Access | Tenants with permissive guest access policy |
+| Permissive Cross-Tenant Default | Tenants with permissive cross-tenant default |
+| Posture Amplified Risk | SPs that received the `EXTERNAL_IDENTITY_POSTURE_AMPLIFIER` boost |
+| Third-Party Apps | Service principals owned by external organisations |
+| Multi-Tenant Sign-In Audience | SPs registered for `AzureADMultipleOrgs` or wider |
+
+
 
 **Problem**: Previously, switching to any view after import would trigger vis-network graph data preparation, even if the user never opened the Graph tab.
 
@@ -150,7 +177,7 @@ Web Worker (src/workers/dataWorker.ts)
 - `src/App.tsx` — complete rewrite; 2-panel layout, worker-driven state
 - `src/theme.css` — grid-template-columns updated for 2-panel layout
 - `src/components/DashboardView.tsx` — synchronous iOS detection, no state race
-- `src/components/ViewModeSelector.tsx` — Graph tab disabled on iOS with tooltip
+- `src/components/ViewModeSelector.tsx` — iOS graph-disable removed; graph tab now available on all devices
 
 **Removed**:
 - `src/components/JSONEditor.tsx` (input panel) — no longer imported or used
@@ -159,8 +186,9 @@ Web Worker (src/workers/dataWorker.ts)
 ### Testing
 
 - ✅ Tested with 5.1MB large sample (multiple view switches, filtering, graph load)
-- ✅ Confirmed fast on mobile (iOS/Android) and desktop (Chrome, Edge, Firefox)
-- ✅ TypeScript: no new type errors introduced (pre-existing errors in GraphCanvas.tsx/JSONEditor.tsx unchanged)
+- ✅ Confirmed fast on mobile (iOS/Android) and desktop (Chrome, Edge, Firefox) — including graph view
+- ✅ Validated with 27,537 nodes / 50,017 edges real tenant export — graph view, all views fast
+- ✅ TypeScript: no new type errors introduced (pre-existing errors in GraphCanvas.tsx unchanged)
 - ✅ User acceptance: "stonkingly fast on mobile and desktop"
 
 ### Deployment
@@ -168,10 +196,6 @@ Web Worker (src/workers/dataWorker.ts)
 No changes to Netlify configuration required. Standard Web Workers work as-is on Netlify. `vite.config.ts` updated to include `worker: { format: 'es' }` for correct Vite module worker handling.
 
 ## Known Limitations
-
-### Graph View on iOS
-
-Graph view is unavailable on all iOS devices by design. This is a fundamental WebKit memory constraint, not a bug that can be fixed in JavaScript. All four other views (Dashboard, Table, Tree, Matrix) work fully on iOS.
 
 ### Graph View Node Cap
 
