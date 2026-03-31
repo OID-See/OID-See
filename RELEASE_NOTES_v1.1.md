@@ -1,6 +1,6 @@
 # Release Notes - OID-See v1.1.0
 
-## 🚀 Major Performance Release — March 30, 2026
+## 🚀 Major Performance Release — March 31, 2026
 
 OID-See v1.1.0 is a major architectural overhaul of the web viewer focused on real-world tenant scale. Testing with genuine enterprise tenants revealed that the previous architecture blocked the browser main thread during import of large exports (30k+ nodes, 50k+ edges), causing desktop browsers to show "page not responding" dialogs. This release eliminates those problems entirely by moving all heavy processing to a Web Worker, adds cross-tenant / external identity posture scanning, and introduces a full set of posture-aware filter presets.
 
