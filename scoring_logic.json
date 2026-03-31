@@ -292,6 +292,12 @@
         "description": "Permissive external identity posture amplifies discovery and blast radius for already-risky apps",
         "details": "Applied only when tenant has permissive guest/external collaboration posture AND the app already exhibits high-risk indicators (broad reachability, assignment-not-required, first-party reachability, unverified publisher with privileged access). This posture reduces attacker cost for external identity abuse. Does NOT claim exploitability. Language: 'amplifies discovery/blast radius' and 'reduces attacker cost'.",
         "gating": "Only applied when: (1) tenant posture is 'permissive', AND (2) app has at least one of: BROAD_REACHABILITY, GOVERNANCE, UNVERIFIED_PUBLISHER with privileged scopes/app roles, or is first-party-reachable."
+      },
+      "HAS_HIGH_PRIVILEGE_PERMISSION": {
+        "weight_level4": 15,
+        "weight_level5": 25,
+        "description": "Microsoft's official permissions tiering data confirms one or more delegated scopes carry privilege level 4 or 5",
+        "details": "Applied when the microsoft-graph-devx-content permissions.json (updated weekly by the MS Graph team) rates at least one delegated scope at privilege level 4 (high) or 5 (highest). This contributor is additive to HAS_PRIVILEGED_SCOPES — it represents authoritative Microsoft confirmation of high privilege beyond pattern-matching. Only fired when the tiering data is reachable at scan time. Issue: https://github.com/OID-See/OID-See/issues/56"
       }
     },
     "final_score_limitation": {

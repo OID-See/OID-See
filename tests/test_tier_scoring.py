@@ -5,6 +5,7 @@ Tests for tier-based role scoring and enhanced scope classification.
 
 import sys
 import os
+from unittest.mock import patch
 
 # Add parent directory to path to import oidsee_scanner
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -113,33 +114,36 @@ def test_enhanced_scope_classification():
 
 
 def test_enhanced_app_role_classification():
-    """Test enhanced app role classification."""
+    """Test enhanced app role classification (pattern-based logic, MS tiering mocked offline)."""
     print("\n=== Testing Enhanced App Role Classification ===")
-    
-    # Test ReadWrite.All (highest weight)
-    weight = classify_app_role_value("Directory.ReadWrite.All")
-    assert weight == 60, f"Expected weight=60 for ReadWrite.All, got {weight}"
-    print(f"✓ ReadWrite.All app role: weight={weight}")
-    
-    # Test Action (second highest weight)
-    weight = classify_app_role_value("Application.ReadWrite.Action")
-    assert weight == 55, f"Expected weight=55 for Action, got {weight}"
-    print(f"✓ Action app role: weight={weight}")
-    
-    # Test high write markers (third highest)
-    weight = classify_app_role_value("Directory.ReadWrite")
-    assert weight == 50, f"Expected weight=50 for high write, got {weight}"
-    print(f"✓ High write app role: weight={weight}")
-    
-    # Test high read markers
-    weight = classify_app_role_value("Directory.Read.All")
-    assert weight == 25, f"Expected weight=25 for high read, got {weight}"
-    print(f"✓ High read app role: weight={weight}")
-    
-    # Test default
-    weight = classify_app_role_value("SomeRandomPermission")
-    assert weight == 35, f"Expected default weight=35, got {weight}"
-    print(f"✓ Default app role: weight={weight}")
+
+    # Patch MS tiering to None so this test exercises pattern-matching only.
+    # MS privilege-level override behaviour is covered in test_permission_tiering.py.
+    with patch("oidsee_scanner.get_permission_privilege_level", return_value=None):
+        # Test ReadWrite.All (highest weight)
+        weight = classify_app_role_value("Directory.ReadWrite.All")
+        assert weight == 60, f"Expected weight=60 for ReadWrite.All, got {weight}"
+        print(f"✓ ReadWrite.All app role: weight={weight}")
+
+        # Test Action (second highest weight)
+        weight = classify_app_role_value("Application.ReadWrite.Action")
+        assert weight == 55, f"Expected weight=55 for Action, got {weight}"
+        print(f"✓ Action app role: weight={weight}")
+
+        # Test high write markers (third highest)
+        weight = classify_app_role_value("Directory.ReadWrite")
+        assert weight == 50, f"Expected weight=50 for high write, got {weight}"
+        print(f"✓ High write app role: weight={weight}")
+
+        # Test high read markers
+        weight = classify_app_role_value("Directory.Read.All")
+        assert weight == 25, f"Expected weight=25 for high read, got {weight}"
+        print(f"✓ High read app role: weight={weight}")
+
+        # Test default
+        weight = classify_app_role_value("SomeRandomPermission")
+        assert weight == 35, f"Expected default weight=35, got {weight}"
+        print(f"✓ Default app role: weight={weight}")
 
 
 def test_tier_based_risk_scoring():

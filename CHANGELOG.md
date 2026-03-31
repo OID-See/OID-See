@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-04-14
+
+### Added
+- **Microsoft permissions tiering (issue #56)**: `oidsee_scanner.py` now fetches Microsoft Graph's official `permissions.json` at scan time to obtain privilege levels (1–5) for every delegated and application permission. The privilege level overrides the existing pattern-matching classification when it represents a higher risk, so scope and app-role risk weights reflect Microsoft's own assessments rather than name patterns alone. Adds a new `HAS_HIGH_PRIVILEGE_PERMISSION` scoring contributor (weight 15 for level ≥ 4, weight 25 for level 5) and surfaces `max_privilege_level` and `high_privilege_scopes` metadata in `classify_scopes()` output. Pattern matching is preserved as an authoritative fallback when the remote fetch is unavailable.
+- **Static Microsoft first-party app fallback (issue #57)**: `data/microsoft_first_party_apps_fallback.json` bundles ~90 well-known first-party app IDs sourced from Microsoft documentation (Azure Portal, MS Graph, Exchange Online, SharePoint Online, Teams, Intune, Power BI, Power Apps, Azure CLI/PowerShell, DevOps, Defender, Key Vault, OneDrive, Authenticator, Dynamics 365, and more). `_fetch_microsoft_apps_list()` now seeds the lookup with this fallback before merging Merill's live data on top, ensuring first-party detection works correctly even when the network is unavailable at scan time.
+
 ### Added
 - **New scanner authentication methods** via `--auth-method` parameter: `interactive-browser` (browser popup, recommended for most users), `azure-cli` (reuses existing `az login` session), `default` (credential chain: environment → managed identity → CLI → browser), and `client-secret` (non-interactive). Legacy device-code and client-secret flows remain the default when `--auth-method` is omitted. Also adds `--interactive-browser-client-id` for custom public client IDs. Thanks to [@SuryenduB](https://github.com/SuryenduB) for contributing this feature ([PR #74](https://github.com/OID-See/OID-See/pull/74)).
 - 8 new built-in filter presets covering cross-tenant and external identity posture signals: **External Identity Posture**, **Permissive Tenant Posture**, **Hardened Tenant Posture**, **Permissive Guest Access**, **Permissive Cross-Tenant Default**, **Posture Amplified Risk** (SPs amplified by `EXTERNAL_IDENTITY_POSTURE_AMPLIFIER`), **Third-Party Apps**, and **Multi-Tenant Sign-In Audience**
