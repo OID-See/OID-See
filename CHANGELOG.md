@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `report_generator.py` `extract_metrics`: `tierBreakdown` is a list of objects (each with a `tier` key), not a dict keyed by tier name. Calling `.get('tier0')` on a list raised `'list' object has no attribute 'get'` when `--generate-report` was used. The code now iterates the list to locate the `tier0` entry before accessing its roles.
 
-## [1.1.0] - 2026-03-30
+## [1.1.0] - 2026-03-31
 
 ### Added
 - `src/workers/dataWorker.ts`: single Web Worker (Vite module worker syntax) handles all heavy processing — JSON parsing, filter/lens evaluation (`applyFilter`), and vis-network graph conversion — so the main thread is never blocked during import or filtering
