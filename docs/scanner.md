@@ -482,6 +482,8 @@ python report_generator.py oidsee-export.json report.html
 
 If you omit the output filename, it will automatically create `oidsee-export-report.html`.
 
+> **Note**: A bug in earlier versions caused `--generate-report` to crash with `'list' object has no attribute 'get'` when processing privilege tier data. This has been fixed — report generation now works correctly for all dataset sizes and export formats.
+
 ### Report Contents
 
 The HTML report includes:

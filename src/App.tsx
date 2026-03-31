@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState, useRef, useTransition } from 'react'
+import { useEffect, useMemo, useState, useRef, useCallback, startTransition } from 'react'
 import { GraphCanvas, Selection, GraphCanvasHandle, PhysicsConfig, DEFAULT_PHYSICS } from './components/GraphCanvas'
-import { toVisData, toVisDataAsync, toVisDataLightweight, doubleCircleRenderer, VisData, ProgressCallback } from './adapters/toVisData'
+import { VisData } from './adapters/toVisData'
 import sampleObj from './samples/sample-oidsee-graph.json'
 import { DetailsPanel } from './components/DetailsPanel'
 import { FilterBar, Lens } from './components/FilterBar'
-import { parseQuery, evalClause, getPath, isNumericOp, Clause } from './filters/query'
-import { JSONEditor } from './components/JSONEditor'
+import { parseQuery, evalClause } from './filters/query'
+import { lensEdgeAllowed } from './filters/lens'
 import { ErrorDialog } from './components/ErrorDialog'
 import { InfoDialog } from './components/InfoDialog'
 import { PhysicsControls } from './components/PhysicsControls'
@@ -19,80 +19,37 @@ import { TableView } from './components/TableView'
 import { TreeView } from './components/TreeView'
 import { MatrixView } from './components/MatrixView'
 import { DashboardView } from './components/DashboardView'
-import { WorkerManager } from './workers/WorkerManager'
-import FileParserWorker from './workers/fileParser.worker?worker'
-import FilterWorker from './workers/filter.worker?worker'
-import GraphProcessorWorker from './workers/graphProcessor.worker?worker'
 
 type SavedQuery = { name: string; query: string }
 
-// Filter result type matching filter.worker.ts structure
-// Note: Duplicated here because filter.worker.ts doesn't export it
-// and we want to maintain clear types for the async filtering logic
-// The 'parsed' property is received from the worker but not stored in state
-// because it's not needed after filtering (queries are reparsed when needed)
-interface FilterResult {
-  nodes: any[]
-  edges: any[]
-  parsed: {
-    clauses: Clause[]
-    errors: string[]
-  }
-}
-
-// Large graph detection threshold - reduced to catch more cases
-const LARGE_GRAPH_THRESHOLD = 3000 // nodes or edges
-
-// Maximum nodes/edges to render - beyond this, graph will be truncated
-// Ultra-conservative limits (25% lower again) for guaranteed stability
 const MAX_RENDERABLE_NODES = 3000
 const MAX_RENDERABLE_EDGES = 4500
-
-// Maximum nodes for subset visualization (hybrid approach)
-// This limit ensures optimal performance when visualizing selected subsets
 const MAX_SUBSET_VISUALIZATION_NODES = 500
+const FILE_SIZE_MEDIUM_MB = 1
+const FILE_SIZE_LARGE_MB = 5
+const FILE_SIZE_VERY_LARGE_MB = 30
+const RESPONSIVE_BREAKPOINT = 1100
+const MOBILE_DETAILS_WIDTH = 240
+const DETAILS_AUTO_EXPAND_DELAY = 100
+const SCROLL_DELAY_OFFSET = 50
+const GRAPH_RESTABILIZE_DELAY = 100
 
-// Delay before processing to allow loading overlay to render
-// Increased to 200ms for large graphs to ensure overlay is visible before blocking operations
-const RENDER_DELAY_MS = 200 // ms delay to ensure UI updates before heavy processing
+function isIOS(): boolean {
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent)
+}
 
-// Yield delay between blocking operations to keep UI responsive
-const YIELD_DELAY_MS = 100 // ms delay to yield control to event loop (increased for large files)
-
-// Emoji regex for cross-browser compatibility validation
 const EMOJI_REGEX = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{FE00}-\u{FE0F}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F251}]/u
 
-// Responsive layout breakpoint - matches CSS media query
-const RESPONSIVE_BREAKPOINT = 1100
-
-// Responsive panel widths for mobile/tablet viewports
-const MOBILE_INPUT_WIDTH = 280
-const MOBILE_DETAILS_WIDTH = 240
-
-// Details panel auto-expand delay
-const DETAILS_AUTO_EXPAND_DELAY = 100 // ms delay before auto-expanding details panel
-
-// Scroll delay offset for portrait mode auto-expand
-const SCROLL_DELAY_OFFSET = 50 // ms additional delay to ensure panel has expanded before scrolling
-
-// Graph restabilization delay
-const GRAPH_RESTABILIZE_DELAY = 100 // ms delay before triggering graph restabilization
-
 const PRESET_QUERIES: SavedQuery[] = [
-  // Node type queries
   { name: 'Service Principals', query: 'n.type=ServicePrincipal' },
   { name: 'Applications', query: 'n.type=Application' },
   { name: 'Users', query: 'n.type=User' },
   { name: 'Groups', query: 'n.type=Group' },
   { name: 'Roles', query: 'n.type=Role' },
   { name: 'Resource APIs', query: 'n.type=ResourceApi' },
-  
-  // Risk level queries
   { name: 'High Risk', query: 'n.risk.score>=70' },
   { name: 'Medium Risk', query: 'n.risk.score>=40 n.risk.score<70' },
   { name: 'Low Risk', query: 'n.risk.score<40' },
-  
-  // Risk-focused edge queries
   { name: 'Can Impersonate', query: 'e.type=CAN_IMPERSONATE' },
   { name: 'Has App Roles', query: 'e.type=HAS_APP_ROLE' },
   { name: 'Has Directory Roles', query: 'e.type=HAS_ROLE' },
@@ -101,18 +58,14 @@ const PRESET_QUERIES: SavedQuery[] = [
   { name: 'Action Scopes', query: 'e.type=HAS_SCOPES e.properties.scopeRiskClass=action_privileged' },
   { name: 'Too Many Scopes', query: 'e.type=HAS_SCOPES e.properties.scopeRiskClass=too_broad' },
   { name: 'Offline Access', query: 'e.type=HAS_OFFLINE_ACCESS' },
-  
-  // Tier-based role queries
   { name: 'Has Tier 0 Roles', query: 'n.risk.reasons~PRIVILEGE n.type=ServicePrincipal' },
   { name: 'Tier 0 Roles', query: 'n.type=Role n.properties.tier=tier0' },
   { name: 'Tier 1 Roles', query: 'n.type=Role n.properties.tier=tier1' },
   { name: 'Tier 2 Roles', query: 'n.type=Role n.properties.tier=tier2' },
-  
-  // Specific risk queries
   { name: 'Service Principals with Password Credentials', query: 'n.type=ServicePrincipal n.properties.credentialInsights.active_password_credentials>0' },
   { name: 'Service Principals with Key Credentials', query: 'n.type=ServicePrincipal n.properties.credentialInsights.active_key_credentials>0' },
   { name: 'Unverified Publishers', query: 'n.type=ServicePrincipal n.properties.verifiedPublisher.displayName=null' },
-  { name: 'Service Principals with Owners (Change Authority)', query: 'n.risk.reasons~HAS_OWNERS' },
+  { name: 'Service Principals Without Owners', query: 'n.risk.reasons~NO_OWNERS' },
   { name: 'Broad Reachability Service Principals', query: 'n.risk.reasons~BROAD_REACHABILITY' },
   { name: 'Identity Laundering Suspected', query: 'n.properties.trustSignals.identityLaunderingSuspected=true' },
   { name: 'Service Principals Not Requiring Assignment', query: 'n.type=ServicePrincipal n.properties.requiresAssignment=false' },
@@ -120,45 +73,37 @@ const PRESET_QUERIES: SavedQuery[] = [
   { name: 'Service Principals with Non-HTTPS URLs', query: 'n.properties.replyUrlAnalysis.non_https_urls.length>0' },
   { name: 'Expired Credentials Present', query: 'n.properties.credentialInsights.expired_but_present.length>0' },
   { name: 'Long Lived Secrets', query: 'n.properties.credentialInsights.long_lived_secrets.length>0' },
-  
-  // Structure queries
   { name: 'App Ownership', query: 'e.type=OWNS' },
   { name: 'App Instances', query: 'e.type=INSTANCE_OF' },
   { name: 'App Assignments', query: 'e.type=ASSIGNED_TO' },
-  
-  // Complex multi-condition queries
   { name: 'High Risk with Credentials', query: 'n.risk.score>=70 n.properties.credentialInsights.active_password_credentials>0' },
   { name: 'Unverified with Offline Access', query: 'n.properties.verifiedPublisher.displayName=null e.type=HAS_OFFLINE_ACCESS' },
   { name: 'Impersonation Capable Service Principals', query: 'e.type=CAN_IMPERSONATE e.properties.markers~user_impersonation' },
+  // External identity & cross-tenant posture
+  { name: 'External Identity Posture', query: 'n.type=TenantPolicy' },
+  { name: 'Permissive Tenant Posture', query: 'n.type=TenantPolicy n.properties.postureRating=permissive' },
+  { name: 'Hardened Tenant Posture', query: 'n.type=TenantPolicy n.properties.postureRating=hardened' },
+  { name: 'Permissive Guest Access', query: 'n.type=TenantPolicy n.properties.guestAccess=permissive' },
+  { name: 'Permissive Cross-Tenant Default', query: 'n.type=TenantPolicy n.properties.crossTenantDefaultStance=permissive' },
+  { name: 'Posture Amplified Risk', query: 'n.risk.reasons~EXTERNAL_IDENTITY_POSTURE_AMPLIFIER' },
+  { name: 'Third-Party Apps', query: 'n.type=ServicePrincipal n.properties.appOwnership~3rd' },
+  { name: 'Multi-Tenant Sign-In Audience', query: 'n.type=ServicePrincipal n.properties.signInAudience~Multiple' },
 ]
 
 function loadPhysicsConfig(): PhysicsConfig {
   try {
     const raw = localStorage.getItem('oidsee.physicsConfig')
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      return { ...DEFAULT_PHYSICS, ...parsed }
-    }
-  } catch {
-    // ignore
-  }
+    if (raw) return { ...DEFAULT_PHYSICS, ...JSON.parse(raw) }
+  } catch { /* ignore */ }
   return DEFAULT_PHYSICS
 }
 
 function savePhysicsConfig(config: PhysicsConfig) {
-  try {
-    localStorage.setItem('oidsee.physicsConfig', JSON.stringify(config))
-  } catch {
-    // ignore
-  }
+  try { localStorage.setItem('oidsee.physicsConfig', JSON.stringify(config)) } catch { /* ignore */ }
 }
 
 function createDisabledPhysicsConfig(): PhysicsConfig {
-  return {
-    ...DEFAULT_PHYSICS,
-    gravitationalConstant: 0,
-    springConstant: 0,
-  }
+  return { ...DEFAULT_PHYSICS, gravitationalConstant: 0, springConstant: 0 }
 }
 
 function loadSaved(): SavedQuery[] {
@@ -167,220 +112,110 @@ function loadSaved(): SavedQuery[] {
     let arr: SavedQuery[] = []
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) {
-        arr = parsed.filter((x) => x && typeof x.name === 'string' && typeof x.query === 'string')
-      }
+      if (Array.isArray(parsed)) arr = parsed.filter(x => x && typeof x.name === 'string' && typeof x.query === 'string')
     }
-    
-    if (arr.length === 0) {
-      arr = PRESET_QUERIES
-      saveSaved(arr)
-    }
-    
+    if (arr.length === 0) { arr = PRESET_QUERIES; saveSaved(arr) }
     return arr
-  } catch {
-    return PRESET_QUERIES
-  }
+  } catch { return PRESET_QUERIES }
 }
+
 function saveSaved(arr: SavedQuery[]) {
-  try {
-    localStorage.setItem('oidsee.savedQueries', JSON.stringify(arr))
-  } catch {
-    // ignore
-  }
+  try { localStorage.setItem('oidsee.savedQueries', JSON.stringify(arr)) } catch { /* ignore */ }
 }
 
-function lensEdgeAllowed(lens: Lens, edgeType: string): boolean {
-  if (lens === 'full') return true
-
-  if (lens === 'risk') {
-    // Risk lens: show edges that represent security risks
-    // Note: ASSIGNED_TO appears in both lenses - in risk lens it shows who has access to risky resources
-    const allow = new Set([
-      'HAS_SCOPE',
-      'HAS_SCOPES',
-      'HAS_TOO_MANY_SCOPES',
-      'HAS_PRIVILEGED_SCOPES',
-      'HAS_OFFLINE_ACCESS',
-      'HAS_ROLE',
-      'HAS_APP_ROLE',
-      'CAN_IMPERSONATE',
-      'EFFECTIVE_IMPERSONATION_PATH',
-      'PERSISTENCE_PATH',
-      'ASSIGNED_TO',
-    ])
-    return allow.has(edgeType)
-  }
-
-  // Structure lens: show edges that represent organizational structure
-  // Note: ASSIGNED_TO appears in both lenses - in structure lens it shows organizational assignments
-  const allow = new Set(['INSTANCE_OF', 'MEMBER_OF', 'OWNS', 'GOVERNS', 'ASSIGNED_TO'])
-  return allow.has(edgeType)
-}
-
-function computeWarnings(data: VisData, clauses: Clause[]): string[] {
-  const warns: string[] = []
-  const nodeObjs = data.nodes.map((n) => n.__oidsee ?? n)
-  const edgeObjs = data.edges.map((e) => e.__oidsee ?? e)
-
-  for (const c of clauses) {
-    const pool = c.target === 'node' ? nodeObjs : c.target === 'edge' ? edgeObjs : nodeObjs.concat(edgeObjs)
-
-    const anyHas = pool.some((o) => getPath(o, c.path) !== undefined)
-    if (!anyHas) {
-      warns.push(`No matches for path "${c.path}" (${c.target}). Possible typo or field not present in this export.`)
-      continue
-    }
-
-    if (isNumericOp(c.op)) {
-      const samples = pool
-        .map((o) => getPath(o, c.path))
-        .filter((v) => v !== undefined && v !== null)
-        .slice(0, 25)
-      const nonNum = samples.some((v) => typeof v !== 'number' && Number.isNaN(Number(v)))
-      if (nonNum) {
-        warns.push(`Numeric operator used on non-numeric values at "${c.path}". This clause may filter out everything.`)
-      }
-    }
-  }
-
-  return warns
-}
-
+/**
+ * Apply query/lens filtering to vis-network format data.
+ * Only used for the graph view (≤3000 nodes) — stays on main thread.
+ */
 function applyQuery(data: VisData, query: string, lens: Lens, pathAware: boolean) {
-  console.log('[OID-See] 🔍 Applying filter/lens:', { query, lens, pathAware, nodeCount: data.nodes.length, edgeCount: data.edges.length })
-  const filterStartTime = performance.now()
-  
   const parsed = parseQuery(query)
   const clauses = parsed.clauses
+  const nodeClauses = clauses.filter(c => c.target === 'node' || c.target === 'both')
+  const edgeClauses = clauses.filter(c => c.target === 'edge' || c.target === 'both')
 
-  const nodeClauses = clauses.filter((c) => c.target === 'node' || c.target === 'both')
-  const edgeClauses = clauses.filter((c) => c.target === 'edge' || c.target === 'both')
-
-  // Step 1: Determine which nodes pass the node filter
-  console.log('[OID-See] 📝 Step 1: Filtering nodes...')
-  const step1StartTime = performance.now()
   const nodePass = new Set<string>()
   if (nodeClauses.length > 0) {
-    // If there are node filters, only include nodes that match
     for (const n of data.nodes) {
       const raw = n.__oidsee ?? n
-      const ok = nodeClauses.every((c) => evalClause(raw, c))
-      if (ok) nodePass.add(n.id)
+      if (nodeClauses.every(c => evalClause(raw, c))) nodePass.add(n.id)
     }
   } else {
-    // If no node filters, include all nodes initially
-    for (const n of data.nodes) {
-      nodePass.add(n.id)
-    }
+    for (const n of data.nodes) nodePass.add(n.id)
   }
-  console.log('[OID-See] ✅ Node filtering complete:', { duration: `${(performance.now() - step1StartTime).toFixed(0)}ms`, passedNodes: nodePass.size })
 
   const edgeById = new Map<string, any>()
   for (const e of data.edges) edgeById.set(e.id, e)
 
-  // Step 2: Filter edges based on edge clauses and lens
-  console.log('[OID-See] 📝 Step 2: Filtering edges...')
-  const step2StartTime = performance.now()
   const edgesOut: any[] = []
   const edgesKept = new Set<string>()
 
   for (const e of data.edges) {
     const raw = e.__oidsee ?? e
     const edgeType = raw.type ?? e.label ?? ''
-    
-    // Check lens filtering
     if (!lensEdgeAllowed(lens, edgeType)) continue
-
-    // Check edge clauses
-    const ok = edgeClauses.every((c) => evalClause(raw, c))
-    if (!ok) continue
-
-    // Check if both endpoints pass explicit node filter clauses
+    if (!edgeClauses.every(c => evalClause(raw, c))) continue
     if (!nodePass.has(e.from) || !nodePass.has(e.to)) continue
-
-    if (!edgesKept.has(e.id)) {
-      edgesOut.push(e)
-      edgesKept.add(e.id)
-    }
-
-    // Handle path-aware mode: include input edges for derived edges
+    if (!edgesKept.has(e.id)) { edgesOut.push(e); edgesKept.add(e.id) }
     if (pathAware && raw?.derived?.isDerived && Array.isArray(raw.derived.inputs)) {
       for (const id of raw.derived.inputs) {
         const inp = edgeById.get(id)
         if (inp && !edgesKept.has(inp.id)) {
-          // Only include input edge if both its endpoints are in nodePass
-          // AND if the input edge type is allowed in the current lens
           const inpRaw = inp.__oidsee ?? inp
           const inpType = inpRaw.type ?? inp.label ?? ''
           if (nodePass.has(inp.from) && nodePass.has(inp.to) && lensEdgeAllowed(lens, inpType)) {
-            edgesOut.push(inp)
-            edgesKept.add(inp.id)
+            edgesOut.push(inp); edgesKept.add(inp.id)
           }
         }
       }
     }
   }
-  console.log('[OID-See] ✅ Edge filtering complete:', { duration: `${(performance.now() - step2StartTime).toFixed(0)}ms`, keptEdges: edgesOut.length })
 
-  // Step 3: Determine final nodes based on visible edges and lens settings
-  console.log('[OID-See] 📝 Step 3: Finalizing nodes...')
-  const step3StartTime = performance.now()
   const nodesWithEdges = new Set<string>()
-  for (const e of edgesOut) {
-    nodesWithEdges.add(e.from)
-    nodesWithEdges.add(e.to)
+  for (const e of edgesOut) { nodesWithEdges.add(e.from); nodesWithEdges.add(e.to) }
+
+  return {
+    nodes: data.nodes.filter(n => {
+      if (!nodePass.has(n.id)) return false
+      if (lens === 'full') return true
+      return nodesWithEdges.has(n.id)
+    }),
+    edges: edgesOut,
+    parsed,
   }
-
-  // Filter nodes based on lens and filter settings:
-  // - Must pass explicit node filter clauses (if any)
-  // - In Full lens: show all nodes that pass node filters
-  // - In Risk/Structure lens: only show nodes connected by visible edges (even with node filters)
-  const nodesOut = data.nodes.filter((n) => {
-    // Must pass explicit node filters
-    if (!nodePass.has(n.id)) return false
-    
-    // In Full lens, show all nodes that pass node filters
-    if (lens === 'full') return true
-    
-    // In Risk/Structure lens, only show nodes connected by visible edges
-    // This applies even when there are explicit node filters
-    return nodesWithEdges.has(n.id)
-  })
-  console.log('[OID-See] ✅ Final nodes determined:', { duration: `${(performance.now() - step3StartTime).toFixed(0)}ms`, finalNodes: nodesOut.length })
-  
-  const edgesFinal = edgesOut
-  
-  const totalFilterTime = performance.now() - filterStartTime
-  console.log('[OID-See] 🎉 Filter/lens application complete:', {
-    totalDuration: `${totalFilterTime.toFixed(0)}ms`,
-    result: { nodes: nodesOut.length, edges: edgesFinal.length }
-  })
-
-  return { nodes: nodesOut, edges: edgesFinal, parsed }
 }
 
 export default function App() {
-  const [raw, setRaw] = useState<string>('')
-  const [error, setError] = useState<string | null>(null)
-  const [graphError, setGraphError] = useState<string | null>(null)
+  // ─── Worker ref ────────────────────────────────────────────────────────────
+  const workerRef = useRef<Worker | null>(null)
+  const filterReqIdRef = useRef(0)
+
+  // ─── Data state (populated by worker) ──────────────────────────────────────
+  const [totalNodeCount, setTotalNodeCount] = useState<number>(0)
+  const [totalEdgeCount, setTotalEdgeCount] = useState<number>(0)
+  const [filteredNodes, setFilteredNodes] = useState<OidSeeNode[]>([])
+  const [filteredEdges, setFilteredEdges] = useState<OidSeeEdge[]>([])
+  const [warnings, setWarnings] = useState<string[]>([])
+
+  // ─── Graph view state (vis-network format, populated by worker on demand) ──
   const [data, setData] = useState<VisData | null>(null)
-  const [originalData, setOriginalData] = useState<VisData | null>(null) // Full untruncated data for alternative views
+  const [graphViewLoading, setGraphViewLoading] = useState<boolean>(false)
+  const [graphError, setGraphError] = useState<string | null>(null)
+
+  // ─── UI state ──────────────────────────────────────────────────────────────
+  const [error, setError] = useState<string | null>(null)
   const [selection, setSelection] = useState<Selection | null>(null)
   const [query, setQuery] = useState<string>('')
   const [lens, setLens] = useState<Lens>('full')
   const [pathAware, setPathAware] = useState<boolean>(true)
   const [saved, setSaved] = useState<SavedQuery[]>([])
-  const [inputCollapsed, setInputCollapsed] = useState<boolean>(false)
   const [filterCollapsed, setFilterCollapsed] = useState<boolean>(false)
   const [detailsCollapsed, setDetailsCollapsed] = useState<boolean>(true)
   const [detailsManuallyCollapsed, setDetailsManuallyCollapsed] = useState<boolean>(false)
   const [isMobile, setIsMobile] = useState<boolean>(false)
   const [isPortrait, setIsPortrait] = useState<boolean>(false)
   const [physicsConfig, setPhysicsConfig] = useState<PhysicsConfig>(DEFAULT_PHYSICS)
-  const [inputWidth, setInputWidth] = useState<number>(420)
   const [detailsWidth, setDetailsWidth] = useState<number>(360)
-  const [maximizedPanel, setMaximizedPanel] = useState<'input' | 'graph' | 'details' | 'filter' | null>(null)
+  const [maximizedPanel, setMaximizedPanel] = useState<'graph' | 'details' | 'filter' | null>(null)
   const [viewportWidth, setViewportWidth] = useState<number>(1280)
   const [legendVisible, setLegendVisible] = useState<boolean>(false)
   const [loading, setLoading] = useState<boolean>(false)
@@ -388,90 +223,97 @@ export default function App() {
   const [largeGraphWarning, setLargeGraphWarning] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard')
   const [viewsReady, setViewsReady] = useState<Set<ViewMode>>(new Set())
-  const [showCancelButton, setShowCancelButton] = useState<boolean>(false)
-  const [filtered, setFiltered] = useState<VisData | null>(null)
-  const [filteredOriginal, setFilteredOriginal] = useState<VisData | null>(null)
-  const [isFiltering, setIsFiltering] = useState<boolean>(false)
-  
-  // Use transition for non-urgent view mode changes to keep UI responsive
-  const [, startTransition] = useTransition()
-  
-  // Wrapper for setViewMode that uses transition to prevent UI blocking
-  const handleViewModeChange = (mode: ViewMode) => {
-    startTransition(() => {
-      setViewMode(mode)
-    })
-  }
-  
+
   const graphRef = useRef<GraphCanvasHandle>(null)
   const detailsPanelRef = useRef<HTMLElement>(null)
-  const graphConversionTimeoutRef = useRef<number | null>(null)
-  const abortControllerRef = useRef<AbortController | null>(null)
-  const cancelButtonTimeoutRef = useRef<number | null>(null)
-  // Tracks filter request versions to discard stale results and prevent race conditions
-  const filterVersionRef = useRef<number>(0)
-  // Manages debouncing timeout for filter operations
-  const filterTimeoutRef = useRef<number | null>(null)
-  // Stores parsed data for lazy graph processing
-  const parsedDataForGraphRef = useRef<OidSeeExport | null>(null)
-  // Tracks whether graph processing has started
-  const graphProcessingStartedRef = useRef<boolean>(false)
-  
-  // Worker managers
-  const fileParserWorkerRef = useRef<WorkerManager | null>(null)
-  const filterWorkerRef = useRef<WorkerManager | null>(null)
-  const graphProcessorWorkerRef = useRef<WorkerManager | null>(null)
 
-  // Load physics config on mount
+  // ─── Worker initialisation ─────────────────────────────────────────────────
   useEffect(() => {
-    setPhysicsConfig(loadPhysicsConfig())
-  }, [])
+    const worker = new Worker(
+      new URL('./workers/dataWorker.ts', import.meta.url),
+      { type: 'module' }
+    )
 
-  // Initialize workers on mount
-  useEffect(() => {
-    console.log('[OID-See] Initializing web workers...')
-    
-    // Initialize FileParser worker with pre-created worker instance
-    const fileParserWorker = new WorkerManager({
-      worker: new FileParserWorker(),
-      onProgress: (stage, progress, message) => {
-        setLoadingProgress(message)
+    worker.onmessage = (e: MessageEvent) => {
+      const msg = e.data
+      switch (msg.type) {
+        case 'PROGRESS':
+          setLoadingProgress(msg.message)
+          break
+
+        case 'LOADED': {
+          const { nodeCount, edgeCount, exceedsGraphLimits } = msg
+          setTotalNodeCount(nodeCount)
+          setTotalEdgeCount(edgeCount)
+          if (exceedsGraphLimits) {
+            setLargeGraphWarning(
+              `Large dataset: ${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges. ` +
+              `Graph view will be capped at ${MAX_RENDERABLE_NODES.toLocaleString()} highest-risk nodes when loaded. ` +
+              `Table, Tree, Matrix and Dashboard views show the full dataset.`
+            )
+            const physicsDisabled = createDisabledPhysicsConfig()
+            setPhysicsConfig(physicsDisabled)
+            savePhysicsConfig(physicsDisabled)
+          }
+          const ready: ViewMode[] = ['dashboard', 'table', 'tree', 'matrix', 'graph']
+          setViewsReady(new Set(ready))
+          setLoading(false)
+          setLoadingProgress('')
+          break
+        }
+
+        case 'FILTERED': {
+          const { id, nodes, edges, warnings: w } = msg
+          // Discard stale responses
+          if (id !== 0 && id < filterReqIdRef.current) break
+          startTransition(() => {
+            setFilteredNodes(nodes as OidSeeNode[])
+            setFilteredEdges(edges as OidSeeEdge[])
+            setWarnings(w)
+          })
+          break
+        }
+
+        case 'GRAPH_READY': {
+          const { nodes: visNodes, edges: visEdges } = msg
+          setData({ nodes: visNodes, edges: visEdges })
+          setViewsReady(prev => new Set([...prev, 'graph']))
+          setGraphViewLoading(false)
+          setLoadingProgress('')
+          break
+        }
+
+        case 'ERROR':
+          setError(msg.message)
+          setLoading(false)
+          setGraphViewLoading(false)
+          setLoadingProgress('')
+          break
       }
-    })
-    fileParserWorkerRef.current = fileParserWorker
-    
-    // Initialize Filter worker with pre-created worker instance
-    const filterWorker = new WorkerManager({
-      worker: new FilterWorker(),
-      onProgress: (stage, progress, message) => {
-        console.log(`[OID-See] Filtering: ${message}`)
-        // Progress is logged but not shown in UI to avoid flicker for fast filters
-      }
-    })
-    filterWorkerRef.current = filterWorker
-    
-    // Initialize GraphProcessor worker with pre-created worker instance
-    const graphProcessorWorker = new WorkerManager({
-      worker: new GraphProcessorWorker(),
-      onProgress: (stage, progress, message) => {
-        console.log(`[OID-See] Graph processing: ${message}`)
-        // Optional: could show progress in UI if desired
-      }
-    })
-    graphProcessorWorkerRef.current = graphProcessorWorker
-    
-    console.log('[OID-See] Workers initialized')
-    
-    // Cleanup on unmount
-    return () => {
-      console.log('[OID-See] Terminating workers...')
-      fileParserWorkerRef.current?.terminate()
-      filterWorkerRef.current?.terminate()
-      graphProcessorWorkerRef.current?.terminate()
     }
+
+    worker.onerror = (err) => {
+      console.error('[OID-See] Worker error:', err)
+      setError('Worker error: ' + err.message)
+      setLoading(false)
+      setGraphViewLoading(false)
+    }
+
+    workerRef.current = worker
+    return () => { worker.terminate(); workerRef.current = null }
   }, [])
 
-  // Detect mobile viewport and track viewport width
+  // ─── Send FILTER message when filters change ────────────────────────────────
+  useEffect(() => {
+    if (totalNodeCount === 0) return
+    const id = ++filterReqIdRef.current
+    workerRef.current?.postMessage({ type: 'FILTER', id, query: query.trim(), lens, pathAware })
+  }, [query, lens, pathAware, totalNodeCount])
+
+  // ─── Load physics config on mount ──────────────────────────────────────────
+  useEffect(() => { setPhysicsConfig(loadPhysicsConfig()) }, [])
+
+  // ─── Viewport tracking ─────────────────────────────────────────────────────
   useEffect(() => {
     const checkMobile = () => {
       const width = window.innerWidth
@@ -481,873 +323,227 @@ export default function App() {
       setViewportWidth(width)
     }
     checkMobile()
-    
-    // Debounce resize events
-    let timeoutId: NodeJS.Timeout
-    const debouncedResize = () => {
-      clearTimeout(timeoutId)
-      timeoutId = setTimeout(checkMobile, 150)
-    }
-    
+    let timeoutId: ReturnType<typeof setTimeout>
+    const debouncedResize = () => { clearTimeout(timeoutId); timeoutId = setTimeout(checkMobile, 150) }
     window.addEventListener('resize', debouncedResize)
-    return () => {
-      clearTimeout(timeoutId)
-      window.removeEventListener('resize', debouncedResize)
-    }
+    return () => { clearTimeout(timeoutId); window.removeEventListener('resize', debouncedResize) }
   }, [])
 
-  useEffect(() => {
-    setSaved(loadSaved())
-  }, [])
+  useEffect(() => { setSaved(loadSaved()) }, [])
 
-  // Auto-expand details panel when a node or edge is selected
-  // Only auto-expand if the user hasn't manually collapsed it
+  // ─── Auto-expand details panel when selection changes ──────────────────────
   useEffect(() => {
     if (selection && detailsCollapsed && !detailsManuallyCollapsed) {
       setDetailsCollapsed(false)
-      // In portrait mode, scroll the details panel into view after expanding
       if (isPortrait && detailsPanelRef.current) {
         setTimeout(() => {
           detailsPanelRef.current!.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-        }, DETAILS_AUTO_EXPAND_DELAY + SCROLL_DELAY_OFFSET) // Additional delay to ensure panel has expanded
+        }, DETAILS_AUTO_EXPAND_DELAY + SCROLL_DELAY_OFFSET)
       }
     }
   }, [selection, detailsCollapsed, detailsManuallyCollapsed, isPortrait])
 
-  // Reset physics configuration when graph data changes
+  // ─── Reset physics when graph data changes ─────────────────────────────────
   useEffect(() => {
-    if (data) {
-      setPhysicsConfig(DEFAULT_PHYSICS)
-      savePhysicsConfig(DEFAULT_PHYSICS)
-    }
-  }, [data, lens, pathAware])
+    if (data) { setPhysicsConfig(DEFAULT_PHYSICS); savePhysicsConfig(DEFAULT_PHYSICS) }
+  }, [data])
 
-  // Trigger graph restabilization when filters change
+  // ─── Restabilize graph when filters change ─────────────────────────────────
   useEffect(() => {
     if (data && graphRef.current) {
-      // Small delay to ensure the graph has updated with new data
-      const timer = setTimeout(() => {
-        graphRef.current?.restabilize()
-      }, GRAPH_RESTABILIZE_DELAY)
+      const timer = setTimeout(() => { graphRef.current?.restabilize() }, GRAPH_RESTABILIZE_DELAY)
       return () => clearTimeout(timer)
     }
   }, [lens, pathAware, query, data])
 
-  const placeholder = useMemo(() => {
-    return `Paste an OID-See export (oidsee-graph v1.x) here…\n\nTip: Click "Load sample" to see the expected shape.`
-  }, [])
-
+  // ─── Layout ────────────────────────────────────────────────────────────────
   const mainGridStyle = useMemo(() => {
     if (maximizedPanel) return {}
-    // In portrait mode, don't apply grid layout at all
     if (isPortrait) return {}
-    // Apply appropriate grid layout based on collapsed panel states
-    // Include 8px for each visible resize handle
-    // For mobile/tablet viewports, use smaller default widths but still support collapse
-    const effectiveInputWidth = viewportWidth <= RESPONSIVE_BREAKPOINT ? MOBILE_INPUT_WIDTH : inputWidth
     const effectiveDetailsWidth = viewportWidth <= RESPONSIVE_BREAKPOINT ? MOBILE_DETAILS_WIDTH : detailsWidth
-    
-    if (inputCollapsed && detailsCollapsed) return { gridTemplateColumns: '80px 8px 1fr 8px 80px' }
-    if (inputCollapsed) return { gridTemplateColumns: `80px 8px 1fr 8px ${effectiveDetailsWidth}px` }
-    if (detailsCollapsed) return { gridTemplateColumns: `${effectiveInputWidth}px 8px 1fr 8px 80px` }
-    return { gridTemplateColumns: `${effectiveInputWidth}px 8px 1fr 8px ${effectiveDetailsWidth}px` }
-  }, [maximizedPanel, inputCollapsed, detailsCollapsed, inputWidth, detailsWidth, viewportWidth, isPortrait])
+    if (detailsCollapsed) return { gridTemplateColumns: '1fr 8px 80px' }
+    return { gridTemplateColumns: `1fr 8px ${effectiveDetailsWidth}px` }
+  }, [maximizedPanel, detailsCollapsed, detailsWidth, viewportWidth, isPortrait])
 
-  async function readFile(file: File) {
-    console.log('[OID-See] 📁 File upload started:', {
-      name: file.name,
-      size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
-      type: file.type
-    })
-    const startTime = performance.now()
-    
-    // Show loading overlay immediately with file size info
-    setLoading(true)
-    setLoadingProgress(`Reading file (${(file.size / 1024 / 1024).toFixed(1)} MB)...`)
+  const counts = useMemo(() => {
+    if (totalNodeCount === 0) return undefined
+    return {
+      nodes: filteredNodes.length,
+      edges: filteredEdges.length,
+      totalNodes: totalNodeCount,
+      totalEdges: totalEdgeCount,
+    }
+  }, [totalNodeCount, totalEdgeCount, filteredNodes.length, filteredEdges.length])
+
+  // ─── Filtered vis-network data for graph view (fast, ≤3000 nodes) ──────────
+  const filtered = useMemo(() => {
+    if (!data) return null
+    try { return applyQuery(data, query.trim(), lens, pathAware) }
+    catch { return data }
+  }, [data, query, lens, pathAware])
+
+  // ─── Memoised lookup maps for graph focus ──────────────────────────────────
+  const nodeMap = useMemo(() => {
+    if (!data) return new Map<string, any>()
+    return new Map(data.nodes.map(n => [n.id, n]))
+  }, [data])
+
+  const edgeMap = useMemo(() => {
+    if (!data) return new Map<string, any>()
+    return new Map(data.edges.map(e => [e.id, e]))
+  }, [data])
+
+  // ─── Load text into worker ─────────────────────────────────────────────────
+  function loadText(text: string) {
     setError(null)
-    setShowCancelButton(false)
-    
-    // Show cancel button after 5 seconds for large files
-    if (cancelButtonTimeoutRef.current !== null) {
-      clearTimeout(cancelButtonTimeoutRef.current)
-    }
-    cancelButtonTimeoutRef.current = window.setTimeout(() => {
-      setShowCancelButton(true)
-    }, 5000)
-    
-    try {
-      console.log('[OID-See] 📖 Reading and parsing file in worker...')
-      
-      // Use FileParser worker to read and parse file off main thread
-      const parsed = await fileParserWorkerRef.current!.execute<any>(
-        'parseFile',
-        { file },
-        (stage, progress, message) => {
-          console.log(`[OID-See] FileParser: ${message}`)
-          setLoadingProgress(message)
-        }
-      )
-      
-      const totalTime = performance.now() - startTime
-      console.log('[OID-See] ✅ File read and parse complete:', {
-        duration: `${totalTime.toFixed(0)}ms`
-      })
-      
-      // Process the parsed data directly without re-parsing
-      // Set raw text AFTER rendering to avoid blocking UI with expensive stringify
-      setLoadingProgress('Processing graph data...')
-      await processGraphData(parsed)
-      
-      // Now that rendering is complete, stringify in background for raw editor
-      // This is expensive for large files but doesn't block initial rendering
-      setTimeout(() => {
-        console.log('[OID-See] 📝 Generating formatted JSON for editor...')
-        const text = JSON.stringify(parsed, null, 2)
-        setRaw(text)
-        console.log('[OID-See] ✅ Raw JSON ready for editor')
-      }, 100)
-    } catch (e: any) {
-      console.error('[OID-See] ❌ File read/parse error:', e)
-      setError(e?.message || 'Failed to read or parse file')
-      setLoading(false)
-      setShowCancelButton(false)
-    } finally {
-      // Clean up cancel button timeout
-      if (cancelButtonTimeoutRef.current !== null) {
-        clearTimeout(cancelButtonTimeoutRef.current)
-        cancelButtonTimeoutRef.current = null
-      }
-    }
-  }
-
-  // Helper function to yield control to the event loop
-  // Use requestIdleCallback for better responsiveness if available, fallback to setTimeout
-  const yieldToEventLoop = () => new Promise<void>(resolve => {
-    if ('requestIdleCallback' in window) {
-      requestIdleCallback(() => resolve(), { timeout: YIELD_DELAY_MS })
-    } else {
-      setTimeout(resolve, YIELD_DELAY_MS)
-    }
-  })
-
-  // Cancel handler for long-running operations
-  function handleCancelLoading() {
-    console.log('[OID-See] 🚫 User cancelled loading operation')
-    
-    // Note: Worker tasks don't have a direct cancellation API yet
-    // The abort controller handles cancellation for other async operations
-    // Future enhancement: Add task ID tracking for worker cancellation
-    
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
-    // Clear the cancel button timeout
-    if (cancelButtonTimeoutRef.current !== null) {
-      clearTimeout(cancelButtonTimeoutRef.current)
-      cancelButtonTimeoutRef.current = null
-    }
-    setLoading(false)
-    setLoadingProgress('')
-    setShowCancelButton(false)
-    // Don't set error for user cancellations - handled in catch block
-  }
-
-  async function render(input: string) {
-    console.log('[OID-See] 🔄 Starting render process...')
-    
-    setLoading(true)
-    setLoadingProgress('Initializing...')
-    setError(null)
-    
-    try {
-      // Small delay to allow loading overlay to render
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
-      // Parse JSON in worker to avoid blocking main thread
-      setLoadingProgress(`Parsing JSON (${(input.length / 1024 / 1024).toFixed(1)} MB)...`)
-      console.log('[OID-See] 🔍 Parsing JSON in worker...')
-      
-      const parsed = await fileParserWorkerRef.current!.execute<any>(
-        'parseText',
-        { text: input },
-        (stage, progress, message) => {
-          console.log(`[OID-See] Parser: ${message}`)
-          setLoadingProgress(message)
-        }
-      )
-      
-      console.log('[OID-See] ✅ JSON parse complete')
-      
-      // Process the parsed data
-      await processGraphData(parsed)
-    } catch (e: any) {
-      console.error('[OID-See] ❌ Render error:', e)
-      setData(null)
-      setOriginalData(null)
-      setViewsReady(new Set())
-      setSelection(null)
-      parsedDataForGraphRef.current = null
-      graphProcessingStartedRef.current = false
-      if (e?.message !== 'Processing cancelled' && e?.message !== 'Task cancelled') {
-        setError(e?.message ?? String(e))
-      }
-      setLoading(false)
-      setLoadingProgress('')
-      setShowCancelButton(false)
-    }
-  }
-
-  async function processGraphData(parsed: any) {
-    console.log('[OID-See] 🎨 Processing graph data...')
-    const renderStartTime = performance.now()
-    
-    // Cancel any pending graph conversion from previous render
-    if (graphConversionTimeoutRef.current !== null) {
-      clearTimeout(graphConversionTimeoutRef.current)
-      graphConversionTimeoutRef.current = null
-      console.log('[OID-See] 🚫 Cancelled previous graph conversion')
-    }
-    
-    // Cancel any previous abort controller
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
-    
-    // Create new abort controller for this render
-    abortControllerRef.current = new AbortController()
-    const signal = abortControllerRef.current.signal
-    
-    // Clear old graph data and parsed data ref to prevent premature lazy loading
-    // This ensures lazy loading only triggers AFTER non-graph views are ready
     setData(null)
-    parsedDataForGraphRef.current = null
+    setFilteredNodes([])
+    setFilteredEdges([])
+    setTotalNodeCount(0)
+    setTotalEdgeCount(0)
+    setWarnings([])
     setSelection(null)
     setLargeGraphWarning(null)
-    setShowCancelButton(false)
-    
-    // Show cancel button after 5 seconds for large datasets
-    if (cancelButtonTimeoutRef.current !== null) {
-      clearTimeout(cancelButtonTimeoutRef.current)
-    }
-    cancelButtonTimeoutRef.current = window.setTimeout(() => {
-      console.log('[OID-See] ⏱️ Showing cancel button (processing > 5 seconds)')
-      setShowCancelButton(true)
-    }, 5000)
-    
+    setViewsReady(new Set())
+    setLoading(true)
+    setLoadingProgress('Sending to worker…')
+    workerRef.current?.postMessage({ type: 'LOAD', text })
+  }
+
+  async function readFile(file: File) {
+    const sizeMB = file.size / 1024 / 1024
+    const sizeLabel = sizeMB < FILE_SIZE_MEDIUM_MB ? `Small (${sizeMB.toFixed(1)} MB)`
+      : sizeMB < FILE_SIZE_LARGE_MB ? `Medium (${sizeMB.toFixed(1)} MB)`
+      : sizeMB < FILE_SIZE_VERY_LARGE_MB ? `Large (${sizeMB.toFixed(1)} MB)`
+      : `Very Large (${sizeMB.toFixed(1)} MB)`
+    console.log('[OID-See] 📁 File upload started:', { name: file.name, size: sizeLabel })
+    setLoading(true)
+    setLoadingProgress(`Reading ${sizeLabel} file…`)
     try {
-      // Use setTimeout to allow the loading overlay to render before heavy processing
-      console.log(`[OID-See] ⏱️  Waiting ${RENDER_DELAY_MS}ms for UI to update...`)
-      await new Promise(resolve => setTimeout(resolve, RENDER_DELAY_MS))
-      
-      // Yield to event loop after parsing large JSON
-      await new Promise(resolve => setTimeout(resolve, 0))
-      
-      // Check if this is a large graph
-      const nodeCount = parsed?.nodes?.length || 0
-      const edgeCount = parsed?.edges?.length || 0
-      console.log('[OID-See] 📊 Graph size:', {
-        nodes: nodeCount.toLocaleString(),
-        edges: edgeCount.toLocaleString()
-      })
-      
-      const isLargeGraph = nodeCount >= LARGE_GRAPH_THRESHOLD || edgeCount >= LARGE_GRAPH_THRESHOLD
-      console.log('[OID-See] 🎯 Large graph detection:', {
-        isLarge: isLargeGraph,
-        threshold: LARGE_GRAPH_THRESHOLD
-      })
-      
-      // Check if graph exceeds renderable limits
-      const exceedsLimits = nodeCount > MAX_RENDERABLE_NODES || edgeCount > MAX_RENDERABLE_EDGES
-      console.log('[OID-See] 🚧 Render limit check:', {
-        exceedsLimits,
-        maxNodes: MAX_RENDERABLE_NODES,
-        maxEdges: MAX_RENDERABLE_EDGES
-      })
-      
-      // IMPORTANT: Do NOT truncate here! Dashboard needs full data immediately.
-      // Truncation will happen in background when converting for graph view.
-      
-      if (exceedsLimits) {
-        console.log('[OID-See] ℹ️  Graph exceeds limits - will truncate ONLY for graph view in background')
-        console.log('[OID-See] ℹ️  Alternative views (Table, Tree, Matrix, Dashboard) will use full dataset')
-        
-        // NOTE: Truncation warning will be shown AFTER graph processing completes
-        // This prevents the dialog from blocking UI while processing is happening
-        
-        // Disable physics for truncated graphs
-        console.log('[OID-See] ⚙️  Disabling physics for large graph...')
-        const physicsDisabled = createDisabledPhysicsConfig()
-        setPhysicsConfig(physicsDisabled)
-        savePhysicsConfig(physicsDisabled)
-      } else if (isLargeGraph) {
-        console.log('[OID-See] ⚙️  Disabling physics for large graph...')
-        // For large graphs, disable physics by default to prevent UI blocking
-        const physicsDisabled = createDisabledPhysicsConfig()
-        setPhysicsConfig(physicsDisabled)
-        savePhysicsConfig(physicsDisabled)
-        setLargeGraphWarning(
-          `Large graph detected (${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges). ` +
-          `Physics disabled by default for better performance. You can enable physics in the graph controls if needed.`
-        )
-      }
-      
-      // PRIORITY 1: Convert dataset for alternative views (dashboard, table, tree, matrix)
-      // Use lightweight conversion that only creates {id, __oidsee} objects
-      // Alternative views extract OidSee data from __oidsee, don't need vis-network properties
-      console.log('[OID-See] 🎨 Preparing data for dashboard and alternative views...')
-      setLoadingProgress('Preparing dashboard view...')
-      await yieldToEventLoop()
-      
-      const originalVisStartTime = performance.now()
-      // Use lightweight conversion for alternative views - much faster!
-      // Only creates minimal {id, __oidsee} objects instead of full vis-network format
-      const originalVis = toVisDataLightweight(parsed)
-      const originalVisTime = performance.now() - originalVisStartTime
-      console.log('[OID-See] ✅ Alternative views data ready:', {
-        duration: `${originalVisTime.toFixed(0)}ms`,
-        nodes: originalVis.nodes.length.toLocaleString(),
-        edges: originalVis.edges.length.toLocaleString()
-      })
-      
-      // Set data first (no longer blocks since we removed expensive useMemo hooks)
-      setOriginalData(originalVis)
-      setViewsReady(new Set(['dashboard', 'table', 'tree', 'matrix']))
-      
-      // Then hide loading dialog
-      setLoading(false)
-      setLoadingProgress('')
-      setShowCancelButton(false)
-      
-      console.log('[OID-See] ✅ Dashboard and alternative views ready!')
-      
-      const dashboardTime = performance.now() - renderStartTime
-      console.log('[OID-See] 🎉 Dashboard populated in:', `${dashboardTime.toFixed(0)}ms`)
-      
-      // Clear cancel button timeout since we're done with the main loading
-      if (cancelButtonTimeoutRef.current !== null) {
-        clearTimeout(cancelButtonTimeoutRef.current)
-        cancelButtonTimeoutRef.current = null
-      }
-      
-      // Store parsed data for lazy graph processing
-      // Graph view will be processed on-demand when user switches to it
-      // This prevents UI blocking from background graph processing for large datasets
-      parsedDataForGraphRef.current = parsed
-      graphProcessingStartedRef.current = false
-      
-      console.log('[OID-See] ✅ Data loaded! Graph view will be processed when needed.')
-      console.log('[OID-See] 📊 Dataset size:', {
-        nodes: nodeCount.toLocaleString(),
-        edges: edgeCount.toLocaleString(),
-        isLarge: isLargeGraph,
-        exceedsLimits
-      })
-      
+      const text = await file.text()
+      loadText(text)
     } catch (e: any) {
-      console.error('[OID-See] ❌ Render error:', e)
-      setData(null)
-      setOriginalData(null)
-      setViewsReady(new Set())
-      setSelection(null)
-      parsedDataForGraphRef.current = null
-      graphProcessingStartedRef.current = false
-      // Don't show error if it was a user cancellation
-      if (e?.message !== 'Processing cancelled') {
-        setError(e?.message ?? String(e))
-      }
-      // Only set loading false if it hasn't been set already
+      setError(e?.message ?? 'Failed to read file')
       setLoading(false)
-      setLoadingProgress('')
-      setShowCancelButton(false)
-    } finally {
-      // Clean up cancel button timeout
-      if (cancelButtonTimeoutRef.current !== null) {
-        clearTimeout(cancelButtonTimeoutRef.current)
-        cancelButtonTimeoutRef.current = null
-      }
     }
   }
 
+  // ─── Graph view (loaded on demand via worker) ──────────────────────────────
+  const loadGraphView = useCallback((subsetNodeIds?: string[]) => {
+    if (totalNodeCount === 0) return
+    workerRef.current?.postMessage({ type: 'ABORT_GRAPH' })
+    setGraphViewLoading(true)
+    setLoadingProgress('Building graph view…')
+    workerRef.current?.postMessage({ type: 'LOAD_GRAPH', subsetNodeIds })
+  }, [totalNodeCount])
+
+  // ─── Event handlers ────────────────────────────────────────────────────────
   function onDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault()
     const file = e.dataTransfer.files?.[0]
     if (file) void readFile(file)
   }
 
-  // Async filtering with FilterWorker
-  // Filters both data (for graph view) and originalData (for alternative views)
-  // Uses debouncing and version tracking to prevent race conditions
-  useEffect(() => {
-    // Clear any pending filter timeout
-    if (filterTimeoutRef.current !== null) {
-      clearTimeout(filterTimeoutRef.current)
-      filterTimeoutRef.current = null
-    }
-
-    // Skip filtering during initial data load to prevent multiple filter operations
-    // This prevents 3x filtering when setData(null), setOriginalData(), and setData() are called
-    if (loading) {
-      return
-    }
-
-    // If no data, clear filtered results
-    if (!data && !originalData) {
-      setFiltered(null)
-      setFilteredOriginal(null)
-      return
-    }
-
-    // If query is empty and lens is 'full', skip filtering entirely
-    // This prevents unnecessary filter operations on initial data load
-    const isDefaultFilter = query.trim() === '' && lens === 'full'
-    
-    if (isDefaultFilter) {
-      // No filtering needed - pass data through immediately
-      // Update filtered states if they don't match the current data (handles query clearing)
-      if (data && filtered !== data) {
-        setFiltered(data)
-      }
-      if (originalData && filteredOriginal !== originalData) {
-        setFilteredOriginal(originalData)
-      }
-      console.log('[OID-See] ✅ No filter query - passing data through without filtering')
-      return
-    }
-
-    // Immediately set filtered states to unfiltered data ONLY if they're currently null
-    // This ensures views don't show "No data yet" while waiting for async filtering
-    // But avoids triggering unnecessary re-renders when query/lens changes
-    // IMPORTANT: For large datasets, skip immediate initialization to prevent UI blocking
-    // View components will show loading state until async filtering completes
-    const LARGE_DATASET_THRESHOLD = 10000 // Nodes/edges threshold for large dataset
-    const isLargeDataset = (originalData?.nodes?.length ?? 0) > LARGE_DATASET_THRESHOLD || 
-                           (originalData?.edges?.length ?? 0) > LARGE_DATASET_THRESHOLD
-    
-    if (!isLargeDataset) {
-      // For small datasets, initialize immediately for instant view rendering
-      if (data && !filtered) {
-        setFiltered(data)
-      }
-      if (originalData && !filteredOriginal) {
-        setFilteredOriginal(originalData)
-      }
-    } else {
-      // For large datasets, keep filtered states null until async filtering completes
-      // This prevents view components from trying to process 29k+ nodes synchronously
-      console.log('[OID-See] Large dataset detected - skipping immediate initialization to prevent UI blocking')
-    }
-
-    // Debounce filter operations (300ms delay)
-    filterTimeoutRef.current = window.setTimeout(() => {
-      // Increment version to track this request
-      filterVersionRef.current += 1
-      const currentVersion = filterVersionRef.current
-
-      console.log('[OID-See] 🔍 Starting async filter operation', {
-        version: currentVersion,
-        query: query.trim(),
-        lens,
-        pathAware,
-        hasData: !!data,
-        hasOriginalData: !!originalData
-      })
-
-      setIsFiltering(true)
-
-      // Run both filter operations in parallel for better performance
-      const filterPromises: Promise<void>[] = []
-
-      // Filter the truncated data for graph view
-      if (data && filterWorkerRef.current) {
-        const graphFilterPromise = filterWorkerRef.current.execute<FilterResult>(
-          'applyQuery',
-          {
-            nodes: data.nodes,
-            edges: data.edges,
-            query: query.trim(),
-            lens,
-            pathAware
-          },
-          (stage, progress, message) => {
-            // Log progress but don't show in UI to avoid flicker
-            console.log(`[OID-See] Filter (graph): ${message}`)
-          }
-        ).then((result) => {
-          // Only update if this is still the current version (no newer request)
-          if (currentVersion === filterVersionRef.current) {
-            setFiltered({
-              nodes: result.nodes,
-              edges: result.edges
-            })
-            console.log('[OID-See] ✅ Graph view filter complete', {
-              nodes: result.nodes.length,
-              edges: result.edges.length
-            })
-          } else {
-            console.log('[OID-See] ⏭️  Discarding stale filter result (graph view)', {
-              resultVersion: currentVersion,
-              currentVersion: filterVersionRef.current
-            })
-          }
-        }).catch((error) => {
-          console.error('[OID-See] ❌ Graph filter error:', error)
-          // On error, fall back to unfiltered data
-          if (currentVersion === filterVersionRef.current && data) {
-            setFiltered(data)
-          }
-        })
-        
-        filterPromises.push(graphFilterPromise)
-      }
-
-      // Filter the full originalData for alternative views
-      if (originalData && filterWorkerRef.current) {
-        const viewsFilterPromise = filterWorkerRef.current.execute<FilterResult>(
-          'applyQuery',
-          {
-            nodes: originalData.nodes,
-            edges: originalData.edges,
-            query: query.trim(),
-            lens,
-            pathAware
-          },
-          (stage, progress, message) => {
-            // Log progress but don't show in UI to avoid flicker
-            console.log(`[OID-See] Filter (views): ${message}`)
-          }
-        ).then((result) => {
-          // Only update if this is still the current version
-          if (currentVersion === filterVersionRef.current) {
-            setFilteredOriginal({
-              nodes: result.nodes,
-              edges: result.edges
-            })
-            console.log('[OID-See] ✅ Alternative views filter complete', {
-              nodes: result.nodes.length,
-              edges: result.edges.length
-            })
-          } else {
-            console.log('[OID-See] ⏭️  Discarding stale filter result (alternative views)', {
-              resultVersion: currentVersion,
-              currentVersion: filterVersionRef.current
-            })
-          }
-        }).catch((error) => {
-          console.error('[OID-See] ❌ Views filter error:', error)
-          // On error, fall back to unfiltered data
-          if (currentVersion === filterVersionRef.current && originalData) {
-            setFilteredOriginal(originalData)
-          }
-        })
-        
-        filterPromises.push(viewsFilterPromise)
-      }
-
-      // Wait for all filters to complete, then clear filtering state
-      Promise.allSettled(filterPromises).finally(() => {
-        // Only clear filtering state if this is still the current version
-        if (currentVersion === filterVersionRef.current) {
-          setIsFiltering(false)
-        }
-      })
-    }, 300) // 300ms debounce
-
-    // Cleanup function
-    return () => {
-      if (filterTimeoutRef.current !== null) {
-        clearTimeout(filterTimeoutRef.current)
-        filterTimeoutRef.current = null
-      }
-    }
-  }, [data, originalData, query, lens, pathAware, loading])
-
-  // Lazy graph processing: only process graph when user switches to graph view
-  // This prevents UI blocking from background processing for large datasets
-  useEffect(() => {
-    // Only process if:
-    // 1. User is on graph view
-    // 2. We have parsed data to process
-    // 3. Processing hasn't started yet
-    // 4. We don't already have graph data
-    if (viewMode === 'graph' && parsedDataForGraphRef.current && !graphProcessingStartedRef.current && !data) {
-      graphProcessingStartedRef.current = true
-      
-      const graphProcessorWorker = graphProcessorWorkerRef.current
-      const parsed = parsedDataForGraphRef.current
-      
-      if (!graphProcessorWorker) {
-        console.warn('[OID-See] GraphProcessor worker not initialized, skipping graph view')
-        return
-      }
-      
-      const nodeCount = parsed?.nodes?.length || 0
-      const edgeCount = parsed?.edges?.length || 0
-      const isLargeGraph = nodeCount >= LARGE_GRAPH_THRESHOLD || edgeCount >= LARGE_GRAPH_THRESHOLD
-      const exceedsLimits = nodeCount > MAX_RENDERABLE_NODES || edgeCount > MAX_RENDERABLE_EDGES
-      
-      console.log('[OID-See] 🎨 User switched to Graph view - starting graph processing in worker...')
-      console.log('[OID-See] 📊 Dataset:', {
-        nodes: nodeCount.toLocaleString(),
-        edges: edgeCount.toLocaleString(),
-        isLarge: isLargeGraph,
-        exceedsLimits
-      })
-      
-      const graphConversionStartTime = performance.now()
-      
-      // Start worker processing
-      graphProcessorWorker.execute(
-        'processGraph',
-        {
-          parsed,
-          maxNodes: MAX_RENDERABLE_NODES,
-          maxEdges: MAX_RENDERABLE_EDGES,
-          needsTruncation: exceedsLimits
-        },
-        (stage, progress, message) => {
-          // Progress updates from worker - just log them
-          console.log(`[OID-See] 📊 Worker progress: ${message}`)
-        }
-      ).then((result: any) => {
-        // Worker completed - update UI with results
-        const { visData, wasTruncated, nodeCount: visNodeCount, edgeCount: visEdgeCount } = result
-        
-        // Add ctxRenderer to Group nodes (functions can't be transferred via postMessage)
-        // Worker marks Group nodes with __isGroup flag
-        visData.nodes.forEach((node: any) => {
-          if (node.__isGroup) {
-            node.ctxRenderer = doubleCircleRenderer
-            delete node.__isGroup // Clean up the flag
-          }
-        })
-        
-        console.log('[OID-See] ✅ Graph view data ready from worker:', {
-          nodes: visNodeCount.toLocaleString(),
-          edges: visEdgeCount.toLocaleString(),
-          truncated: wasTruncated
-        })
-        
-        // Set graph data
-        setData(visData)
-        setViewsReady(prev => new Set([...prev, 'graph']))
-        
-        // Show truncation warning if data was truncated
-        if (wasTruncated) {
-          setLargeGraphWarning(
-            `⚠️ Graph view truncated to ${MAX_RENDERABLE_NODES.toLocaleString()} highest-risk nodes (dataset: ${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges). ` +
-            `Use Table, Tree, Matrix, or Dashboard views to see the full dataset. Physics disabled for performance.`
-          )
-        }
-        
-        const graphTaskTime = performance.now() - graphConversionStartTime
-        console.log(`[OID-See] ✅ Graph view ready! Processing time: ${graphTaskTime.toFixed(0)}ms`)
-      }).catch((e: any) => {
-        console.error('[OID-See] ❌ Graph processing error:', e)
-        graphProcessingStartedRef.current = false // Allow retry
-      })
-    }
-  }, [viewMode, data])
-
-  const counts = useMemo(() => {
-    if (!data || !filtered) return undefined
-    return {
-      nodes: filtered.nodes.length,
-      edges: filtered.edges.length,
-      totalNodes: originalData?.nodes.length ?? data?.nodes.length ?? 0,
-      totalEdges: originalData?.edges.length ?? data?.edges.length ?? 0,
-    }
-  }, [data, filtered, originalData])
-
-  const warnings = useMemo(() => {
-    if (!data) return []
-    const p = parseQuery(query)
-    if (p.errors.length) return []
-    return computeWarnings(data, p.clauses)
-  }, [data, query])
-
-  // Memoized Maps for fast lookups in handleFocus
-  const nodeMap = useMemo(() => {
-    if (!data) return new Map()
-    return new Map(data.nodes.map(n => [n.id, n]))
-  }, [data])
-
-  const edgeMap = useMemo(() => {
-    if (!data) return new Map()
-    return new Map(data.edges.map(e => [e.id, e]))
-  }, [data])
-
-  // Extract __oidsee property from filtered data for alternative views
-  // filteredOriginal contains vis-data format {id, __oidsee} but views expect raw OidSeeNode/OidSeeEdge
-  // Memoize these to avoid expensive .map() on every render (critical for 12k+ items)
-  const filteredNodes = useMemo(() => 
-    filteredOriginal?.nodes?.map(n => n.__oidsee ?? n) ?? []
-  , [filteredOriginal])
-  
-  const filteredEdges = useMemo(() => 
-    filteredOriginal?.edges?.map(e => e.__oidsee ?? e) ?? []
-  , [filteredOriginal])
-
-  function saveCurrentQuery() {
-    const name = prompt('Save query as…')
-    if (!name) return
-    
-    // Check for emojis
-    if (EMOJI_REGEX.test(name)) {
-      alert('Emojis are not supported in query names for cross-browser compatibility. Please use text only.')
-      return
-    }
-    
-    const next = saved.filter((s) => s.name !== name).concat([{ name, query }])
-    setSaved(next)
-    saveSaved(next)
-  }
-
-  function deleteSavedQuery() {
-    if (!saved.length) return
-    const name = prompt('Delete which saved query? Enter exact name:\n' + saved.map((s) => `- ${s.name}`).join('\n'))
-    if (!name) return
-    const next = saved.filter((s) => s.name !== name)
-    setSaved(next)
-    saveSaved(next)
-  }
-
-  function loadSavedQuery(name: string) {
-    const found = saved.find((s) => s.name === name)
-    if (found) setQuery(found.query)
-  }
-
-  function resetPresetQueries() {
-    // Get all preset query names
-    const presetNames = new Set(PRESET_QUERIES.map(q => q.name))
-    
-    // Keep only user-added queries (those not in PRESET_QUERIES)
-    const userQueries = saved.filter(q => !presetNames.has(q.name))
-    
-    // Combine preset queries with user queries
-    const next = [...PRESET_QUERIES, ...userQueries]
-    
-    setSaved(next)
-    saveSaved(next)
-  }
-
-  function formatJSON() {
-    try {
-      const parsed = JSON.parse(raw)
-      const pretty = JSON.stringify(parsed, null, 2)
-      setRaw(pretty)
-      setError(null)
-    } catch (e: any) {
-      setError(`Format failed: ${e?.message ?? String(e)}`)
-    }
-  }
-
   function handleFocus(sel: Selection) {
-    // Find the full data object with oidsee properties using memoized Maps
     let fullSelection: Selection = sel
     if (sel.kind === 'node') {
       const node = nodeMap.get(sel.id)
       if (node) {
         fullSelection = { kind: 'node', id: sel.id, oidsee: node.__oidsee ?? node }
+      } else {
+        const raw = filteredNodes.find(n => n.id === sel.id)
+        if (raw) fullSelection = { kind: 'node', id: sel.id, oidsee: raw }
       }
     } else if (sel.kind === 'edge') {
       const edge = edgeMap.get(sel.id)
       if (edge) {
         fullSelection = { kind: 'edge', id: sel.id, oidsee: edge.__oidsee ?? edge }
+      } else {
+        const raw = filteredEdges.find(e => e.id === sel.id)
+        if (raw) fullSelection = { kind: 'edge', id: sel.id, oidsee: raw }
       }
     }
-    
-    // Update selection to load details
     setSelection(fullSelection)
-    
-    // Focus the item in the graph
-    if (sel.kind === 'node') {
-      graphRef.current?.focusNode(sel.id)
-    } else if (sel.kind === 'edge') {
-      graphRef.current?.focusEdge(sel.id)
-    }
+    if (sel.kind === 'node') graphRef.current?.focusNode(sel.id)
+    else if (sel.kind === 'edge') graphRef.current?.focusEdge(sel.id)
   }
 
-  function handlePhysicsChange(config: PhysicsConfig) {
-    setPhysicsConfig(config)
-    savePhysicsConfig(config)
-  }
+  function handlePhysicsChange(config: PhysicsConfig) { setPhysicsConfig(config); savePhysicsConfig(config) }
+  function handlePhysicsReset() { setPhysicsConfig(DEFAULT_PHYSICS); savePhysicsConfig(DEFAULT_PHYSICS) }
 
-  function handlePhysicsReset() {
-    setPhysicsConfig(DEFAULT_PHYSICS)
-    savePhysicsConfig(DEFAULT_PHYSICS)
-  }
-
-  // Handle visualization of selected node subset
   function handleVisualizeNodes(nodeIds: string[]) {
     if (nodeIds.length === 0) return
-    
-    // Check size constraints
     if (nodeIds.length > MAX_SUBSET_VISUALIZATION_NODES) {
-      alert(`Selection too large (${nodeIds.length} nodes). Please select ${MAX_SUBSET_VISUALIZATION_NODES} or fewer nodes for visualization.`)
+      alert(`Selection too large (${nodeIds.length} nodes). Please select ${MAX_SUBSET_VISUALIZATION_NODES} or fewer nodes for graph visualization.`)
       return
     }
-    
-    // Create a filter query for the selected nodes
-    const idQuery = nodeIds.map(id => `n.id="${id}"`).join(' ')
-    setQuery(idQuery)
-    handleViewModeChange('graph')
-    
-    // Show info message
-    setLargeGraphWarning(
-      `Visualizing ${nodeIds.length} selected node${nodeIds.length !== 1 ? 's' : ''}. ` +
-      `Use the filter controls to adjust the view or return to previous mode.`
-    )
+    setViewMode('graph')
+    loadGraphView(nodeIds)
   }
 
-  // Handle visualization of table items (nodes or edges)
   function handleVisualizeTableItems(items: any[]) {
     if (items.length === 0) return
-    
     const nodeItems = items.filter(item => item.__itemType === 'node')
-    if (nodeItems.length > 0) {
-      handleVisualizeNodes(nodeItems.map(item => item.id))
-    }
+    if (nodeItems.length > 0) handleVisualizeNodes(nodeItems.map(item => item.id))
   }
 
-  function handleInputResize(delta: number) {
-    setInputWidth(prev => Math.max(200, Math.min(800, prev + delta)))
+  function handleViewModeChange(mode: ViewMode) {
+    setViewMode(mode)
+    if (mode === 'graph' && !data && !graphViewLoading) loadGraphView()
   }
 
   function handleDetailsResize(delta: number) {
     setDetailsWidth(prev => Math.max(200, Math.min(800, prev - delta)))
   }
 
-  function toggleMaximize(panel: 'input' | 'graph' | 'details' | 'filter') {
+  function toggleMaximize(panel: 'graph' | 'details' | 'filter') {
     setMaximizedPanel(prev => prev === panel ? null : panel)
   }
 
-  function resetPanelView(panel: 'input' | 'graph' | 'details' | 'filter') {
-    if (panel === 'input') {
-      setInputWidth(420)
-      setInputCollapsed(false)
-    } else if (panel === 'details') {
-      setDetailsWidth(360)
-      setDetailsCollapsed(false)
-      setDetailsManuallyCollapsed(false)
+  function resetPanelView(panel: 'graph' | 'details' | 'filter') {
+    if (panel === 'details') {
+      setDetailsWidth(360); setDetailsCollapsed(false); setDetailsManuallyCollapsed(false)
     } else if (panel === 'filter') {
       setFilterCollapsed(false)
     }
-    // Graph panel only has maximized state to reset
     setMaximizedPanel(null)
   }
 
   function resetAllViews() {
-    setInputWidth(420)
-    setDetailsWidth(360)
-    setInputCollapsed(false)
-    setDetailsCollapsed(false)
-    setDetailsManuallyCollapsed(false)
-    setFilterCollapsed(false)
-    setMaximizedPanel(null)
-    // Reset view mode to dashboard when resetting all views
-    handleViewModeChange('dashboard')
+    setDetailsWidth(360); setDetailsCollapsed(false); setDetailsManuallyCollapsed(false)
+    setFilterCollapsed(false); setMaximizedPanel(null); setViewMode('dashboard')
   }
 
+  // ─── Saved queries ─────────────────────────────────────────────────────────
+  function saveCurrentQuery() {
+    const name = prompt('Save query as…')
+    if (!name) return
+    if (EMOJI_REGEX.test(name)) { alert('Emojis are not supported in query names. Please use text only.'); return }
+    const next = saved.filter(s => s.name !== name).concat([{ name, query }])
+    setSaved(next); saveSaved(next)
+  }
+
+  function deleteSavedQuery() {
+    if (!saved.length) return
+    const name = prompt('Delete which saved query? Enter exact name:\n' + saved.map(s => `- ${s.name}`).join('\n'))
+    if (!name) return
+    const next = saved.filter(s => s.name !== name)
+    setSaved(next); saveSaved(next)
+  }
+
+  function loadSavedQuery(name: string) {
+    const found = saved.find(s => s.name === name)
+    if (found) setQuery(found.query)
+  }
+
+  function resetPresetQueries() {
+    const presetNames = new Set(PRESET_QUERIES.map(q => q.name))
+    const userQueries = saved.filter(q => !presetNames.has(q.name))
+    const next = [...PRESET_QUERIES, ...userQueries]
+    setSaved(next); saveSaved(next)
+  }
+
+  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="app">
       <header className="topbar">
@@ -1356,15 +552,15 @@ export default function App() {
           <div className="brand__text">
             <div className="brand__name">OID-See Viewer</div>
             <div className="brand__tag">Render OIDC/OAuth graphs from JSON</div>
-            <a 
-              href="https://github.com/OID-See/OID-See/tree/v1.0.1" 
-              target="_blank" 
+            <a
+              href="https://github.com/OID-See/OID-See/tree/v1.1.0"
+              target="_blank"
               rel="noopener noreferrer"
               className="brand__version-link"
             >
-              <img 
-                src="https://img.shields.io/badge/version-1.0.1-blue.svg" 
-                alt="Version 1.0.1" 
+              <img
+                src="https://img.shields.io/badge/version-1.1.0-blue.svg"
+                alt="Version 1.1.0"
                 className="brand__version-badge"
               />
             </a>
@@ -1373,23 +569,12 @@ export default function App() {
 
         <div className="topbar__actions">
           <ViewModeSelector currentMode={viewMode} onChange={handleViewModeChange} viewsReady={viewsReady} />
-          
+
           <button
             className="btn file"
-            onClick={() => {
-              const pretty = JSON.stringify(sampleObj, null, 2)
-              setRaw(pretty)
-              render(pretty).catch(err => {
-                console.error('Failed to render sample:', err)
-              })
-            }}
+            onClick={() => loadText(JSON.stringify(sampleObj))}
           >
             Load sample
-          </button>
-          <button className="btn file" onClick={() => render(raw).catch(err => {
-            console.error('Failed to render:', err)
-          })}>
-            Render
           </button>
 
           <label className="btn file">
@@ -1399,14 +584,12 @@ export default function App() {
               accept="application/json,.json"
               onChange={(e) => {
                 const file = e.target.files?.[0]
-                if (file) readFile(file).catch(err => {
-                  console.error('Failed to read file:', err)
-                })
+                if (file) void readFile(file)
               }}
             />
             Upload JSON
           </label>
-          
+
           <button className="btn file" onClick={resetAllViews} title="Reset all panel views">
             ⟲ Reset View
           </button>
@@ -1415,8 +598,8 @@ export default function App() {
 
       <section className={`panel--filter${filterCollapsed ? ' collapsed' : ''}${maximizedPanel === 'filter' ? ' maximized' : ''}`}>
         <div className={`panel__header-content filter-header${filterCollapsed ? ' collapsed' : ''}`}>
-          <button 
-            className="btn btn--ghost btn--collapse-sm" 
+          <button
+            className="btn btn--ghost btn--collapse-sm"
             onClick={() => setFilterCollapsed(!filterCollapsed)}
           >
             {filterCollapsed ? '▼' : '▲'}
@@ -1458,64 +641,7 @@ export default function App() {
         )}
       </section>
 
-      <main className={`main${maximizedPanel ? ' maximized' : ''}`} style={mainGridStyle}>
-        <section className={`panel${inputCollapsed ? ' collapsed-horizontal' : ''}${maximizedPanel === 'input' ? ' maximized-panel' : ''}`} onDragOver={(e) => e.preventDefault()} onDrop={onDrop} title="Drop a .json file here">
-          <div className="panel__title">
-            <div className="panel__header-content">
-              <button 
-                className="panel__collapse-btn" 
-                onClick={() => setInputCollapsed(!inputCollapsed)}
-                title={inputCollapsed ? 'Expand' : 'Collapse'}
-              >
-                {inputCollapsed ? (isMobile ? '▼' : '▶') : (isMobile ? '▲' : '◀')}
-              </button>
-              <span className="panel__title-text">Input</span>
-              <div className="panel__header-actions">
-                {!inputCollapsed && (
-                  <>
-                    <button className="btn btn--ghost btn--format" onClick={formatJSON}>
-                      Format
-                    </button>
-                    <button
-                      className="btn btn--ghost btn--maximize"
-                      onClick={() => resetPanelView('input')}
-                      title="Reset input panel view"
-                    >
-                      ⟲
-                    </button>
-                    <button
-                      className="btn btn--ghost btn--maximize"
-                      onClick={() => toggleMaximize('input')}
-                      title={maximizedPanel === 'input' ? 'Restore' : 'Maximize'}
-                    >
-                      {maximizedPanel === 'input' ? '◱' : '◰'}
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-          {!inputCollapsed && (
-            <>
-              <JSONEditor
-                value={raw}
-                onChange={setRaw}
-                placeholder={placeholder}
-              />
-              <div className="hint">Drop a JSON file anywhere in this panel, or paste JSON above. Nothing is uploaded to a server.</div>
-
-              {error && (
-                <div className="error">
-                  <div className="error__title">Couldn't render</div>
-                  <div className="error__msg">{error}</div>
-                </div>
-              )}
-            </>
-          )}
-        </section>
-
-        <ResizeHandle onResize={handleInputResize} orientation="horizontal" />
-
+      <main className={`main${maximizedPanel ? ' maximized' : ''}`} style={mainGridStyle} onDragOver={e => e.preventDefault()} onDrop={onDrop}>
         <section className={`panel panel--graph${maximizedPanel === 'graph' ? ' maximized-panel' : ''}`}>
           <div className="panel__title">
             <div className="panel__header-content">
@@ -1536,8 +662,8 @@ export default function App() {
                     >
                       ?
                     </button>
-                    <PhysicsControls 
-                      config={physicsConfig} 
+                    <PhysicsControls
+                      config={physicsConfig}
                       onChange={handlePhysicsChange}
                       onReset={handlePhysicsReset}
                     />
@@ -1560,22 +686,45 @@ export default function App() {
               </div>
             </div>
           </div>
-          {((viewMode === 'graph' && data && filtered) || (viewMode !== 'graph' && originalData && filteredOriginal)) ? (
+
+          {totalNodeCount > 0 ? (
             <>
               {viewMode === 'graph' && (
-                <GraphCanvas 
-                  ref={graphRef} 
-                  allNodes={data.nodes} 
-                  allEdges={data.edges}
-                  visibleNodes={filtered.nodes} 
-                  visibleEdges={filtered.edges}
-                  physicsConfig={physicsConfig}
-                  onSelection={setSelection}
-                  onError={setGraphError}
-                />
+                <>
+                  {graphViewLoading ? (
+                    <div className="empty">
+                      <div className="empty__title">Loading graph…</div>
+                      <div className="empty__msg">Building graph view. This may take a moment for large datasets.</div>
+                    </div>
+                  ) : data && filtered ? (
+                    <GraphCanvas
+                      ref={graphRef}
+                      allNodes={data.nodes}
+                      allEdges={data.edges}
+                      visibleNodes={filtered.nodes}
+                      visibleEdges={filtered.edges}
+                      physicsConfig={physicsConfig}
+                      onSelection={setSelection}
+                      onError={setGraphError}
+                    />
+                  ) : (
+                    <div className="empty">
+                      <div className="empty__title">Graph view not loaded</div>
+                      <div className="empty__msg">
+                        <button className="btn" onClick={() => loadGraphView()}>Load Graph View</button>
+                        {totalNodeCount > MAX_RENDERABLE_NODES && (
+                          <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', opacity: 0.7 }}>
+                            Will show top {MAX_RENDERABLE_NODES.toLocaleString()} highest-risk nodes
+                            ({totalNodeCount.toLocaleString()} total).
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
               {viewMode === 'table' && (
-                <TableView 
+                <TableView
                   nodes={filteredNodes}
                   edges={filteredEdges}
                   onSelection={setSelection}
@@ -1583,7 +732,7 @@ export default function App() {
                 />
               )}
               {viewMode === 'tree' && (
-                <TreeView 
+                <TreeView
                   nodes={filteredNodes}
                   edges={filteredEdges}
                   onSelection={setSelection}
@@ -1591,13 +740,13 @@ export default function App() {
                 />
               )}
               {viewMode === 'matrix' && (
-                <MatrixView 
+                <MatrixView
                   nodes={filteredNodes}
                   edges={filteredEdges}
                 />
               )}
               {viewMode === 'dashboard' && (
-                <DashboardView 
+                <DashboardView
                   nodes={filteredNodes}
                   edges={filteredEdges}
                   onSelection={setSelection}
@@ -1605,29 +754,40 @@ export default function App() {
               )}
             </>
           ) : (
-            <div className="empty">
+            <div className="empty" onDragOver={e => e.preventDefault()} onDrop={onDrop}>
               <div className="empty__title">No data yet</div>
-              <div className="empty__msg">Paste or upload an OID-See export JSON and click Render.</div>
+              <div className="empty__msg">
+                Click <strong>Upload JSON</strong> to load an OID-See export, or <strong>Load sample</strong> to try the demo.
+                <br /><br />
+                <span style={{ opacity: 0.6, fontSize: '0.85rem' }}>
+                  You can also drag and drop a <code>.json</code> file anywhere here.
+                  Nothing is uploaded to a server — all processing happens in your browser.
+                </span>
+              </div>
+              {error && (
+                <div className="error" style={{ marginTop: '1rem' }}>
+                  <div className="error__title">Could not load file</div>
+                  <div className="error__msg">{error}</div>
+                </div>
+              )}
             </div>
           )}
         </section>
 
         <ResizeHandle onResize={handleDetailsResize} orientation="horizontal" />
 
-        <section ref={detailsPanelRef} className={`panel panel--details${detailsCollapsed ? ' collapsed-horizontal' : ''}${maximizedPanel === 'details' ? ' maximized-panel' : ''}`}>
+        <section
+          ref={detailsPanelRef}
+          className={`panel panel--details${detailsCollapsed ? ' collapsed-horizontal' : ''}${maximizedPanel === 'details' ? ' maximized-panel' : ''}`}
+        >
           <div className="panel__title">
             <div className="panel__header-content">
-              <button 
-                className="panel__collapse-btn" 
+              <button
+                className="panel__collapse-btn"
                 onClick={() => {
                   const newCollapsed = !detailsCollapsed
                   setDetailsCollapsed(newCollapsed)
-                  // Track if user manually collapsed the panel
-                  if (newCollapsed) {
-                    setDetailsManuallyCollapsed(true)
-                  } else {
-                    setDetailsManuallyCollapsed(false)
-                  }
+                  setDetailsManuallyCollapsed(newCollapsed)
                 }}
                 title={detailsCollapsed ? 'Expand' : 'Collapse'}
               >
@@ -1665,31 +825,16 @@ export default function App() {
       </footer>
 
       {graphError && (
-        <ErrorDialog 
-          message={graphError} 
-          onDismiss={() => setGraphError(null)} 
-        />
+        <ErrorDialog message={graphError} onDismiss={() => setGraphError(null)} />
       )}
-      
+
       {largeGraphWarning && (
-        <InfoDialog 
-          message={largeGraphWarning} 
-          onDismiss={() => setLargeGraphWarning(null)} 
-        />
+        <InfoDialog message={largeGraphWarning} onDismiss={() => setLargeGraphWarning(null)} />
       )}
-      
-      <Legend 
-        visible={legendVisible}
-        onClose={() => setLegendVisible(false)}
-      />
-      
-      <LoadingOverlay 
-        visible={loading} 
-        message="Loading data" 
-        progress={loadingProgress}
-        onCancel={handleCancelLoading}
-        showCancel={showCancelButton}
-      />
+
+      <Legend visible={legendVisible} onClose={() => setLegendVisible(false)} />
+
+      <LoadingOverlay visible={loading} message="Loading data" progress={loadingProgress} />
     </div>
   )
 }

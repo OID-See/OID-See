@@ -32,6 +32,7 @@ Output:
 from __future__ import annotations
 
 import argparse
+import base64
 import datetime as dt
 import json
 import os
@@ -47,11 +48,11 @@ import requests
 import random
 import tldextract
 from azure.identity import (
-    ClientSecretCredential, 
-    DeviceCodeCredential, 
+    ClientSecretCredential,
+    DeviceCodeCredential,
     InteractiveBrowserCredential,
     AzureCliCredential,
-    DefaultAzureCredential
+    DefaultAzureCredential,
 )
 
 
@@ -146,6 +147,100 @@ def classify_app_ownership(app_id: str, app_owner_org_id: Optional[str],
     
     # Otherwise it's 3rd Party
     return "3rd Party"
+
+
+# -----------------------------
+# JWT token introspection helpers
+# -----------------------------
+
+def parse_jwt_payload(access_token: str) -> dict:
+    """
+    Safely decode JWT payload without signature validation.
+    
+    Args:
+        access_token: JWT bearer token string
+        
+    Returns:
+        Decoded payload as dict, or empty dict on error
+    """
+    try:
+        # JWT structure: header.payload.signature
+        parts = access_token.split('.')
+        if len(parts) != 3:
+            return {}
+        
+        # Decode payload (second part)
+        payload_encoded = parts[1]
+        
+        # Add padding if needed for base64url decode
+        padding = len(payload_encoded) % 4
+        if padding:
+            payload_encoded += '=' * (4 - padding)
+        
+        # Base64url decode
+        payload_bytes = base64.urlsafe_b64decode(payload_encoded)
+        payload = json.loads(payload_bytes.decode('utf-8'))
+        
+        return payload
+    except Exception as e:
+        print(f"⚠️  JWT parsing failed: {e}", file=sys.stderr)
+        return {}
+
+
+def get_token_permissions(access_token: str) -> dict:
+    """
+    Evaluate token type and check for Policy.Read.All permission.
+    
+    Args:
+        access_token: JWT bearer token string
+        
+    Returns:
+        Dict with:
+        - tokenType: 'delegated' or 'app-only' or 'unknown'
+        - hasPolicyReadAll: bool
+        - scopes: list of delegated scopes (if delegated)
+        - roles: list of app roles (if app-only)
+    """
+    payload = parse_jwt_payload(access_token)
+    if not payload:
+        return {
+            'tokenType': 'unknown',
+            'hasPolicyReadAll': False,
+            'scopes': [],
+            'roles': []
+        }
+    
+    # Check for delegated token (scp claim)
+    scp = payload.get('scp', '')
+    if scp:
+        scopes = [s.strip() for s in scp.split(' ') if s.strip()]
+        has_policy_read = 'Policy.Read.All' in scopes or 'Policy.ReadWrite.All' in scopes
+        return {
+            'tokenType': 'delegated',
+            'hasPolicyReadAll': has_policy_read,
+            'scopes': scopes,
+            'roles': []
+        }
+    
+    # Check for app-only token (roles claim)
+    roles = payload.get('roles', [])
+    if roles:
+        has_policy_read = 'Policy.Read.All' in roles or 'Policy.ReadWrite.All' in roles
+        return {
+            'tokenType': 'app-only',
+            'hasPolicyReadAll': has_policy_read,
+            'scopes': [],
+            'roles': roles
+        }
+    
+    # Unknown token type
+    return {
+        'tokenType': 'unknown',
+        'hasPolicyReadAll': False,
+        'scopes': [],
+        'roles': []
+    }
+
 
 # -----------------------------
 # Scoring configuration loader
@@ -338,6 +433,7 @@ class GraphClient:
             timeout=900,
         )
         print("Requesting device code for interactive login...", file=sys.stderr)
+        # prime token
         _ = self._get_token()
         print(f"✓ Authenticated via device code for client_id={client_id}", file=sys.stderr)
 
@@ -371,7 +467,7 @@ class GraphClient:
         self.credential = DefaultAzureCredential(
             exclude_interactive_browser_credential=False,
             interactive_browser_client_id=client_id,
-            tenant_id=self.tenant_id
+            tenant_id=self.tenant_id,
         )
         _ = self._get_token()
         print("✓ Authenticated via DefaultAzureCredential chain", file=sys.stderr)
@@ -388,6 +484,10 @@ class GraphClient:
         # tok.expires_on is epoch seconds (azure-identity)
         self._token_expires = float(tok.expires_on) if getattr(tok, "expires_on", None) else (now + 3000)
         return self._token
+    
+    def get_access_token(self) -> str:
+        """Expose the current access token for introspection."""
+        return self._get_token()
 
     def _headers(self) -> Dict[str, str]:
         return {"Authorization": f"Bearer {self._get_token()}", "Content-Type": "application/json"}
@@ -1879,44 +1979,6 @@ def _create_enrichment_summary(enrichment_data: Optional[Dict[str, Any]], domain
     return summary
 
 
-def categorize_owners_by_type(owners: List[Dict[str, Any]], dir_cache) -> Dict[str, int]:
-    """
-    Categorize owners by principal type.
-    
-    Returns a dictionary with counts:
-    - 'user': Count of user principal owners
-    - 'sp': Count of service principal owners
-    - 'unknown': Count of other/unknown owner types
-    """
-    user_count = 0
-    sp_count = 0
-    unknown_count = 0
-    
-    for owner in owners:
-        owner_id = owner.get("id")
-        if not owner_id:
-            unknown_count += 1
-            continue
-        
-        # Resolve owner object to get @odata.type
-        owner_obj = dir_cache.get(owner_id) if dir_cache else None
-        otype = (owner_obj.get("@odata.type") or "").lower() if owner_obj else ""
-        
-        if "user" in otype:
-            user_count += 1
-        elif "serviceprincipal" in otype:
-            sp_count += 1
-        else:
-            # Groups, directory roles, or unknown
-            unknown_count += 1
-    
-    return {
-        'user': user_count,
-        'sp': sp_count,
-        'unknown': unknown_count
-    }
-
-
 def compute_risk_for_sp(
     sp: Dict[str, Any],
     has_impersonation: bool,
@@ -1936,7 +1998,7 @@ def compute_risk_for_sp(
     reply_url_enrichment: Optional[Dict[str, Any]] = None,
     app_ownership: Optional[str] = None,
     role_defs: Optional[Dict[str, Dict[str, Any]]] = None,
-    group_member_count_cache: Optional[Dict[str, int]] = None,
+    tenant_posture: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Compute risk score for service principal based on loaded configuration."""
     config = SCORING_CONFIG.get("compute_risk_for_sp", {})
@@ -2049,9 +2111,6 @@ def compute_risk_for_sp(
 
     # ASSIGNED_TO (reachable users)
     reachable_users = 0
-    if group_member_count_cache is None:
-        group_member_count_cache = {}
-    
     for a in assignments:
         pid = a.get("principalId")
         pobj = dir_cache.get(pid) if pid else None
@@ -2059,9 +2118,7 @@ def compute_risk_for_sp(
         if "user" in otype:
             reachable_users += 1
         elif "group" in otype:
-            # Use actual group member count from cache instead of hardcoded approximation
-            group_count = group_member_count_cache.get(pid, 0)
-            reachable_users += group_count
+            reachable_users += 5
     
     if reachable_users > 0:
         assigned_config = contributors.get("ASSIGNED_TO", {})
@@ -2083,7 +2140,7 @@ def compute_risk_for_sp(
         score += weight
         reasons.append({
             "code": "ASSIGNED_TO",
-            "message": f"App is assigned to principals reaching {reachable_users} users",
+            "message": f"App is assigned to principals approximating ~{reachable_users} users",
             "weight": weight,
         })
     elif requires_assignment is False:
@@ -2337,48 +2394,17 @@ def compute_risk_for_sp(
             "weight": weight,
         })
 
-    # HAS_OWNERS (ownership as risk factor)
-    # Ownership grants change authority over app/SP objects, increasing mutation risk
-    if owners and len(owners) > 0:
-        # Categorize owners by type using helper function
-        owner_counts = categorize_owners_by_type(owners, dir_cache)
-        user_count = owner_counts['user']
-        sp_count = owner_counts['sp']
-        unknown_count = owner_counts['unknown']
-        
-        # Add risk reasons based on owner types present
-        if user_count > 0:
-            user_config = contributors.get("HAS_OWNERS_USER", {})
-            weight = user_config.get("weight", 15)
-            description = user_config.get("description", "Application has user principal owners")
-            score += weight
-            reasons.append({
-                "code": "HAS_OWNERS_USER",
-                "message": f"{description} (count: {user_count})",
-                "weight": weight,
-            })
-        
-        if sp_count > 0:
-            sp_config = contributors.get("HAS_OWNERS_SP", {})
-            weight = sp_config.get("weight", 8)
-            description = sp_config.get("description", "Application has service principal owners")
-            score += weight
-            reasons.append({
-                "code": "HAS_OWNERS_SP",
-                "message": f"{description} (count: {sp_count})",
-                "weight": weight,
-            })
-        
-        if unknown_count > 0:
-            unknown_config = contributors.get("HAS_OWNERS_UNKNOWN", {})
-            weight = unknown_config.get("weight", 5)
-            description = unknown_config.get("description", "Application has owners of unknown or other types")
-            score += weight
-            reasons.append({
-                "code": "HAS_OWNERS_UNKNOWN",
-                "message": f"{description} (count: {unknown_count})",
-                "weight": weight,
-            })
+    # NO_OWNERS
+    if owners is None or len(owners) == 0:
+        no_owners_config = contributors.get("NO_OWNERS", {})
+        weight = no_owners_config.get("weight", 15)
+        description = no_owners_config.get("description", "No owners found for application")
+        score += weight
+        reasons.append({
+            "code": "NO_OWNERS",
+            "message": description,
+            "weight": weight,
+        })
 
     # GOVERNANCE
     if requires_assignment is False:
@@ -2569,6 +2595,35 @@ def compute_risk_for_sp(
                 "subtype": "implicit_flow",
             })
 
+    # EXTERNAL_IDENTITY_POSTURE_AMPLIFIER (opportunistic)
+    # Only apply if tenant posture is permissive AND app already has high-risk indicators
+    if tenant_posture and tenant_posture.get('postureRating') == 'permissive':
+        # Check if app has any of the gating conditions
+        has_broad_reachability = any(r.get('code') == 'BROAD_REACHABILITY' for r in reasons)
+        has_governance_risk = any(r.get('code') in ('GOVERNANCE', 'GOVERNANCE_UNKNOWN') for r in reasons)
+        has_unverified_with_privilege = (
+            any(r.get('code') == 'UNVERIFIED_PUBLISHER' for r in reasons) and
+            (app_role_max_weight > 0 or any(r.get('code') in ('HAS_PRIVILEGED_SCOPES', 'HAS_APP_ROLE') for r in reasons))
+        )
+        is_first_party_reachable = (
+            app_ownership == '1st Party' and total_urls > 0
+        )
+        
+        if has_broad_reachability or has_governance_risk or has_unverified_with_privilege or is_first_party_reachable:
+            amplifier_config = contributors.get("EXTERNAL_IDENTITY_POSTURE_AMPLIFIER", {})
+            weight = amplifier_config.get("weight", 8)
+            description = amplifier_config.get("description", "Permissive external identity posture amplifies discovery and blast radius")
+            score += weight
+            reasons.append({
+                "code": "EXTERNAL_IDENTITY_POSTURE_AMPLIFIER",
+                "message": f"{description} (tenant posture: {tenant_posture.get('postureRating')})",
+                "weight": weight,
+                "postureDetails": {
+                    "guestAccess": tenant_posture.get('guestAccess'),
+                    "crossTenantDefaultStance": tenant_posture.get('crossTenantDefaultStance'),
+                },
+            })
+
     # Apply min/max clamping
     clamping = final_score_config.get("min_max_clamping", {})
     min_score = clamping.get("minimum_allowed_score", 0)
@@ -2625,7 +2680,6 @@ class OidSeeCollector:
         self.sp_by_appid: Dict[str, Dict[str, Any]] = {}     # by appId (best-effort)
         self.app_cache_by_appid: Dict[str, Dict[str, Any]] = {}  # in-tenant applications by appId
         self.owners_cache: Dict[str, List[Dict[str, Any]]] = {}  # owners by SP id (cache to avoid redundant calls)
-        self.group_member_count_cache: Dict[str, int] = {}  # group member counts by group id
 
         self._resource_sp_needed: Set[str] = set()
         self._principal_ids_needed: Set[str] = set()
@@ -2637,7 +2691,6 @@ class OidSeeCollector:
         self._sp_cache_lock = Lock()
         self._role_defs_lock = Lock()
         self._owners_cache_lock = Lock()
-        self._group_member_count_cache_lock = Lock()
         self._id_collection_lock = Lock()  # For _resource_sp_needed, _principal_ids_needed, _role_def_ids_needed
 
     # ---- add nodes with de-dupe
@@ -2661,6 +2714,133 @@ class OidSeeCollector:
             "tenantType": o.get("tenantType"),
             "defaultDomain": verified_domains[0] if verified_domains else None,
         }
+
+    def collect_external_identity_posture(self, access_token: str) -> Dict[str, Any]:
+        """
+        Opportunistically collect tenant-level external identity and guest posture.
+        
+        Only attempts collection if the current token has Policy.Read.All permission.
+        Returns posture data with conservative risk derivation.
+        
+        Args:
+            access_token: The current Graph API access token
+            
+        Returns:
+            Dict with posture data including:
+            - collectionAttempted: bool
+            - skippedReason: str (if not attempted)
+            - guestAccess: str (if collected)
+            - crossTenantDefaultStance: str (if collected)
+            - postureRating: str (if collected)
+            - rawPolicies: dict (if collected)
+            - error: str (if collection failed)
+        """
+        result = {
+            'collectionAttempted': False,
+            'skippedReason': None,
+            'guestAccess': None,
+            'crossTenantDefaultStance': None,
+            'postureRating': 'unknown',
+            'rawPolicies': {},
+            'error': None,
+        }
+        
+        # Check token permissions
+        token_perms = get_token_permissions(access_token)
+        if not token_perms.get('hasPolicyReadAll'):
+            result['skippedReason'] = f"Token lacks Policy.Read.All (type: {token_perms.get('tokenType', 'unknown')})"
+            print(f"  ℹ️  Skipping external identity posture collection: {result['skippedReason']}", file=sys.stderr)
+            return result
+        
+        result['collectionAttempted'] = True
+        print("  → Collecting external identity posture (opportunistic)...", file=sys.stderr)
+        
+        # Attempt to collect policies
+        policies = {}
+        
+        # 1. Authorization Policy (guest settings)
+        try:
+            auth_policy = self.graph.get(f"{GRAPH_BETA}/policies/authorizationPolicy")
+            policies['authorizationPolicy'] = auth_policy
+        except Exception as e:
+            error_msg = str(e)
+            if 'Forbidden' in error_msg or '403' in error_msg or 'Insufficient privileges' in error_msg:
+                result['error'] = f"Policy.Read.All present but Graph denied access: {error_msg[:200]}"
+                print(f"  ⚠️  {result['error']}", file=sys.stderr)
+                return result
+            print(f"  ⚠️  Failed to fetch authorizationPolicy: {error_msg[:200]}", file=sys.stderr)
+        
+        # 2. Cross-Tenant Access Policy
+        try:
+            cross_tenant = self.graph.get(f"{GRAPH_BETA}/policies/crossTenantAccessPolicy")
+            policies['crossTenantAccessPolicy'] = cross_tenant
+        except Exception as e:
+            print(f"  ⚠️  Failed to fetch crossTenantAccessPolicy: {str(e)[:200]}", file=sys.stderr)
+        
+        # 3. External Identities Policy (if available)
+        try:
+            external_ids = self.graph.get(f"{GRAPH_BETA}/policies/externalIdentitiesPolicy")
+            policies['externalIdentitiesPolicy'] = external_ids
+        except Exception as e:
+            # May not exist in all tenants, only log at debug level
+            pass
+        
+        result['rawPolicies'] = policies
+        
+        # Derive posture fields conservatively
+        auth_policy = policies.get('authorizationPolicy', {})
+        cross_tenant = policies.get('crossTenantAccessPolicy', {})
+        
+        # Guest access level
+        guest_user_role = auth_policy.get('guestUserRoleId', '')
+        allow_invites = auth_policy.get('allowInvitesFrom', '')
+        
+        if guest_user_role == '2af84b1e-32c8-42b7-82bc-daa82404023b':
+            # Restricted guest access
+            guest_access = 'restricted'
+        elif guest_user_role == '10dae51f-b6af-4016-8d66-8c2a99b929b3':
+            # Limited guest access (default)
+            guest_access = 'limited'
+        elif allow_invites == 'adminsAndGuestInviters' or allow_invites == 'everyone':
+            guest_access = 'permissive'
+        else:
+            guest_access = 'unknown'
+        
+        result['guestAccess'] = guest_access
+        
+        # Cross-tenant default stance
+        default_settings = cross_tenant.get('default', {})
+        b2b_inbound = default_settings.get('b2bCollaborationInbound', {})
+        b2b_outbound = default_settings.get('b2bCollaborationOutbound', {})
+        
+        inbound_blocked = b2b_inbound.get('usersAndGroups', {}).get('accessType', '') == 'blocked'
+        outbound_blocked = b2b_outbound.get('usersAndGroups', {}).get('accessType', '') == 'blocked'
+        
+        if inbound_blocked and outbound_blocked:
+            cross_tenant_stance = 'restrictive'
+        elif inbound_blocked or outbound_blocked:
+            cross_tenant_stance = 'moderate'
+        else:
+            cross_tenant_stance = 'permissive'
+        
+        result['crossTenantDefaultStance'] = cross_tenant_stance
+        
+        # Derive overall posture rating (conservative)
+        if guest_access == 'restricted' and cross_tenant_stance == 'restrictive':
+            rating = 'hardened'
+        elif guest_access in ('restricted', 'limited') and cross_tenant_stance in ('restrictive', 'moderate'):
+            rating = 'moderate'
+        elif guest_access == 'permissive' or cross_tenant_stance == 'permissive':
+            rating = 'permissive'
+        else:
+            rating = 'unknown'
+        
+        result['postureRating'] = rating
+        
+        print(f"  ✓ External identity posture: {rating} (guest: {guest_access}, cross-tenant: {cross_tenant_stance})", file=sys.stderr)
+        
+        return result
+
 
     def list_service_principals(self) -> List[Dict[str, Any]]:
         # Pull a fairly wide selection; avoid exploding payload.
@@ -2797,229 +2977,6 @@ class OidSeeCollector:
         select = "id,principalId,roleDefinitionId,directoryScopeId"
         url = f"{GRAPH_V1}/roleManagement/directory/roleAssignments?$filter=principalId eq '{principal_id}'&$select={select}"
         return self.graph.get_paged(url)
-    
-    def fetch_group_member_count(self, group_id: str) -> int:
-        """
-        Fetch the member count for a group using $count endpoint.
-        Returns the actual number of transitive members (users and nested groups expanded).
-        Caches results to avoid redundant API calls.
-        """
-        # Check cache first
-        with self._group_member_count_cache_lock:
-            if group_id in self.group_member_count_cache:
-                return self.group_member_count_cache[group_id]
-        
-        try:
-            # Use transitive members endpoint with $count to get accurate count
-            # This includes nested group memberships
-            # The $count endpoint requires ConsistencyLevel=eventual header and returns plain text
-            url = f"{GRAPH_V1}/groups/{group_id}/transitiveMembers/$count"
-            
-            # Use GraphClient's retry logic by making the request through it
-            # The $count endpoint returns plain text (not JSON), so we need special handling
-            last_err: Optional[str] = None
-            for attempt in range(self.graph.max_retries):
-                try:
-                    headers = self.graph._headers()
-                    headers["ConsistencyLevel"] = "eventual"
-                    
-                    response = requests.get(url, headers=headers, timeout=60)
-                    
-                    if response.status_code in (429, 503):
-                        # Throttle/backoff with Retry-After when present
-                        ra = response.headers.get("Retry-After")
-                        try:
-                            delay = float(ra) if ra is not None else (self.graph.base_delay * (2 ** attempt))
-                        except Exception:
-                            delay = self.graph.base_delay * (2 ** attempt)
-                        delay = max(delay, self.graph.base_delay) + random.uniform(0, 0.5)
-                        time.sleep(delay)
-                        continue
-                    
-                    if response.status_code == 404:
-                        # Group not found or doesn't exist
-                        print(f"⚠️  Group {group_id} not found", file=sys.stderr)
-                        return 0
-                    
-                    if response.status_code >= 400:
-                        last_err = f"HTTP {response.status_code}: {response.text[:500]}"
-                        # Retry other 5xx
-                        if 500 <= response.status_code < 600 and attempt < self.graph.max_retries - 1:
-                            delay = self.graph.base_delay * (2 ** attempt) + random.uniform(0, 0.3)
-                            time.sleep(delay)
-                            continue
-                        print(f"⚠️  Failed to fetch member count for group {group_id}: {last_err}", file=sys.stderr)
-                        return 0
-                    
-                    # Parse the plain text count
-                    count = int(response.text.strip())
-                    
-                    # Cache the result
-                    with self._group_member_count_cache_lock:
-                        self.group_member_count_cache[group_id] = count
-                    
-                    return count
-                    
-                except requests.RequestException as e:
-                    last_err = f"{type(e).__name__}: {e}"
-                    # Network/transient error -> backoff
-                    delay = self.graph.base_delay * (2 ** attempt) + random.uniform(0, 0.3)
-                    time.sleep(delay)
-                    continue
-            
-            # If we exhausted retries
-            print(f"⚠️  Failed to fetch member count for group {group_id} after retries: {last_err}", file=sys.stderr)
-            return 0
-            
-        except Exception as e:
-            print(f"⚠️  Failed to fetch member count for group {group_id}: {e}", file=sys.stderr)
-            # Return 0 on error rather than using the old hardcoded approximation
-            # This ensures we don't inflate counts on errors
-            return 0
-    
-    def fetch_group_member_counts_batched(self, group_ids: List[str]) -> Dict[str, int]:
-        """
-        Fetch member counts for multiple groups using Graph API batching.
-        This is significantly faster than individual requests as it combines up to 20 requests
-        into a single HTTP call.
-        
-        Uses multi-threading to execute batches in parallel for maximum performance.
-        
-        Args:
-            group_ids: List of group IDs to fetch member counts for
-            
-        Returns:
-            Dict mapping group_id to member count
-        """
-        # Filter out already cached groups
-        uncached_groups = [gid for gid in group_ids if gid not in self.group_member_count_cache]
-        
-        if not uncached_groups:
-            # All groups are cached, return only the requested ones
-            return {gid: self.group_member_count_cache.get(gid, 0) for gid in group_ids}
-        
-        results = {}
-        results_lock = Lock()
-        
-        # Batch API supports up to 20 requests per batch
-        batch_size = 20
-        batches = [uncached_groups[i:i+batch_size] for i in range(0, len(uncached_groups), batch_size)]
-        
-        print(f"  Using Graph API batching: {len(batches)} batches of up to {batch_size} groups each", file=sys.stderr)
-        
-        def process_batch(batch_idx: int, group_batch: List[str]) -> Dict[str, int]:
-            """Process a single batch of group member count requests."""
-            batch_results = {}
-            
-            # Build batch requests for $count endpoint
-            batch_requests = []
-            for idx, group_id in enumerate(group_batch):
-                batch_requests.append({
-                    "id": str(idx + 1),
-                    "method": "GET",
-                    "url": f"/groups/{group_id}/transitiveMembers/$count",
-                    "headers": {
-                        "ConsistencyLevel": "eventual"
-                    }
-                })
-            
-            try:
-                # Execute batch request using v1.0 API
-                responses = self.graph.batch(batch_requests, api_version="v1.0")
-                
-                # Process responses
-                for response in responses:
-                    req_id = response.get("id")
-                    status = response.get("status", 0)
-                    
-                    # Map request ID back to group ID
-                    idx = int(req_id) - 1
-                    if idx < 0 or idx >= len(group_batch):
-                        continue
-                    
-                    group_id = group_batch[idx]
-                    
-                    # Handle successful responses
-                    if status == 200:
-                        # The $count endpoint returns plain text in the body
-                        body = response.get("body", "")
-                        try:
-                            # The batch API wraps the plain text response
-                            if isinstance(body, str):
-                                count = int(body.strip())
-                            elif isinstance(body, (int, float)):
-                                count = int(body)
-                            elif isinstance(body, dict):
-                                # Unexpected dict response - log for debugging
-                                print(f"⚠️  Unexpected dict response for group {group_id}: {body}", file=sys.stderr)
-                                batch_results[group_id] = 0
-                                continue
-                            else:
-                                # Other unexpected types
-                                print(f"⚠️  Unexpected body type {type(body)} for group {group_id}: {body}", file=sys.stderr)
-                                batch_results[group_id] = 0
-                                continue
-                            
-                            batch_results[group_id] = count
-                        except (ValueError, TypeError) as e:
-                            print(f"⚠️  Failed to parse count for group {group_id}: {e}, body: {body}", file=sys.stderr)
-                            batch_results[group_id] = 0
-                    elif status == 404:
-                        # Group not found
-                        batch_results[group_id] = 0
-                    else:
-                        # Other errors - log and use 0
-                        body = response.get("body", {})
-                        error_msg = body.get("error", {}).get("message", "Unknown error") if isinstance(body, dict) else str(body)
-                        print(f"⚠️  Batch request for group {group_id} failed with status {status}: {error_msg}", file=sys.stderr)
-                        batch_results[group_id] = 0
-                        
-            except Exception as e:
-                print(f"⚠️  Batch {batch_idx + 1}/{len(batches)} failed: {e}, falling back to individual requests", file=sys.stderr)
-                # Fallback to individual requests for this batch
-                for group_id in group_batch:
-                    try:
-                        count = self.fetch_group_member_count(group_id)
-                        batch_results[group_id] = count
-                    except Exception as e2:
-                        print(f"⚠️  Failed to fetch count for group {group_id}: {e2}", file=sys.stderr)
-                        batch_results[group_id] = 0
-            
-            return batch_results
-        
-        # Process batches in parallel using ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=20) as executor:
-            future_to_batch = {
-                executor.submit(process_batch, batch_idx, group_batch): (batch_idx, group_batch)
-                for batch_idx, group_batch in enumerate(batches)
-            }
-            
-            for future in as_completed(future_to_batch):
-                batch_idx, group_batch = future_to_batch[future]
-                try:
-                    batch_results = future.result()
-                    
-                    # Update results and cache with thread safety
-                    with results_lock:
-                        results.update(batch_results)
-                    
-                    with self._group_member_count_cache_lock:
-                        self.group_member_count_cache.update(batch_results)
-                        
-                except Exception as e:
-                    print(f"⚠️  Unexpected error processing batch {batch_idx + 1}: {e}", file=sys.stderr)
-        
-        # Merge results with cached values to return all requested group_ids
-        final_results = {}
-        for gid in group_ids:
-            if gid in results:
-                final_results[gid] = results[gid]
-            elif gid in self.group_member_count_cache:
-                final_results[gid] = self.group_member_count_cache[gid]
-            else:
-                final_results[gid] = 0
-        
-        return final_results
 
     def fetch_all_data_for_sp(self, sp: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -3428,6 +3385,13 @@ class OidSeeCollector:
         if not tenant_id:
             raise RuntimeError("Could not determine tenantId from /organization")
         print(f"  ✓ Completed in {time.time() - stage_start:.2f}s", file=sys.stderr)
+        
+        # Opportunistically collect external identity posture
+        print("→ Collecting external identity posture (opportunistic)...", file=sys.stderr)
+        stage_start = time.time()
+        access_token = self.graph.get_access_token()
+        external_identity_posture = self.collect_external_identity_posture(access_token)
+        print(f"  ✓ Completed in {time.time() - stage_start:.2f}s", file=sys.stderr)
 
         print("→ Listing service principals...", file=sys.stderr)
         stage_start = time.time()
@@ -3543,27 +3507,6 @@ class OidSeeCollector:
         stage_start = time.time()
         self.fetch_role_definitions(self._role_def_ids_needed)
         print(f"  ✓ Completed in {time.time() - stage_start:.2f}s", file=sys.stderr)
-        
-        # Fetch group member counts for assigned groups
-        print("→ Fetching group member counts for assigned groups...", file=sys.stderr)
-        stage_start = time.time()
-        group_ids_to_fetch = set()
-        for assignments in assigned_to_by_sp.values():
-            for a in assignments:
-                pid = a.get("principalId")
-                if pid:
-                    pobj = self.dir_cache.get(pid)
-                    if pobj:
-                        otype = (pobj.get("@odata.type") or "").lower()
-                        if "group" in otype:
-                            group_ids_to_fetch.add(pid)
-        
-        if group_ids_to_fetch:
-            # Fetch group member counts using batched API (up to 20 per batch) with multi-threading
-            self.fetch_group_member_counts_batched(list(group_ids_to_fetch))
-            print(f"  ✓ Fetched member counts for {len(group_ids_to_fetch)} groups in {time.time() - stage_start:.2f}s", file=sys.stderr)
-        else:
-            print(f"  ✓ No groups assigned, skipping group member count fetch", file=sys.stderr)
 
         # Second pass: emit nodes and edges
         print("→ Emitting nodes and edges...", file=sys.stderr)
@@ -3697,7 +3640,7 @@ class OidSeeCollector:
                 reply_url_enrichment,
                 app_ownership,
                 self._role_defs,
-                self.group_member_count_cache,
+                external_identity_posture,
             )
             
             # Check for identity laundering signals
@@ -3722,17 +3665,6 @@ class OidSeeCollector:
             key_creds_safe = key_creds_value if isinstance(key_creds_value, list) else []
             password_creds_value = sp.get("passwordCredentials")
             password_creds_safe = password_creds_value if isinstance(password_creds_value, list) else []
-            
-            # Compute ownership insights
-            ownership_insights = None
-            if owners:
-                owner_counts = categorize_owners_by_type(owners, self.dir_cache)
-                ownership_insights = {
-                    "totalOwners": len(owners),
-                    "userOwners": owner_counts['user'],
-                    "spOwners": owner_counts['sp'],
-                    "unknownOwners": owner_counts['unknown'],
-                }
             
             props = {
                 "servicePrincipalId": sp_id,
@@ -3765,7 +3697,6 @@ class OidSeeCollector:
                 "publicClientIndicators": public_client_indicators,
                 "platformSignals": platform_signals,
                 "trustSignals": trust_signals,
-                "ownershipInsights": ownership_insights,
                 # Non-Graph data placeholders (WHOIS/DNS - not populated by Graph-only scanner)
                 "domainWhois": None,
                 "dnsRecords": None,
@@ -4058,6 +3989,27 @@ class OidSeeCollector:
         if governs_by_sp:
             print(f"→ Applied governance deductions to {len(governs_by_sp)} apps", file=sys.stderr)
 
+        # Add TenantPolicy node for external identity posture if collected
+        if external_identity_posture.get('collectionAttempted'):
+            tenant_policy_nid = "tenantpolicy:externalIdentityPosture"
+            self.add_node(
+                tenant_policy_nid,
+                "TenantPolicy",
+                "External Identity & Guest Posture",
+                {
+                    "policyType": "externalIdentityPosture",
+                    "collectionAttempted": external_identity_posture.get('collectionAttempted'),
+                    "skippedReason": external_identity_posture.get('skippedReason'),
+                    "guestAccess": external_identity_posture.get('guestAccess'),
+                    "crossTenantDefaultStance": external_identity_posture.get('crossTenantDefaultStance'),
+                    "postureRating": external_identity_posture.get('postureRating'),
+                    "error": external_identity_posture.get('error'),
+                    # Store raw policies for transparency (but could be large)
+                    "rawPolicies": external_identity_posture.get('rawPolicies', {}),
+                }
+            )
+            print(f"  ✓ Added TenantPolicy node for external identity posture", file=sys.stderr)
+
         print(f"  ✓ Emitted {len(self.nodes)} nodes and {len(self.edges)} edges in {time.time() - stage_start:.2f}s", file=sys.stderr)
 
         export = {
@@ -4066,7 +4018,7 @@ class OidSeeCollector:
                 "version": "1.1"
             },
             "scanner": {
-                "version": "1.0.1"
+                "version": "1.0.0"
             },
             "generatedAt": utc_now_iso(),
             "tenant": {
@@ -4091,7 +4043,7 @@ class OidSeeCollector:
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="OID-See Graph Scanner (Graph-only)")
     p.add_argument("--tenant-id", required=True, help="Tenant ID (GUID) to authenticate against")
-    p.add_argument("--auth-method", help="Authentication method to use (device-code, interactive-browser, azure-cli, default, client-secret)", choices=["device-code", "interactive-browser", "azure-cli", "default", "client-secret"])
+    p.add_argument("--auth-method", help="Authentication method to use", choices=["device-code", "interactive-browser", "azure-cli", "default", "client-secret"])
     p.add_argument("--device-code-client-id", help="Public client app id for device code auth (delegated)", default=AZURE_CLI_CLIENT_ID)
     p.add_argument("--interactive-browser-client-id", help="Public client app id for interactive browser auth (delegated)", default=AZURE_CLI_CLIENT_ID)
     p.add_argument("--client-id", help="Client id for client secret auth (defaults to Azure CLI client id)")
@@ -4122,7 +4074,6 @@ def main() -> int:
     # Configure HTTP retry/backoff behavior
     graph.max_retries = max(1, int(args.max_retries))
     graph.base_delay = max(0.1, float(args.retry_base_delay))
-    
     # Determine authentication method
     if args.auth_method:
         if args.auth_method == "client-secret":

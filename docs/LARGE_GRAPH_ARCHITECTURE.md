@@ -1,14 +1,68 @@
-# Large Graph Architecture Recommendations
+# Large Graph Architecture
 
 ## Executive Summary
 
-This document outlines architectural changes required to handle extremely large OID-See exports (30k+ nodes, 50k+ edges) in the web viewer. Current optimizations successfully support graphs up to 2-3k nodes, but testing with real-world 29k node tenant exports revealed fundamental limitations of the current vis-network canvas-based approach.
+This document describes the architectural approach used in OID-See to handle extremely large exports (30k+ nodes, 50k+ edges) in the web viewer.
 
-**Key Finding:** Even with aggressive optimizations (batching, async rendering, disabled physics, 70% limit reduction from 10k to 3k nodes), browser canvas rendering blocks the main thread when processing large datasets. The bottleneck is not in our code but in the synchronous nature of canvas drawing operations.
+**Implemented Solution:** A single Web Worker (`src/workers/dataWorker.ts`) handles all heavy processing — JSON parsing, filter/lens evaluation, and vis-network graph conversion — completely off the main thread. The main thread is never blocked during import or filtering. Performance testing with real-world 30k+ node tenant exports confirmed the approach as "stonkingly fast on mobile and desktop."
 
-## Current State & Limitations
+The alternative visualization modes (Table, Tree, Matrix, Dashboard) described in this document were also fully implemented and show the **complete dataset** with no node cap. Graph View remains capped at 3,000 highest-risk nodes / 4,500 edges for vis-network canvas stability.
 
-### What Has Been Implemented
+## Implemented Solution
+
+### Web Worker Architecture (dataWorker.ts)
+
+All heavy processing runs in a single Vite module Web Worker (`src/workers/dataWorker.ts`). The main thread is never blocked.
+
+**Why a single worker?** Simpler shared state — the full parsed dataset lives in one place, no inter-worker communication, no serialisation overhead between workers.
+
+#### Message Protocol
+
+**Main → Worker:**
+
+| Message | Payload | Description |
+|---------|---------|-------------|
+| `LOAD` | `{ text: string }` | Parse JSON text and build node/edge dataset |
+| `FILTER` | `{ id, query, lens, pathAware }` | Apply query and lens to current dataset |
+| `LOAD_GRAPH` | `{ subsetNodeIds? }` | Convert dataset (or subset) to vis-network format |
+| `ABORT_GRAPH` | — | Cancel an in-progress graph conversion |
+
+**Worker → Main:**
+
+| Message | Payload | Description |
+|---------|---------|-------------|
+| `PROGRESS` | `{ message }` | Status update during long operations |
+| `LOADED` | `{ nodeCount, edgeCount, exceedsGraphLimits }` | Parse complete |
+| `FILTERED` | `{ id, nodes, edges, warnings }` | Filter result ready |
+| `GRAPH_READY` | `{ nodes, edges }` | vis-network data ready for render |
+| `ERROR` | `{ message }` | Unrecoverable error |
+
+#### What stays on the main thread
+
+- React state and UI rendering
+- `applyQuery` for graph view subset (≤ 3,000 nodes, fast)
+- vis-network canvas rendering
+
+### Large Dataset Behaviour
+
+- **Graph View**: Capped at 3,000 highest-risk nodes and 4,500 edges. A warning InfoDialog is shown after load when these thresholds are exceeded. This cap applies on all browsers including iOS Safari.
+- **Table / Tree / Matrix / Dashboard**: Show the full dataset — no cap.
+- **File size**: Displayed in the loading overlay before parsing begins.
+- **Graph View lazy loading**: The vis-network canvas is only initialised when the user clicks the Graph tab or clicks "Visualise" from Table/Tree view.
+
+### Input Panel Removed
+
+The previous left-side JSON editor (paste / Format / Render buttons) has been removed entirely. It was a source of main-thread blocking via highlight.js syntax highlighting on large JSON. Data is now loaded via:
+1. **Upload JSON** button / drag-and-drop → file text sent to worker via `postMessage`
+2. **Load sample** button → sample fetched and sent to worker
+
+## Historical Context & Previous Recommendations
+
+The remainder of this document preserves the original architectural analysis and the alternative approaches that were considered. The sections below were written before the Web Worker implementation and describe the state of the codebase at that time.
+
+---
+
+## Previous State & Limitations (Historical)
 
 The following optimizations were implemented and tested:
 
@@ -61,7 +115,7 @@ Testing with 29k node real tenant exports identified these fundamental issues:
    - vis-network maintains multiple data structures
    - DataSets, view state, layout information
 
-## Recommended Architectural Changes
+### Previously Recommended Architectural Changes (Now Implemented or Superseded)
 
 ### 1. Virtual Rendering with Viewport-Based Display
 
@@ -191,13 +245,11 @@ class ClusteringLayoutEngine {
 - **Memory:** ~50-100MB (full dataset + spatial index)
 - **Responsive:** No blocking operations > 100ms
 
-### 2. Web Workers for Background Processing
+### 2. Web Workers for Background Processing ✅ IMPLEMENTED
 
-**Problem Solved:** Offload heavy computations from main UI thread
+See **Implemented Solution** section above. `src/workers/dataWorker.ts` handles all heavy processing. The multi-worker architecture described below was considered but replaced by the simpler single-worker design.
 
-**Implementation Approach:**
-
-#### 2.1 Worker Architecture
+#### Previously Considered Multi-Worker Architecture (Superseded)
 
 ```typescript
 // Main thread
@@ -722,18 +774,15 @@ class IncrementalRenderer {
 
 ## Conclusion
 
-The current PR successfully addresses graphs up to 2-3k nodes through optimizations and truncation. For extremely large datasets (29k+), fundamental architectural changes are required:
+The Web Worker architecture (`dataWorker.ts`) and the alternative visualization modes (Table, Tree, Matrix, Dashboard) have been fully implemented. OID-See now handles 30k+ node tenant exports without blocking the UI, confirmed by user testing on both mobile and desktop.
 
-**Recommended Priority Order:**
-1. **Table view** (near-term) - Provides immediate value, low risk
-2. **Virtual rendering** (mid-term) - Core solution for graph scalability
-3. **Web Workers** (mid-term) - Eliminates blocking operations
-4. **Alternative views** (long-term) - Enhanced user experience
-
-**Next Steps:**
-1. Merge current PR (3k node optimization)
-2. Create new PR for table view implementation
-3. Prototype virtual rendering approach
-4. Validate performance with 29k node test dataset
-
-This architectural approach will enable OID-See to handle large real-world tenant exports while maintaining responsiveness and usability.
+**Implemented:**
+1. ✅ **Web Worker** — single `dataWorker.ts`, main thread never blocks
+2. ✅ **Table view** — full dataset, virtual scrolling
+3. ✅ **Tree view** — hierarchical, full dataset
+4. ✅ **Matrix view** — relationship heat map
+5. ✅ **Dashboard view** — metrics and risk summary
+6. ✅ **Lazy graph loading** — vis-network only initialised on demand
+7. ✅ **Universal graph support** — Graph tab available on all browsers; 3,000-node cap provides stable canvas memory on any device
+8. ✅ **File size display** — shown in loading overlay before parse begins
+9. ✅ **Large dataset warning** — InfoDialog shown when nodeCount > 3,000 or edgeCount > 4,500

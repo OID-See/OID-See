@@ -14,7 +14,7 @@ The report aligns with OID-See's scoring logic as documented in docs/scoring-log
 import json
 import base64
 import os
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from collections import Counter, defaultdict
 from datetime import datetime
 
@@ -199,13 +199,19 @@ def _extract_metrics(export_data: Dict[str, Any]) -> Dict[str, Any]:
             None
         )
         if privilege_reason and privilege_reason.get('tierBreakdown'):
-            for tier_detail in privilege_reason['tierBreakdown']:
-                if tier_detail.get('tier') == 'tier0' and tier_detail.get('roles'):
-                    for role in tier_detail['roles'][:3]:  # Top 3 roles per SP
-                        top_tier0_roles.append({
-                            'sp_name': sp.get('displayName', 'Unknown'),
-                            'role_name': role.get('displayName', 'Unknown')
-                        })
+            tier_breakdown = privilege_reason.get('tierBreakdown', [])
+            tier0_entry = next((t for t in tier_breakdown if t.get('tier') == 'tier0'), {})
+            top_tier0_roles.append({
+                'sp': sp,
+                'roles': tier0_entry.get('roles', [])
+            })
+    
+    # Extract tenant posture if available
+    tenant_posture = None
+    for node in nodes:
+        if node.get('type') == 'TenantPolicy' and node.get('properties', {}).get('policyType') == 'externalIdentityPosture':
+            tenant_posture = node.get('properties', {})
+            break
     
     # Scope privilege metrics (based on unified HAS_PRIVILEGED_SCOPES reason with scopeRiskClass)
     sps_with_readwrite_all = sum(
@@ -259,7 +265,85 @@ def _extract_metrics(export_data: Dict[str, Any]) -> Dict[str, Any]:
         },
         'sps_with_readwrite_all': sps_with_readwrite_all,
         'sps_with_action_scopes': sps_with_action_scopes,
+        'tenant_posture': tenant_posture,
     }
+
+
+def _generate_tenant_posture_section(tenant_posture: Optional[Dict[str, Any]]) -> str:
+    """Generate HTML section for tenant external identity posture."""
+    if not tenant_posture:
+        return ""
+    
+    # Only show if collection was attempted
+    if not tenant_posture.get('collectionAttempted'):
+        return ""
+    
+    # If there was an error or it was skipped, show minimal info
+    if tenant_posture.get('error') or tenant_posture.get('skippedReason'):
+        reason = tenant_posture.get('error') or tenant_posture.get('skippedReason')
+        return f"""
+            <div class="section">
+                <h2 class="section-title">🌐 Tenant External Identity Posture</h2>
+                <p class="section-description">
+                    <em>External identity posture collection was attempted but not completed: {reason}</em>
+                </p>
+            </div>
+        """
+    
+    # Extract posture details
+    posture_rating = tenant_posture.get('postureRating', 'unknown')
+    guest_access = tenant_posture.get('guestAccess', 'unknown')
+    cross_tenant_stance = tenant_posture.get('crossTenantDefaultStance', 'unknown')
+    
+    # Choose icon and style based on posture rating
+    if posture_rating == 'hardened':
+        icon = '🛡️'
+        rating_class = 'posture-hardened'
+        rating_desc = 'Hardened (restrictive guest and cross-tenant policies)'
+    elif posture_rating == 'moderate':
+        icon = '⚖️'
+        rating_class = 'posture-moderate'
+        rating_desc = 'Moderate (balanced external identity controls)'
+    elif posture_rating == 'permissive':
+        icon = '⚠️'
+        rating_class = 'posture-permissive'
+        rating_desc = 'Permissive (lenient external collaboration settings)'
+    else:
+        icon = '❓'
+        rating_class = 'posture-unknown'
+        rating_desc = 'Unknown (unable to determine posture)'
+    
+    return f"""
+        <div class="section">
+            <h2 class="section-title">🌐 Tenant External Identity Posture</h2>
+            <p class="section-description">
+                Tenant-level guest and external collaboration posture. Permissive posture amplifies 
+                discovery and blast radius for already-risky apps with broad reachability or unverified publishers.
+            </p>
+            <div class="metrics-grid">
+                <div class="metric-card {rating_class}">
+                    <div class="metric-title">{icon} Overall Posture</div>
+                    <div class="metric-value">{posture_rating.capitalize()}</div>
+                    <div class="metric-description">{rating_desc}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Guest Access Level</div>
+                    <div class="metric-value">{guest_access.capitalize()}</div>
+                    <div class="metric-description">Guest user permissions in the tenant</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Cross-Tenant Default</div>
+                    <div class="metric-value">{cross_tenant_stance.capitalize()}</div>
+                    <div class="metric-description">Default stance for B2B collaboration</div>
+                </div>
+            </div>
+            <p class="section-note">
+                <strong>Note:</strong> Permissive external identity posture reduces attacker cost for 
+                external identity abuse but does not directly enable privilege escalation. This is applied 
+                as a small risk amplifier only for apps that already exhibit high-risk indicators.
+            </p>
+        </div>
+    """
 
 
 def _generate_html(metrics: Dict[str, Any], export_data: Dict[str, Any]) -> str:
@@ -568,6 +652,32 @@ def _generate_html(metrics: Dict[str, Any], export_data: Dict[str, Any]) -> str:
             font-size: 0.85em;
             color: #888;
             margin-top: 5px;
+        }}
+        
+        .posture-hardened {{
+            border-left-color: #28a745;
+        }}
+        
+        .posture-moderate {{
+            border-left-color: #17a2b8;
+        }}
+        
+        .posture-permissive {{
+            border-left-color: #ffc107;
+        }}
+        
+        .posture-unknown {{
+            border-left-color: #6c757d;
+        }}
+        
+        .section-note {{
+            background: #f8f9fa;
+            border-left: 4px solid #17a2b8;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #555;
         }}
         
         .tier-overview {{
@@ -943,6 +1053,8 @@ def _generate_html(metrics: Dict[str, Any], export_data: Dict[str, Any]) -> str:
                     </div>
                 </div>
             </div>
+            
+            {_generate_tenant_posture_section(metrics.get('tenant_posture'))}
             
             <div class="section">
                 <h2 class="section-title">🔐 Privilege Tier Exposure</h2>
