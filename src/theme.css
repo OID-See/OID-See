@@ -2596,12 +2596,15 @@ body{
   flex-direction: column;
   gap: 0.25rem;
   flex: 1;
+  min-width: 0; /* allow flex item to shrink below content size */
 }
 
 .dashboard-list__label {
   font-size: 0.9rem;
   color: var(--fg0);
   font-weight: 600;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .dashboard-list__type {
@@ -2622,6 +2625,8 @@ body{
   font-weight: 700;
   min-width: 50px;
   text-align: center;
+  flex-shrink: 0;
+  margin-left: 0.75rem;
 }
 
 .risk-critical {
