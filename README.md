@@ -24,6 +24,7 @@ OID-See v1.1.0 is a major performance release focused on real-world tenant scale
 - ✅ **30k+ Node Scale**: Table, Tree, Matrix and Dashboard views handle full tenant exports with no truncation
 - ✅ **External Identity Posture**: New scanner stage collects guest access and cross-tenant policies; Dashboard shows posture card; `EXTERNAL_IDENTITY_POSTURE_AMPLIFIER` risk contributor amplifies high-risk apps in permissive tenants
 - ✅ **8 New Filter Presets**: Cross-tenant and posture-aware filters — External Identity Posture, Permissive Tenant Posture, Hardened Tenant Posture, Permissive Guest Access, Permissive Cross-Tenant Default, Posture Amplified Risk, Third-Party Apps, Multi-Tenant Sign-In Audience
+- ✅ **New Scanner Auth Methods**: `--auth-method interactive-browser | azure-cli | default | device-code | client-secret` — thanks to [@SuryenduB](https://github.com/SuryenduB) for this contribution ([PR #74](https://github.com/OID-See/OID-See/pull/74))
 
 [📖 Read the full v1.1.0 Release Notes →](RELEASE_NOTES_v1.1.md)
 

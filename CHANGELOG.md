@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **New scanner authentication methods** via `--auth-method` parameter: `interactive-browser` (browser popup, recommended for most users), `azure-cli` (reuses existing `az login` session), `default` (credential chain: environment → managed identity → CLI → browser), and `client-secret` (non-interactive). Legacy device-code and client-secret flows remain the default when `--auth-method` is omitted. Also adds `--interactive-browser-client-id` for custom public client IDs. Thanks to [@SuryenduB](https://github.com/SuryenduB) for contributing this feature ([PR #74](https://github.com/OID-See/OID-See/pull/74)).
 - 8 new built-in filter presets covering cross-tenant and external identity posture signals: **External Identity Posture**, **Permissive Tenant Posture**, **Hardened Tenant Posture**, **Permissive Guest Access**, **Permissive Cross-Tenant Default**, **Posture Amplified Risk** (SPs amplified by `EXTERNAL_IDENTITY_POSTURE_AMPLIFIER`), **Third-Party Apps**, and **Multi-Tenant Sign-In Audience**
 
 ### Changed

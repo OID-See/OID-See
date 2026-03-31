@@ -96,7 +96,40 @@ The Graph tab is now available on **all browsers including iOS Safari**. The exi
 
 
 
-**Problem**: Previously, switching to any view after import would trigger vis-network graph data preparation, even if the user never opened the Graph tab.
+### 🔐 New Scanner Authentication Methods
+
+> **Contributed by [@SuryenduB](https://github.com/SuryenduB) — [PR #74](https://github.com/OID-See/OID-See/pull/74)**
+
+`oidsee_scanner.py` now supports a `--auth-method` parameter with five options, making it easier to authenticate in different environments without modifying the script:
+
+| Method | Description | Best for |
+|--------|-------------|----------|
+| `interactive-browser` | Opens the system's default browser for OAuth login (recommended) | Standard desktop use |
+| `azure-cli` | Reuses an existing `az login` session — no re-authentication needed | Developers already using Azure CLI |
+| `default` | Tries credential sources in order: environment variables → managed identity → Azure CLI → interactive browser | Flexible / automation |
+| `device-code` | Prints a code to enter at `aka.ms/devicelogin` — works without a local browser | SSH sessions, CI/CD with interactive approval |
+| `client-secret` | Non-interactive service principal authentication | Automated pipelines |
+
+**Usage examples**:
+
+```bash
+# Recommended for most users
+python oidsee_scanner.py --tenant-id <TENANT_ID> --auth-method interactive-browser --out scan.json
+
+# Fastest for developers with az login already done
+python oidsee_scanner.py --tenant-id <TENANT_ID> --auth-method azure-cli --out scan.json
+
+# Flexible credential chain
+python oidsee_scanner.py --tenant-id <TENANT_ID> --auth-method default --out scan.json
+```
+
+**Backward compatibility**: If `--auth-method` is omitted, the scanner falls back to the legacy behaviour — client-secret auth if `--client-secret` is provided, otherwise device-code. Existing scripts require no changes.
+
+**New argument**: `--interactive-browser-client-id` lets you specify a custom public client app ID for browser auth (defaults to the Azure CLI client ID).
+
+---
+
+
 
 **Solution**: The vis-network canvas is now only initialised when the user explicitly:
 - Clicks the Graph tab
@@ -125,7 +158,7 @@ The graph cap has always existed; v1.1.0 makes it explicit and ensures all other
 
 ### For Existing v1.0.1 Users
 
-**No action required for the scanner** — `oidsee_scanner.py` is unchanged. Existing scan exports work without modification.
+**Scanner updates**: `oidsee_scanner.py` gains new `--auth-method` options (`interactive-browser`, `azure-cli`, `default`) and the `--interactive-browser-client-id` argument. Existing scan commands work without modification — the new arguments are entirely optional.
 
 **Viewer updates automatically** if you use [https://oid-see.netlify.app/](https://oid-see.netlify.app/).
 
@@ -141,7 +174,7 @@ npm run build
 
 **Input Panel removed**: If you relied on pasting JSON directly into the editor panel, use **Upload JSON** instead (click the button or drag-and-drop your JSON file onto the main area). The uploaded file is processed entirely locally — nothing is sent to any server.
 
-**No scanner changes**: The Python scanner (`oidsee_scanner.py`), scoring logic, schema, and report generator are all unchanged in v1.1.0.
+**No scanner changes required**: The Python scanner (`oidsee_scanner.py`) is backward-compatible — all existing scan commands work unchanged. New `--auth-method` options are opt-in additions.
 
 ## Technical Details
 
@@ -209,6 +242,7 @@ The vis-network Graph View is capped at 3,000 nodes / 4,500 edges. For full-data
 
 ### Acknowledgments
 
+- [@SuryenduB](https://github.com/SuryenduB) for contributing the new scanner authentication methods (`--auth-method interactive-browser | azure-cli | default`) in [PR #74](https://github.com/OID-See/OID-See/pull/74) — a great quality-of-life improvement for all users
 - @goldjg for identifying and driving the architectural requirements for large tenant support
 - Confirmed against real enterprise tenant data (30k+ nodes, 50k+ edges)
 
