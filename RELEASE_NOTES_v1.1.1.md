@@ -8,6 +8,8 @@ OID-See v1.1.1 brings two scanner improvements that make permission risk classif
 
 ### 📊 Microsoft Permissions Tiering (Issue [#56](https://github.com/OID-See/OID-See/issues/56))
 
+> **Raised by [@Mynster9361](https://github.com/Mynster9361)**
+
 **Problem**: Permission risk was previously assessed using name-pattern matching alone (e.g., does the scope contain `write`?). This missed cases where Microsoft's own privilege assessment differs from what the name implies, and didn't distinguish between levels of privilege within the same broad class.
 
 **Solution**: The scanner now fetches Microsoft Graph's official [`permissions.json`](https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/refs/heads/master/permissions/new/permissions.json) at scan time. This file, maintained by the Microsoft Graph team and updated weekly, assigns a **privilege level (1–5)** to every Graph permission:
@@ -52,6 +54,8 @@ or
 ```
 
 ### 🏢 Expanded First-Party App Coverage (Issue [#57](https://github.com/OID-See/OID-See/issues/57))
+
+> **Raised by [@Mynster9361](https://github.com/Mynster9361)**
 
 **Problem**: First-party app detection relied solely on Merill Fernando's `microsoft-service-principals.json` list fetched at scan time. When the network was unavailable, any well-known Microsoft app not already identified via publisher/tenant checks could be misclassified as third-party.
 
@@ -167,6 +171,10 @@ MS privilege levels are available for **Microsoft Graph permissions** only. Perm
 - **Documentation**: `docs/` directory, `README.md`
 - **Issues**: [GitHub Issues](https://github.com/OID-See/OID-See/issues)
 - **Changelog**: [CHANGELOG.md](CHANGELOG.md)
+
+### Acknowledgements
+
+- [@Mynster9361](https://github.com/Mynster9361) for raising both issues that drove this release — [#56](https://github.com/OID-See/OID-See/issues/56) (MS permissions tiering) and [#57](https://github.com/OID-See/OID-See/issues/57) (first-party app coverage) — including detailed research, links to the permissions.json source, and documentation references for the app IDs.
 
 ---
 

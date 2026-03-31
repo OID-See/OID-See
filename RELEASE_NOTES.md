@@ -23,6 +23,8 @@ OID-See v1.1.1 makes scope and permission risk classification more accurate by i
 
 ### 📊 Microsoft Permissions Tiering (Issue [#56](https://github.com/OID-See/OID-See/issues/56))
 
+> Raised by [@Mynster9361](https://github.com/Mynster9361)
+
 The scanner now fetches Microsoft Graph's official `permissions.json` at scan time to obtain privilege levels (1–5) for every Graph permission. These levels override the existing pattern-matching classification when they represent a higher risk class. Adds a new `HAS_HIGH_PRIVILEGE_PERMISSION` contributor (weight 15 for level ≥ 4, weight 25 for level 5). Gracefully degrades to pattern-matching when offline.
 
 | MS Level | Meaning | Contributor weight |
@@ -32,6 +34,8 @@ The scanner now fetches Microsoft Graph's official `permissions.json` at scan ti
 | 1–3 | Low–moderate | No additional contributor |
 
 ### 🏢 Expanded First-Party App Coverage (Issue [#57](https://github.com/OID-See/OID-See/issues/57))
+
+> Raised by [@Mynster9361](https://github.com/Mynster9361)
 
 `data/microsoft_first_party_apps_fallback.json` (~90 well-known MS apps) is now bundled with the scanner. `_fetch_microsoft_apps_list()` seeds the lookup with this fallback before merging Merill's live data (Merill wins on collision). First-party detection now works fully offline.
 
