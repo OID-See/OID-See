@@ -434,6 +434,7 @@ See [Scoring Logic Documentation](scoring-logic.md) for detailed risk calculatio
 ### Output Options
 
 - `--out`: Output file path (default: `oidsee-export.json`)
+- `--output-format`: Output format (`oidsee-graph` or `bloodhound-opengraph`, default: `oidsee-graph`)
 - `--generate-report`: Generate an HTML report alongside the JSON export
 
 **Example with report generation**:
@@ -444,6 +445,9 @@ python oidsee_scanner.py --tenant-id "TENANT_ID" --generate-report --out scan.js
 # This will create:
 # - scan.json (JSON export for visualization tool)
 # - scan-report.html (HTML report with risk summary)
+
+# Generate BloodHound OpenGraph output directly
+python oidsee_scanner.py --tenant-id "TENANT_ID" --output-format bloodhound-opengraph --out scan-opengraph.json
 ```
 
 The HTML report provides:
@@ -521,6 +525,8 @@ This creates:
 - `scan.json` - Full JSON export for the visualization tool
 - `scan-report.html` - HTML report with risk summary and metrics
 
+> **Note**: `--generate-report` only works with `--output-format oidsee-graph`.
+
 ### Generating Reports from Existing JSON Export
 
 You can also generate reports from existing JSON exports using the standalone report generator:
@@ -531,7 +537,13 @@ python report_generator.py oidsee-export.json report.html
 
 If you omit the output filename, it will automatically create `oidsee-export-report.html`.
 
-> **Note**: A bug in earlier versions caused `--generate-report` to crash with `'list' object has no attribute 'get'` when processing privilege tier data. This has been fixed — report generation now works correctly for all dataset sizes and export formats.
+To convert an existing OID-See export to BloodHound OpenGraph format:
+
+```bash
+python convert_to_bloodhound_opengraph.py oidsee-export.json bloodhound-opengraph.json
+```
+
+> **Note**: A bug in earlier versions caused `--generate-report` to crash with `'list' object has no attribute 'get'` when processing privilege tier data. This has been fixed — report generation now works correctly for all dataset sizes when using `oidsee-graph` output.
 
 ### Report Contents
 

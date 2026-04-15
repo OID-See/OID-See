@@ -93,6 +93,9 @@ python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method default --ou
 # Run scanner with client secret authentication (non-interactive)
 python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method client-secret --client-id "YOUR_CLIENT_ID" --client-secret "YOUR_CLIENT_SECRET" --out scan-results.json
 
+# Output directly in BloodHound OpenGraph format
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method interactive-browser --output-format bloodhound-opengraph --out scan-results-opengraph.json
+
 # Generate both JSON export and HTML report
 python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method interactive-browser --generate-report --out scan-results.json
 
@@ -178,6 +181,11 @@ python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --generate-report --out sc
 Or generate from an existing export:
 ```bash
 python report_generator.py scan.json report.html
+```
+
+Convert an existing OID-See export to BloodHound OpenGraph format:
+```bash
+python convert_to_bloodhound_opengraph.py scan.json scan-opengraph.json
 ```
 
 ## Primary Schema: OID-See Graph Export v1.x
