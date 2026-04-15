@@ -96,6 +96,9 @@ python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method client-secre
 # Generate both JSON export and HTML report
 python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method interactive-browser --generate-report --out scan-results.json
 
+# Emit BloodHound OpenGraph format directly
+python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method interactive-browser --output-format bloodhound-opengraph --out scan-results-opengraph.json
+
 # With enrichment enabled (requires dnspython and ipwhois packages)
 python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --auth-method interactive-browser --out scan-results.json
 ```
@@ -178,6 +181,11 @@ python oidsee_scanner.py --tenant-id "YOUR_TENANT_ID" --generate-report --out sc
 Or generate from an existing export:
 ```bash
 python report_generator.py scan.json report.html
+```
+
+Convert an existing OID-See JSON export to BloodHound OpenGraph format:
+```bash
+python convert_to_bloodhound_opengraph.py scan.json scan-opengraph.json
 ```
 
 ## Primary Schema: OID-See Graph Export v1.x

@@ -35,6 +35,7 @@ import argparse
 import base64
 import datetime as dt
 import json
+import math
 import os
 import re
 import sys
@@ -87,6 +88,9 @@ _MICROSOFT_APPS_CACHE: Optional[Dict[str, Dict[str, Any]]] = None
 _MSFT_PERMISSIONS_CACHE: Optional[Dict[str, Any]] = None
 # Case-insensitive lookup index: lowercased name -> original-case name
 _MSFT_PERMISSIONS_INDEX: Optional[Dict[str, str]] = None
+
+OUTPUT_FORMAT_OIDSEE = "oidsee-graph"
+OUTPUT_FORMAT_BLOODHOUND_OPENGRAPH = "bloodhound-opengraph"
 
 
 def _fetch_microsoft_apps_list() -> Dict[str, Dict[str, Any]]:
@@ -761,6 +765,110 @@ def make_edge(src: str, dst: str, etype: str, props: Optional[Dict[str, Any]] = 
     
     eid = base_id + suffix
     return {"id": eid, "from": src, "to": dst, "type": etype, "properties": props}
+
+
+def _opengraph_safe_kind(value: Any, default: str) -> str:
+    kind = re.sub(r"[^A-Za-z0-9_]+", "_", str(value or default)).strip("_")
+    return kind or default
+
+
+def _opengraph_scalar(value: Any) -> Optional[Any]:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        if isinstance(value, float) and not math.isfinite(value):
+            return str(value)
+        return value
+    if isinstance(value, str):
+        return value
+    return None
+
+
+def _to_opengraph_property_map(props: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not isinstance(props, dict):
+        return {}
+
+    out: Dict[str, Any] = {}
+    for key, raw in props.items():
+        if raw is None:
+            continue
+
+        scalar = _opengraph_scalar(raw)
+        if scalar is not None:
+            out[key] = scalar
+            continue
+
+        if isinstance(raw, list):
+            converted = []
+            for item in raw:
+                scalar_item = _opengraph_scalar(item)
+                if scalar_item is None:
+                    scalar_item = json.dumps(item, sort_keys=True, default=str)
+                converted.append(scalar_item)
+
+            if not converted:
+                continue
+
+            value_types = {type(v) for v in converted}
+            if len(value_types) > 1:
+                converted = [str(v) for v in converted]
+            out[key] = converted
+            continue
+
+        out[key] = json.dumps(raw, sort_keys=True, default=str)
+
+    return out
+
+
+def convert_oidsee_export_to_bloodhound_opengraph(export: Dict[str, Any]) -> Dict[str, Any]:
+    nodes_in = export.get("nodes", [])
+    edges_in = export.get("edges", [])
+
+    nodes_out: List[Dict[str, Any]] = []
+    for node in nodes_in:
+        node_id_val = node.get("id")
+        if not isinstance(node_id_val, str) or not node_id_val:
+            continue
+
+        node_props = _to_opengraph_property_map(node.get("properties"))
+        display_name = node.get("displayName")
+        if isinstance(display_name, str) and display_name:
+            node_props["displayName"] = display_name
+
+        node_type = _opengraph_safe_kind(node.get("type"), "OIDSeeNode")
+        nodes_out.append({
+            "id": node_id_val,
+            "kinds": [node_type],
+            "properties": node_props or None,
+        })
+
+    edges_out: List[Dict[str, Any]] = []
+    for edge in edges_in:
+        src = edge.get("from")
+        dst = edge.get("to")
+        if not isinstance(src, str) or not isinstance(dst, str) or not src or not dst:
+            continue
+
+        edge_props = _to_opengraph_property_map(edge.get("properties"))
+        edge_id = edge.get("id")
+        if isinstance(edge_id, str) and edge_id:
+            edge_props["oidseeEdgeId"] = edge_id
+
+        edge_kind = _opengraph_safe_kind(edge.get("type"), "RELATED_TO")
+        edges_out.append({
+            "start": {"match_by": "id", "value": src},
+            "end": {"match_by": "id", "value": dst},
+            "kind": edge_kind,
+            "properties": edge_props or None,
+        })
+
+    return {
+        "graph": {
+            "metadata": {"source_kind": "OIDSee"},
+            "nodes": nodes_out,
+            "edges": edges_out,
+        }
+    }
 
 
 def is_verified_publisher(vp: Optional[Dict[str, Any]]) -> bool:
@@ -4280,6 +4388,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--client-id", help="Client id for client secret auth (defaults to Azure CLI client id)")
     p.add_argument("--client-secret", help="Client secret for client secret auth")
     p.add_argument("--out", default="oidsee-export.json", help="Output JSON file path")
+    p.add_argument(
+        "--output-format",
+        default=OUTPUT_FORMAT_OIDSEE,
+        choices=[OUTPUT_FORMAT_OIDSEE, OUTPUT_FORMAT_BLOODHOUND_OPENGRAPH],
+        help="Output format (default: oidsee-graph)",
+    )
     p.add_argument("--include-first-party", action="store_true", help="Include Microsoft-first-party apps (heuristic)")
     p.add_argument("--include-single-tenant", action="store_true", help="Include AzureADMyOrg signInAudience apps")
     p.add_argument("--include-all-sps", action="store_true", help="Include all service principals (overrides filters)")
@@ -4351,10 +4465,18 @@ def main() -> int:
         traceback.print_exc()
         return 1
 
-    with open(args.out, "w", encoding="utf-8") as f:
-        json.dump(export, f, indent=2, sort_keys=False)
+    if args.output_format == OUTPUT_FORMAT_BLOODHOUND_OPENGRAPH:
+        output_payload = convert_oidsee_export_to_bloodhound_opengraph(export)
+    else:
+        output_payload = export
 
-    print(f"✓ Wrote {args.out} ({len(export['nodes'])} nodes, {len(export['edges'])} edges)", file=sys.stderr)
+    with open(args.out, "w", encoding="utf-8") as f:
+        json.dump(output_payload, f, indent=2, sort_keys=False)
+
+    print(
+        f"✓ Wrote {args.out} ({len(export['nodes'])} nodes, {len(export['edges'])} edges, format={args.output_format})",
+        file=sys.stderr,
+    )
     
     # Generate HTML report if requested
     if args.generate_report:

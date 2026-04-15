@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Scanner now supports `--output-format bloodhound-opengraph` to emit BloodHound OpenGraph ingest payloads directly, and includes `convert_to_bloodhound_opengraph.py` to convert existing OID-See scanner JSON exports.
+
 ## [1.1.1] - 2026-04-14
 
 ### Added
@@ -322,4 +325,3 @@ This release fixes critical false positive issues in the risk scoring logic wher
 **Impact**: Eliminated false positives for 60+ Microsoft first-party apps that were incorrectly receiving combined risk scores of +35 to +50 points from attribution-related risks.
 
 **Attribution**: Scanner integrates with Merill Fernando's Microsoft Apps list (https://github.com/merill/microsoft-info) to identify legitimate Microsoft applications.
-

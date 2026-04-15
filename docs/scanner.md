@@ -362,6 +362,9 @@ python oidsee_scanner.py \
 
 # Device Code (Legacy/SSH environments)
 python oidsee_scanner.py --tenant-id "<TENANT_ID>" --auth-method device-code --out oidsee-export.json
+
+# Emit BloodHound OpenGraph format directly
+python oidsee_scanner.py --tenant-id "<TENANT_ID>" --auth-method interactive-browser --output-format bloodhound-opengraph --out oidsee-opengraph.json
 ```
 
 ### Phase 2: Service Principal Discovery
@@ -434,6 +437,7 @@ See [Scoring Logic Documentation](scoring-logic.md) for detailed risk calculatio
 ### Output Options
 
 - `--out`: Output file path (default: `oidsee-export.json`)
+- `--output-format`: Output format (choices: `oidsee-graph`, `bloodhound-opengraph`; default: `oidsee-graph`)
 - `--generate-report`: Generate an HTML report alongside the JSON export
 
 **Example with report generation**:
@@ -444,6 +448,15 @@ python oidsee_scanner.py --tenant-id "TENANT_ID" --generate-report --out scan.js
 # This will create:
 # - scan.json (JSON export for visualization tool)
 # - scan-report.html (HTML report with risk summary)
+```
+
+**Example emitting BloodHound OpenGraph**:
+```bash
+python oidsee_scanner.py \
+  --tenant-id "TENANT_ID" \
+  --auth-method interactive-browser \
+  --output-format bloodhound-opengraph \
+  --out scan-opengraph.json
 ```
 
 The HTML report provides:
@@ -530,6 +543,12 @@ python report_generator.py oidsee-export.json report.html
 ```
 
 If you omit the output filename, it will automatically create `oidsee-export-report.html`.
+
+To convert an existing OID-See scanner export to BloodHound OpenGraph format:
+
+```bash
+python convert_to_bloodhound_opengraph.py oidsee-export.json oidsee-opengraph.json
+```
 
 > **Note**: A bug in earlier versions caused `--generate-report` to crash with `'list' object has no attribute 'get'` when processing privilege tier data. This has been fixed — report generation now works correctly for all dataset sizes and export formats.
 
