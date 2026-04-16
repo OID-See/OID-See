@@ -54,6 +54,7 @@ from azure.identity import (
     AzureCliCredential,
     DefaultAzureCredential,
 )
+from bloodhound_opengraph import convert_oidsee_to_bloodhound_opengraph
 
 
 GRAPH_BETA = "https://graph.microsoft.com/beta"
@@ -4280,6 +4281,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--client-id", help="Client id for client secret auth (defaults to Azure CLI client id)")
     p.add_argument("--client-secret", help="Client secret for client secret auth")
     p.add_argument("--out", default="oidsee-export.json", help="Output JSON file path")
+    p.add_argument(
+        "--output-format",
+        choices=["oidsee-graph", "bloodhound-opengraph"],
+        default="oidsee-graph",
+        help="Output format (default: oidsee-graph)",
+    )
     p.add_argument("--include-first-party", action="store_true", help="Include Microsoft-first-party apps (heuristic)")
     p.add_argument("--include-single-tenant", action="store_true", help="Include AzureADMyOrg signInAudience apps")
     p.add_argument("--include-all-sps", action="store_true", help="Include all service principals (overrides filters)")
@@ -4300,6 +4307,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    if args.generate_report and args.output_format != "oidsee-graph":
+        print("Error: --generate-report is only supported with --output-format oidsee-graph", file=sys.stderr)
+        return 1
 
     graph = GraphClient(args.tenant_id)
     # Configure HTTP retry/backoff behavior
@@ -4351,10 +4361,21 @@ def main() -> int:
         traceback.print_exc()
         return 1
 
-    with open(args.out, "w", encoding="utf-8") as f:
-        json.dump(export, f, indent=2, sort_keys=False)
+    output_data = export
+    if args.output_format == "bloodhound-opengraph":
+        output_data = convert_oidsee_to_bloodhound_opengraph(export)
 
-    print(f"✓ Wrote {args.out} ({len(export['nodes'])} nodes, {len(export['edges'])} edges)", file=sys.stderr)
+    with open(args.out, "w", encoding="utf-8") as f:
+        json.dump(output_data, f, indent=2, sort_keys=False)
+
+    if args.output_format == "bloodhound-opengraph":
+        node_count = len(output_data.get("graph", {}).get("nodes", []))
+        edge_count = len(output_data.get("graph", {}).get("edges", []))
+    else:
+        node_count = len(output_data.get("nodes", []))
+        edge_count = len(output_data.get("edges", []))
+
+    print(f"✓ Wrote {args.out} ({node_count} nodes, {edge_count} edges)", file=sys.stderr)
     
     # Generate HTML report if requested
     if args.generate_report:
