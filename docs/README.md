@@ -303,6 +303,8 @@ The web app documentation covers:
 - Complete scanner, scoring, schema, and web app guides
 - Mermaid diagrams for visual clarity
 - Comprehensive examples and use cases
+- Updated for v1.1.1 scanner intelligence improvements (MS permissions tiering and offline first-party fallback)
+- Added BloodHound OpenGraph output and conversion documentation
 
 For detailed version history, see:
 - **[CHANGELOG.md](../CHANGELOG.md)** - Complete list of changes by version
@@ -312,4 +314,4 @@ For detailed version history, see:
 
 **Maintained by**: OID-See Project Contributors  
 **License**: See repository LICENSE file  
-**Last Updated**: December 26, 2024
+**Last Updated**: April 16, 2026

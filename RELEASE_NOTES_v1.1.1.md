@@ -1,8 +1,8 @@
 # Release Notes - OID-See v1.1.1
 
-## 🔐 Scanner Intelligence Release — April 14, 2026
+## 🔐 Scanner Intelligence + OpenGraph Interop Release — April 14, 2026
 
-OID-See v1.1.1 brings two scanner improvements that make permission risk classification more accurate and first-party app detection more reliable. Both changes are backward-compatible: existing scans require no changes, and the scanner gracefully falls back to pattern-matching or cached data when network resources are unavailable.
+OID-See v1.1.1 brings scanner improvements that make permission risk classification more accurate, first-party app detection more reliable, and adds native BloodHound OpenGraph interoperability. All changes are backward-compatible: existing scans require no changes, and the scanner gracefully falls back to pattern-matching or cached data when network resources are unavailable.
 
 ## What's Changed
 
@@ -81,13 +81,34 @@ or
 - `_fetch_microsoft_apps_list()` seeds the lookup table with the fallback list before merging Merill's live data. **Merill data takes precedence** on AppId collision — Merill is actively maintained with richer metadata; the fallback is a static snapshot.
 - Result: first-party detection works offline or when Merill's endpoint is unreachable, with no change in behavior when both sources are available.
 
+### 🩸 BloodHound OpenGraph Output & Conversion
+
+**Problem**: Users integrating with BloodHound OpenGraph previously had to write custom conversion logic after scanning.
+
+**Solution**:
+
+- `oidsee_scanner.py` now supports `--output-format bloodhound-opengraph` to emit OpenGraph JSON directly
+- Added `bloodhound_opengraph.py` conversion module for reusable in-repo conversion logic
+- Added `convert_to_bloodhound_opengraph.py` CLI utility to convert existing OID-See exports without re-running a scan
+
+**Usage**:
+
+```bash
+# Direct scanner output
+python oidsee_scanner.py --tenant-id "TENANT_ID" --output-format bloodhound-opengraph --out scan-opengraph.json
+
+# Convert an existing OID-See export
+python convert_to_bloodhound_opengraph.py scan.json scan-opengraph.json
+```
+
 ## Upgrade Guide
 
 ### For Existing v1.1.0 Users
 
-**No changes required.** Both features are fully additive:
+**No changes required.** All features are fully additive:
 - `HAS_HIGH_PRIVILEGE_PERMISSION` is a new contributor — existing exports don't include it, but new scans will.
-- The first-party fallback silently improves coverage; no output format changes.
+- The first-party fallback silently improves coverage.
+- OpenGraph support is additive; default output remains `oidsee-graph`.
 
 ### For Local Deployments
 
