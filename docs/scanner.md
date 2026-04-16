@@ -256,7 +256,55 @@ OAuth2 scopes and app roles are resolved to human-readable details:
 - **App Roles**: displayName, description, allowed member types
 - **Resource Identification**: Clear identification of the resource API
 
-### 5. Robust Error Handling
+### 5. Microsoft Permissions Tiering
+
+The scanner fetches Microsoft Graph's official privilege level data for every permission at scan time.
+
+**Data source**: [`permissions.json`](https://raw.githubusercontent.com/microsoftgraph/microsoft-graph-devx-content/refs/heads/master/permissions/new/permissions.json) — maintained by the Microsoft Graph team, updated weekly.
+
+**Privilege levels**:
+
+| Level | Meaning | Example |
+|-------|---------|---------|
+| 5 | Near-admin (highest) | `RoleManagement.ReadWrite.Directory` |
+| 4 | Elevated write/read | `User.ReadWrite.All`, `Group.ReadWrite.All` |
+| 3 | Moderate | `Mail.ReadWrite`, `Calendars.ReadWrite` |
+| 2 | Standard read | `User.Read.All`, `Mail.Read` |
+| 1 | Minimal (lowest) | `User.Read`, `openid`, `profile` |
+
+**Integration with classification**:
+
+```mermaid
+flowchart TD
+    A[classify_scopes / classify_app_role_value] --> B[Pattern-match risk class / weight]
+    B --> C{MS permissions.json available?}
+    C -->|No - offline| D[Use pattern-match result as-is]
+    C -->|Yes| E[Look up MS privilege level]
+    E --> F{MS level maps to higher risk class?}
+    F -->|No| D
+    F -->|Yes| G[Upgrade to MS-derived risk class / weight]
+    G --> H[Return upgraded classification]
+    D --> H
+```
+
+- The MS-derived risk class only **upgrades** the pattern-match result — it never downgrades it.
+- Data is fetched once per scan, indexed case-insensitively at fetch time (O(1) per lookup), and cached in memory.
+- Covers Microsoft Graph permissions only; other resource APIs use pattern-matching.
+
+**Graceful degradation**: A failed fetch logs a warning and returns `None` for all lookups. All classification falls back to the existing pattern-matching logic. No scanner failure; no user action required.
+
+### 6. Expanded First-Party App Coverage
+
+The scanner uses two sources to identify Microsoft first-party apps:
+
+1. **Live list** (`_fetch_microsoft_apps_list`): Merill Fernando's `microsoft-service-principals.json` fetched at scan time — actively maintained with rich metadata.
+2. **Static fallback** (`data/microsoft_first_party_apps_fallback.json`): ~90 well-known first-party app IDs bundled with the scanner from Microsoft documentation. Covers Azure Portal, MS Graph, Exchange Online, SharePoint, Teams, Intune, Power BI, Power Apps, Azure CLI/PowerShell, DevOps, Defender, Key Vault, OneDrive, Authenticator, Dynamics 365, and more.
+
+**Merge behavior**: The fallback is loaded first, then Merill's live data is merged on top. **Merill data wins** on any AppId collision — it is more actively maintained and may have updated display names or richer metadata.
+
+**Offline behavior**: When the Merill endpoint is unreachable, the fallback list alone ensures well-known MS apps are correctly identified as first-party. First-party detection no longer has a network dependency.
+
+### 7. Robust Error Handling
 
 ```mermaid
 flowchart TD
@@ -337,9 +385,10 @@ For each service principal, the scanner fetches (in parallel):
 
 1. **Credential Analysis**: Check password/key/federated credentials
 2. **Reply URL Analysis**: Security check of redirect URIs
-3. **Permission Classification**: Categorize scopes as regular/privileged/broad
+3. **Permission Classification**: Categorize scopes as regular/privileged/broad; apply MS privilege level overrides when available
 4. **Trust Signals**: Detect identity laundering and domain mismatches
 5. **Public Client Detection**: Identify public client and implicit flows
+6. **MS Tiering**: Fetch `permissions.json` privilege levels once per scan (cached); upgrade scope risk classes and app role weights where MS level exceeds pattern-match result
 
 ### Phase 5: Risk Scoring
 
@@ -385,6 +434,7 @@ See [Scoring Logic Documentation](scoring-logic.md) for detailed risk calculatio
 ### Output Options
 
 - `--out`: Output file path (default: `oidsee-export.json`)
+- `--output-format`: Output format (`oidsee-graph` or `bloodhound-opengraph`, default: `oidsee-graph`)
 - `--generate-report`: Generate an HTML report alongside the JSON export
 
 **Example with report generation**:
@@ -395,6 +445,9 @@ python oidsee_scanner.py --tenant-id "TENANT_ID" --generate-report --out scan.js
 # This will create:
 # - scan.json (JSON export for visualization tool)
 # - scan-report.html (HTML report with risk summary)
+
+# Generate BloodHound OpenGraph output directly
+python oidsee_scanner.py --tenant-id "TENANT_ID" --output-format bloodhound-opengraph --out scan-opengraph.json
 ```
 
 The HTML report provides:
@@ -472,6 +525,8 @@ This creates:
 - `scan.json` - Full JSON export for the visualization tool
 - `scan-report.html` - HTML report with risk summary and metrics
 
+> **Note**: `--generate-report` only works with `--output-format oidsee-graph`.
+
 ### Generating Reports from Existing JSON Export
 
 You can also generate reports from existing JSON exports using the standalone report generator:
@@ -482,7 +537,13 @@ python report_generator.py oidsee-export.json report.html
 
 If you omit the output filename, it will automatically create `oidsee-export-report.html`.
 
-> **Note**: A bug in earlier versions caused `--generate-report` to crash with `'list' object has no attribute 'get'` when processing privilege tier data. This has been fixed — report generation now works correctly for all dataset sizes and export formats.
+To convert an existing OID-See export to BloodHound OpenGraph format:
+
+```bash
+python convert_to_bloodhound_opengraph.py oidsee-export.json bloodhound-opengraph.json
+```
+
+> **Note**: A bug in earlier versions caused `--generate-report` to crash with `'list' object has no attribute 'get'` when processing privilege tier data. This has been fixed — report generation now works correctly for all dataset sizes when using `oidsee-graph` output.
 
 ### Report Contents
 

@@ -559,7 +559,7 @@ export default function App() {
               className="brand__version-link"
             >
               <img
-                src="https://img.shields.io/badge/version-1.1.0-blue.svg"
+                src="https://img.shields.io/badge/version-1.1.1-blue.svg"
                 alt="Version 1.1.0"
                 className="brand__version-badge"
               />

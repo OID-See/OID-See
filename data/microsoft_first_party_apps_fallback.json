@@ -1,0 +1,467 @@
+[
+  {
+    "AppId": "c44b4083-3bb0-49c1-b47d-974e53cbdf3c",
+    "AppDisplayName": "Azure Portal",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "1b730954-1685-4b74-9bfd-dac224a7b894",
+    "AppDisplayName": "Azure Active Directory PowerShell",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "04b07795-8ddb-461a-bbee-02f9e1bf7b46",
+    "AppDisplayName": "Microsoft Azure CLI",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "1950a258-227b-4e31-a9cf-717495945fc2",
+    "AppDisplayName": "Microsoft Azure PowerShell",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "00000002-0000-0000-c000-000000000000",
+    "AppDisplayName": "Azure Active Directory",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "00000003-0000-0000-c000-000000000000",
+    "AppDisplayName": "Microsoft Graph",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "00000002-0000-0ff1-ce00-000000000000",
+    "AppDisplayName": "Office 365 Exchange Online",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "00000003-0000-0ff1-ce00-000000000000",
+    "AppDisplayName": "Office 365 SharePoint Online",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "00000005-0000-0ff1-ce00-000000000000",
+    "AppDisplayName": "Yammer",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "00000006-0000-0ff1-ce00-000000000000",
+    "AppDisplayName": "Microsoft Office",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "00000009-0000-0000-c000-000000000000",
+    "AppDisplayName": "Power BI Service",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "0000000a-0000-0000-c000-000000000000",
+    "AppDisplayName": "Microsoft Intune",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "00000015-0000-0000-c000-000000000000",
+    "AppDisplayName": "Microsoft Dynamics ERP",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "00000007-0000-0000-c000-000000000000",
+    "AppDisplayName": "Dataverse",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "1fec8e78-bce4-4aaf-ab1b-5451cc387264",
+    "AppDisplayName": "Microsoft Teams",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "cc15fd57-2c6c-4117-a88c-83b1d56b4bbe",
+    "AppDisplayName": "Microsoft Teams Services",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "5e3ce6c0-2b1f-4285-8d4b-75ee78787346",
+    "AppDisplayName": "Microsoft Teams Web Client",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "4813382a-8fa7-425e-ab75-3b753aab3abb",
+    "AppDisplayName": "Microsoft Authenticator App",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "66375f6b-983f-4c2c-9701-d680650f588f",
+    "AppDisplayName": "Microsoft Planner",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "f22c77de-74cf-41b4-b47c-d89e5c8ab674",
+    "AppDisplayName": "Microsoft To-Do",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "22098786-6e16-43cc-a27d-191a01a1e3b5",
+    "AppDisplayName": "Microsoft To-Do client",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "57336123-6e14-4acc-8dcf-287b6088aa28",
+    "AppDisplayName": "Microsoft Whiteboard Client",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "499b84ac-1321-427f-aa17-267ca6975798",
+    "AppDisplayName": "Azure DevOps",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "fc780465-2017-40d4-a0c5-307022471b92",
+    "AppDisplayName": "Microsoft Defender for Endpoint",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "cfa8b339-82a2-471a-a3c9-0fc0be7a4093",
+    "AppDisplayName": "Azure Key Vault",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "d326c1ce-6cc6-4de2-bebc-4591e5e13ef0",
+    "AppDisplayName": "Office 365 SharePoint",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "27922004-5251-4030-b22d-91ecd9a37ea4",
+    "AppDisplayName": "Outlook Mobile",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "00b41c95-dab0-4487-9791-b9d2c32c80f2",
+    "AppDisplayName": "Office 365 Management",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "c5393580-f805-4401-95e8-94b7a6ef2fc2",
+    "AppDisplayName": "Office 365 Management APIs",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "9ba1a5c7-f17a-4de9-a1f1-6178c8d51223",
+    "AppDisplayName": "Microsoft Intune Company Portal",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "fc4979e5-0aa5-429f-b13a-5d1365be5566",
+    "AppDisplayName": "Microsoft Intune Windows Agent",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "0eda3b13-ddc9-4c25-b7dd-2f6ea073d6b7",
+    "AppDisplayName": "Microsoft Flow CDS Integration Service",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "7df0a125-d3be-4c96-aa54-591f83ff541c",
+    "AppDisplayName": "Microsoft Flow Service",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "c0d2a505-13b8-4ae0-aa9e-cddd5eab0b12",
+    "AppDisplayName": "Microsoft Power BI",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "00000009-0000-0000-c000-000000000000",
+    "AppDisplayName": "Power BI",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "871c010f-5e61-4fb1-83ac-98610a7e9110",
+    "AppDisplayName": "Microsoft Power BI Desktop",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "4e291c71-d680-4d0e-9640-0a3358e31177",
+    "AppDisplayName": "Power Apps",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "a8f7a65c-f5ba-4859-b2d6-df772c264e9d",
+    "AppDisplayName": "Power Apps (make.powerapps.com)",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "065d9450-1e87-434e-ac2f-69af271549ed",
+    "AppDisplayName": "Power Platform Admin Center",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "8578e004-a5c6-46e7-913e-12f58912df43",
+    "AppDisplayName": "Power Platform API",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "d3590ed6-52b3-4102-aeff-aad2292ab01c",
+    "AppDisplayName": "Microsoft Office",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "ab9b8c07-8f02-4f72-87fa-80105867a763",
+    "AppDisplayName": "OneDrive SyncEngine",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "dd63a01a-ae84-4d07-bf60-69dadeaa8c89",
+    "AppDisplayName": "OneDrive",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "f05ff7c9-f75a-4acd-a3b5-f4b6a870245d",
+    "AppDisplayName": "SharePoint Android",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "89bee1f7-5e6e-4d8a-9f3d-ecd601259da7",
+    "AppDisplayName": "Office365 Shell WCSS-Client",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "cb1056e2-e479-49de-ae31-7812af012ed8",
+    "AppDisplayName": "Microsoft Azure Active Directory Connect",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "e9c51622-460d-4d3d-952d-966a5b1da34c",
+    "AppDisplayName": "Microsoft Edge",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "f44b1140-bc5e-48c6-8dc0-5cf5a53c0e34",
+    "AppDisplayName": "Microsoft Edge (browser)",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "cf710c6e-dfcc-4fa8-a093-d47294e44c66",
+    "AppDisplayName": "Azure Analysis Services Client",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "cf8f0657-7610-4b05-8723-a4322ae045c6",
+    "AppDisplayName": "Microsoft Dynamics Document Routing Agent",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "637fcc9f-4a9b-4aaa-8713-a2a3cfda1505",
+    "AppDisplayName": "Dynamics CRM Online Administration",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "60216f25-dbae-452b-83ae-6224158ce95e",
+    "AppDisplayName": "Microsoft Dynamics CRM App for Outlook",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "2ad88395-b77d-4561-9441-d0e40824f9bc",
+    "AppDisplayName": "Dynamics 365 Development Tools",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "51f81489-12ee-4a9e-aaae-a2591f45987d",
+    "AppDisplayName": "Dynamics 365 Example Client Application",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "a94f9c62-97fe-4d19-b06d-472bed8d2bcf",
+    "AppDisplayName": "Azure SQL Database and Data Warehouse",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "022907d3-0f1b-48f7-badc-1ba6abab6d66",
+    "AppDisplayName": "Azure SQL",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "ddbf3205-c6bd-46ae-8127-60eb93363864",
+    "AppDisplayName": "Azure Batch",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "90f610bf-206d-4950-b61d-37fa6fd1b224",
+    "AppDisplayName": "Azure AD Rights Management",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "26a7ee05-5602-4d76-a7ba-eae8b7b67941",
+    "AppDisplayName": "Windows Search",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "60c8bde5-3167-4f92-8fdb-059f6176dc0f",
+    "AppDisplayName": "Enterprise Roaming and Backup",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "268761a2-03f3-40df-8a8b-c3db24145b6b",
+    "AppDisplayName": "Universal Store Native Client",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "dd762716-544d-4aeb-a526-687b73838a22",
+    "AppDisplayName": "Microsoft Device Registration Client",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "de8bc8b5-d9f9-48b1-a8ad-b748da725064",
+    "AppDisplayName": "Graph Explorer",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "14d82eec-204b-4c2f-b7e8-296a70dab67e",
+    "AppDisplayName": "Microsoft Graph Command Line Tools",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "7ae974c5-1af7-4923-af3a-fb1fd14dcb7e",
+    "AppDisplayName": "OutlookUserSettingsConsumer",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "5572c4c0-d078-44ce-b81c-6cbf8d3ed39e",
+    "AppDisplayName": "Vortex [wsfed enabled]",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "a306baf0-5ad8-4f6f-babf-6a286b0142ba",
+    "AppDisplayName": "Azure Data Factory",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "7f98cb04-cd1e-40df-9140-3bf7e2cea4db",
+    "AppDisplayName": "JDBC Client Driver",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "2c1229aa-16c5-4ff5-b46b-4f7fe2a2a9c8",
+    "AppDisplayName": "ODBC Client Driver",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "4d079b4c-cab7-4b7c-a115-8fd51b6f8239",
+    "AppDisplayName": "SQL DotNet Client",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "29d9ed98-a469-4536-ade2-f981bc1d605e",
+    "AppDisplayName": "Microsoft Authentication Broker",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "d7813711-9094-4ad3-a062-cac3ec74ebe8",
+    "AppDisplayName": "Microsoft.Azure.Services.AppAuthentication",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "872cd9fa-d31f-45e0-9eab-6e460a02d1f1",
+    "AppDisplayName": "Visual Studio",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "4787c7ff-7cea-43db-8d0d-919f15c6354b",
+    "AppDisplayName": "Visual Studio Code",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "cf4d2d4d-b782-433e-9e5a-9d52a6b25cb7",
+    "AppDisplayName": "Azure Data Studio",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "9bc3ab49-b65d-410a-85ad-de819febfddc",
+    "AppDisplayName": "Microsoft SharePoint Online Management Shell",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "bee5ee7b-22c7-4e94-9b8b-031319e230a3",
+    "AppDisplayName": "Viva Goals Integrations",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "08e18876-6177-487e-b8b5-cf950c1e598c",
+    "AppDisplayName": "Teams Approvals",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "291bcb22-15e5-4341-8f91-feb152d655ee",
+    "AppDisplayName": "Power BI Report Builder",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "9e3b502c-b4a1-441d-98fd-28e482bf7e88",
+    "AppDisplayName": "Power Automate Desktop For Windows",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "48af08dc-f6d2-435f-b2a7-069abd99c086",
+    "AppDisplayName": "Connectors",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "fbc61429-7762-4b4a-8f9d-c728a1a5e792",
+    "AppDisplayName": "Flow Xrm System User",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "f53895d3-095d-408f-8e93-8f94b391404e",
+    "AppDisplayName": "Portfolios",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "b52893c8-bc2e-47fc-918b-77022b299bbc",
+    "AppDisplayName": "Power BI Data Refresh",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "5a24b264-c8f3-474d-92f6-a998cca942c1",
+    "AppDisplayName": "Dynamics 365 for Marketing",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "2f3b013e-5dc4-4b2a-831f-47ba08353237",
+    "AppDisplayName": "Microsoft Dynamics 365 Project Service Automation Add-in",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "0b820e0a-8d08-45d1-8740-bde894f7e1c2",
+    "AppDisplayName": "Lobe Client",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "7f67af8a-fedc-4b08-8b4e-37c4d127b6cf",
+    "AppDisplayName": "Dynamics 365 DANI Excel Add-in",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "8c8fbf21-0ef3-4f60-81cf-0df811ff5d16",
+    "AppDisplayName": "Microsoft Forms Pro",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "cc15fd57-2c6c-4117-a88c-83b1d56b4bbe",
+    "AppDisplayName": "Microsoft Teams Services (Viva Goals)",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "3e62f81e-590b-425b-9531-cad6683656cf",
+    "AppDisplayName": "Power Apps (apps.powerapps.com)",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "6204c1d1-4712-4c46-a7d9-3ed63d992682",
+    "AppDisplayName": "Microsoft Flow Portal",
+    "Source": "MSFT-docs"
+  },
+  {
+    "AppId": "91d652b1-1131-4d75-b0ae-6e3f28ec1748",
+    "AppDisplayName": "Microsoft Intune MDM",
+    "Source": "MSFT-docs"
+  }
+]
