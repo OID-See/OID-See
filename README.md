@@ -13,7 +13,7 @@
 
 OID-See is a comprehensive security analysis tool for Microsoft Entra ID (Azure AD) that helps you discover, analyze, and visualize risky third-party applications. The scanner collects data using Microsoft Graph, performs optional enrichment, and generates an interactive graph visualization that runs entirely in your browser—no telemetry, no servers, completely private.
 
-## 🔐 Version 1.1.1 — Scanner Intelligence Release!
+## 🔐 Version 1.1.1 — Scanner Intelligence + OpenGraph Interop!
 
 OID-See v1.1.1 improves scope and permission risk accuracy using Microsoft's official permission tiering data, and ensures first-party app detection works reliably even when offline:
 
@@ -21,6 +21,7 @@ OID-See v1.1.1 improves scope and permission risk accuracy using Microsoft's off
 - ✅ **New `HAS_HIGH_PRIVILEGE_PERMISSION` Contributor**: Fires when any scope is officially rated MS level ≥ 4 — weight 15 for level 4, weight 25 for level 5
 - ✅ **Graceful Degradation**: Falls back to pattern-matching if the remote fetch fails — no scanner changes required for offline environments
 - ✅ **First-Party App Fallback**: ~90 well-known Microsoft app IDs now bundled in `data/microsoft_first_party_apps_fallback.json` — first-party detection works fully offline
+- ✅ **BloodHound OpenGraph Output**: Scanner can now emit `bloodhound-opengraph` directly, and existing exports can be converted with `convert_to_bloodhound_opengraph.py`
 
 [📖 Read the full v1.1.1 Release Notes →](RELEASE_NOTES_v1.1.1.md)
 
@@ -252,7 +253,7 @@ python3 test_integration_e2e.py
 
 For detailed information about changes and releases:
 - **[CHANGELOG.md](CHANGELOG.md)** - Complete version history and changes
-- **[RELEASE_NOTES.md](RELEASE_NOTES.md)** - Full release notes for all versions (v1.1.0 → private-beta-1)
+- **[RELEASE_NOTES.md](RELEASE_NOTES.md)** - Full release notes for all versions (v1.1.1 → private-beta-1)
 
 ## ⚡ Performance & Architecture
 

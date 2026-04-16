@@ -12,16 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Microsoft permissions tiering ([#56](https://github.com/OID-See/OID-See/issues/56), raised by [@Mynster9361](https://github.com/Mynster9361))**: `oidsee_scanner.py` now fetches Microsoft Graph's official `permissions.json` at scan time to obtain privilege levels (1–5) for every delegated and application permission. The privilege level overrides the existing pattern-matching classification when it represents a higher risk, so scope and app-role risk weights reflect Microsoft's own assessments rather than name patterns alone. Adds a new `HAS_HIGH_PRIVILEGE_PERMISSION` scoring contributor (weight 15 for level ≥ 4, weight 25 for level 5) and surfaces `max_privilege_level` and `high_privilege_scopes` metadata in `classify_scopes()` output. Pattern matching is preserved as an authoritative fallback when the remote fetch is unavailable.
 - **Static Microsoft first-party app fallback ([#57](https://github.com/OID-See/OID-See/issues/57), raised by [@Mynster9361](https://github.com/Mynster9361))**: `data/microsoft_first_party_apps_fallback.json` bundles ~90 well-known first-party app IDs sourced from Microsoft documentation (Azure Portal, MS Graph, Exchange Online, SharePoint Online, Teams, Intune, Power BI, Power Apps, Azure CLI/PowerShell, DevOps, Defender, Key Vault, OneDrive, Authenticator, Dynamics 365, and more). `_fetch_microsoft_apps_list()` now seeds the lookup with this fallback before merging Merill's live data on top, ensuring first-party detection works correctly even when the network is unavailable at scan time.
+- **BloodHound OpenGraph export support**: Scanner now supports `--output-format bloodhound-opengraph` and can emit SpecterOps OpenGraph JSON directly. Added `bloodhound_opengraph.py` conversion module and `convert_to_bloodhound_opengraph.py` utility to convert existing OID-See exports without re-scanning.
 
-### Added
-- **New scanner authentication methods** via `--auth-method` parameter: `interactive-browser` (browser popup, recommended for most users), `azure-cli` (reuses existing `az login` session), `default` (credential chain: environment → managed identity → CLI → browser), and `client-secret` (non-interactive). Legacy device-code and client-secret flows remain the default when `--auth-method` is omitted. Also adds `--interactive-browser-client-id` for custom public client IDs. Thanks to [@SuryenduB](https://github.com/SuryenduB) for contributing this feature ([PR #74](https://github.com/OID-See/OID-See/pull/74)).
-- 8 new built-in filter presets covering cross-tenant and external identity posture signals: **External Identity Posture**, **Permissive Tenant Posture**, **Hardened Tenant Posture**, **Permissive Guest Access**, **Permissive Cross-Tenant Default**, **Posture Amplified Risk** (SPs amplified by `EXTERNAL_IDENTITY_POSTURE_AMPLIFIER`), **Third-Party Apps**, and **Multi-Tenant Sign-In Audience**
-
-### Changed
-- Graph view is now available on **all browsers including iOS Safari** — the existing 3,000 highest-risk node cap is sufficient to keep vis-network stable on any device; the iOS-specific graph disable has been removed. Table, Tree, Matrix, and Dashboard views still show the full dataset uncapped.
-
-### Fixed
-- `report_generator.py` `extract_metrics`: `tierBreakdown` is a list of objects (each with a `tier` key), not a dict keyed by tier name. Calling `.get('tier0')` on a list raised `'list' object has no attribute 'get'` when `--generate-report` was used. The code now iterates the list to locate the `tier0` entry before accessing its roles.
+### Documentation
+- Added dedicated `RELEASE_NOTES_v1.1.1.md` and updated release summaries to cover Microsoft permissions tiering, offline first-party fallback behavior, and BloodHound OpenGraph output/conversion workflows.
 
 ## [1.1.0] - 2026-03-31
 
@@ -322,4 +316,3 @@ This release fixes critical false positive issues in the risk scoring logic wher
 **Impact**: Eliminated false positives for 60+ Microsoft first-party apps that were incorrectly receiving combined risk scores of +35 to +50 points from attribution-related risks.
 
 **Attribution**: Scanner integrates with Merill Fernando's Microsoft Apps list (https://github.com/merill/microsoft-info) to identify legitimate Microsoft applications.
-

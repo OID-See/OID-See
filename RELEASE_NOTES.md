@@ -4,7 +4,7 @@ All releases, newest first.
 
 | Version | Date | Type |
 |---------|------|------|
-| [v1.1.1](#release-notes---oid-see-v111) | April 14, 2026 | Scanner intelligence release |
+| [v1.1.1](#release-notes---oid-see-v111) | April 14, 2026 | Scanner intelligence + OpenGraph interop release |
 | [v1.1.0](#release-notes---oid-see-v110) | March 31, 2026 | Major feature release |
 | [v1.0.1](#release-notes---oid-see-v101) | January 18, 2026 | Maintenance release |
 | [v1.0.0](#release-notes---oid-see-v100) | January 5, 2026 | Production release |
@@ -15,9 +15,9 @@ All releases, newest first.
 
 # Release Notes - OID-See v1.1.1
 
-## 🔐 Scanner Intelligence Release — April 14, 2026
+## 🔐 Scanner Intelligence + OpenGraph Interop Release — April 14, 2026
 
-OID-See v1.1.1 makes scope and permission risk classification more accurate by integrating Microsoft's official permission privilege levels, and improves first-party app detection reliability with a bundled offline fallback list.
+OID-See v1.1.1 makes scope and permission risk classification more accurate by integrating Microsoft's official permission privilege levels, improves first-party app detection reliability with a bundled offline fallback list, and adds native BloodHound OpenGraph output/conversion paths.
 
 ## What's Changed
 
@@ -39,9 +39,13 @@ The scanner now fetches Microsoft Graph's official `permissions.json` at scan ti
 
 `data/microsoft_first_party_apps_fallback.json` (~90 well-known MS apps) is now bundled with the scanner. `_fetch_microsoft_apps_list()` seeds the lookup with this fallback before merging Merill's live data (Merill wins on collision). First-party detection now works fully offline.
 
+### 🩸 BloodHound OpenGraph Output & Conversion
+
+The scanner now supports `--output-format bloodhound-opengraph` for direct OpenGraph output. A reusable conversion module (`bloodhound_opengraph.py`) and standalone converter CLI (`convert_to_bloodhound_opengraph.py`) are also included so existing OID-See exports can be converted without rescanning.
+
 ## Upgrade Guide
 
-No changes required. Both features are fully additive and backward-compatible. No new Python dependencies.
+No changes required. All features are fully additive and backward-compatible. No new Python dependencies.
 
 [📖 Read the full v1.1.1 Release Notes →](RELEASE_NOTES_v1.1.1.md)
 
