@@ -1,0 +1,33 @@
+# version: 1.0.0
+tool_tiers:
+  - tier: 0
+    name: Read-only
+    description: Observe state without modifying repository or remote resources.
+    examples:
+      - Read files and directories
+      - Search code and metadata
+      - Read PRs, issues, and CI status
+      - Inspect cache and contract artefacts
+    escalation_required: false
+    escalation_rule: No escalation required.
+
+  - tier: 1
+    name: Scoped write
+    description: Modify specific, bounded targets inside approved PR scope.
+    examples:
+      - Edit a specific file
+      - Create a new file at an approved path
+      - Update PR description or non-destructive metadata
+    escalation_required: true
+    escalation_rule: Declare intent and confirm target is within approved scope before acting.
+
+  - tier: 2
+    name: Destructive or broad
+    description: Delete resources or perform broad actions with significant blast radius.
+    examples:
+      - Delete files or directories
+      - Bulk search and replace across multiple files
+      - Modify CI workflows or root-level governance configuration
+      - Merge PRs or force-push branches
+    escalation_required: true
+    escalation_rule: Require explicit user approval and PR contract coverage before acting.

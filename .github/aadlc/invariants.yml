@@ -1,0 +1,41 @@
+# version: 1.0.0
+invariants:
+  - id: no-hardcoded-secrets
+    name: No hardcoded secrets
+    rule: Secrets, tokens, and credentials must not be committed to repository files.
+    severity: critical
+
+  - id: no-broad-rewrites
+    name: No broad rewrites
+    rule: Changes must remain scoped to requested outcomes and avoid unrelated rewrites.
+    severity: high
+
+  - id: security-baseline-preserved
+    name: Security baseline preserved
+    rule: Changes must preserve authentication, authorization, validation, and secret handling guarantees.
+    severity: critical
+
+  - id: plan-before-execute
+    name: Plan before execute
+    rule: Significant work requires an explicit plan before implementation.
+    severity: high
+
+  - id: no-unapproved-dependencies
+    name: No unapproved dependencies
+    rule: New dependencies require explicit justification and approval.
+    severity: high
+
+  - id: pr-contract-respected
+    name: PR contract respected
+    rule: Execution must stay inside the current PR contract unless scope is explicitly amended.
+    severity: high
+
+  - id: minimum-sufficient-reasoning-depth
+    name: Minimum sufficient reasoning depth
+    rule: Reasoning depth must be escalated only when risk, uncertainty, or novelty justifies the cost.
+    severity: high
+
+  - id: invariant-amendment-governance
+    name: Invariant amendment governance
+    rule: Agents must preserve invariants unless the user explicitly amends the invariant or opens a separate governance change.
+    severity: high
