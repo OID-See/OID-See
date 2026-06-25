@@ -4317,7 +4317,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--findings-format",
         dest="findings_format",
-        choices=("json", "csv", "markdown"),
+        choices=("json", "csv", "markdown", "sarif"),
         default=None,
         help="Output format for findings (default: inferred from --generate-findings extension)",
     )

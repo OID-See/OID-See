@@ -627,6 +627,183 @@ The report metrics are directly aligned with OIDSEE's scoring logic as documente
   2>&1 | logger -t oidsee-scanner
 ```
 
+## Findings Export
+
+The scanner can export analyst-ready findings derived from the risk data in the graph export. Findings are available in JSON, CSV, Markdown, and **SARIF 2.1.0** formats.
+
+### Generating Findings During a Scan
+
+Use `--generate-findings` to write findings immediately after the scan completes:
+
+```bash
+# JSON findings
+python oidsee_scanner.py --tenant-id "TENANT_ID" --out scan.json \
+  --generate-findings findings.json
+
+# CSV findings
+python oidsee_scanner.py --tenant-id "TENANT_ID" --out scan.json \
+  --generate-findings findings.csv
+
+# Markdown findings report
+python oidsee_scanner.py --tenant-id "TENANT_ID" --out scan.json \
+  --generate-findings findings.md
+
+# SARIF 2.1.0 (for GitHub code scanning, CI pipelines, and security tooling)
+python oidsee_scanner.py --tenant-id "TENANT_ID" --out scan.json \
+  --generate-findings findings.sarif
+```
+
+Format is inferred from the file extension. Override with `--findings-format`:
+
+```bash
+python oidsee_scanner.py --tenant-id "TENANT_ID" --out scan.json \
+  --generate-findings output \
+  --findings-format sarif
+```
+
+Use `--findings-min-level` to filter by risk level (default: `low`):
+
+```bash
+# Only medium and above
+python oidsee_scanner.py --tenant-id "TENANT_ID" --out scan.json \
+  --generate-findings findings-medium.sarif \
+  --findings-min-level medium
+```
+
+### Generating Findings from an Existing Export
+
+Use the standalone `generate_findings.py` CLI to convert an existing OID-See JSON export:
+
+```bash
+# SARIF output (format inferred from .sarif extension)
+python generate_findings.py scan-results.json findings.sarif
+
+# SARIF output (explicit format flag)
+python generate_findings.py scan-results.json findings.json --format sarif
+
+# JSON, CSV, and Markdown are also supported
+python generate_findings.py scan-results.json findings.json
+python generate_findings.py scan-results.json findings.csv
+python generate_findings.py scan-results.json findings.md
+
+# Filter to medium and above
+python generate_findings.py scan-results.json findings.sarif --min-level medium
+```
+
+### SARIF 2.1.0 Output
+
+SARIF (Static Analysis Results Interchange Format) is a standard JSON format for static analysis tool output. OID-See SARIF output is compatible with:
+
+- **GitHub code scanning** — upload findings to the GitHub Security tab
+- **Azure DevOps** — integrate with Microsoft Security DevOps extension
+- **VS Code SARIF Viewer** — browse findings in the editor
+- **Any SARIF 2.1.0-compliant consumer**
+
+#### SARIF Structure
+
+| SARIF field | OID-See value |
+|---|---|
+| `version` | `2.1.0` |
+| `tool.driver.name` | `OID-See` |
+| `tool.driver.informationUri` | `https://github.com/OID-See/OID-See` |
+| `tool.driver.rules[].id` | OID-See reason code (e.g. `HAS_APP_ROLE`) |
+| `tool.driver.rules[].name` | Evidence title for the reason code |
+| `tool.driver.rules[].shortDescription` | Evidence summary |
+| `tool.driver.rules[].fullDescription` | Evidence impact and check-next guidance |
+| `result.ruleId` | Reason code with the highest weight in the finding |
+| `result.level` | `error` (critical/high), `warning` (medium), `note` (low/info) |
+| `result.message.text` | Display name, risk level, score, reason codes, confidence, action |
+| `result.locations[].logicalLocations[].kind` | `object` |
+| `result.locations[].logicalLocations[].name` | Service principal display name |
+| `result.locations[].physicalLocation.artifactLocation.uri` | `oidsee://servicePrincipal/<id>` |
+| `result.properties` | Full OID-See finding fields (findingId, riskScore, reasonCodes, …) |
+
+#### GitHub Code Scanning Upload
+
+```yaml
+# .github/workflows/oid-see-scan.yml
+name: OID-See Security Scan
+
+on:
+  schedule:
+    - cron: "0 2 * * 1"  # Weekly on Monday at 02:00 UTC
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run OID-See scan and export SARIF
+        env:
+          TENANT_ID: ${{ secrets.TENANT_ID }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+        run: |
+          python oidsee_scanner.py \
+            --tenant-id "$TENANT_ID" \
+            --auth-method client-secret \
+            --client-id "$CLIENT_ID" \
+            --client-secret "$CLIENT_SECRET" \
+            --out scan.json \
+            --generate-findings findings.sarif \
+            --findings-min-level medium
+
+      - name: Upload SARIF to GitHub code scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: findings.sarif
+          category: oid-see
+```
+
+#### Azure DevOps Pipeline
+
+```yaml
+# azure-pipelines.yml
+- task: PythonScript@0
+  displayName: Run OID-See scan
+  inputs:
+    scriptPath: oidsee_scanner.py
+    arguments: >
+      --tenant-id $(TenantId)
+      --auth-method client-secret
+      --client-id $(ClientId)
+      --client-secret $(ClientSecret)
+      --out $(Build.ArtifactStagingDirectory)/scan.json
+      --generate-findings $(Build.ArtifactStagingDirectory)/findings.sarif
+      --findings-min-level medium
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    pathToPublish: $(Build.ArtifactStagingDirectory)
+    artifactName: oid-see-findings
+```
+
+### Findings Drift Comparison
+
+Track changes in your security posture over time with `--compare-findings` and `--delta-output`:
+
+```bash
+python oidsee_scanner.py --tenant-id "TENANT_ID" --out scan.json \
+  --generate-findings findings.sarif \
+  --compare-findings previous-findings.json \
+  --delta-output delta.json
+```
+
+> **Note**: SARIF export is supported for findings (`--generate-findings`) only. The delta report (`--delta-output`) supports JSON, CSV, and Markdown formats.
+
 ## Output Structure
 
 The scanner generates a JSON file with the following structure:
