@@ -4301,8 +4301,92 @@ def parse_args() -> argparse.Namespace:
     
     # Report generation options
     p.add_argument("--generate-report", action="store_true", help="Generate an HTML report alongside the JSON export")
-    
+
+    # Findings export options
+    p.add_argument(
+        "--generate-findings",
+        dest="generate_findings",
+        metavar="PATH",
+        default=None,
+        help=(
+            "Write analyst-ready findings to PATH after the scan completes. "
+            "Format is inferred from the file extension (.json / .csv / .md); "
+            "override with --findings-format."
+        ),
+    )
+    p.add_argument(
+        "--findings-format",
+        dest="findings_format",
+        choices=("json", "csv", "markdown"),
+        default=None,
+        help="Output format for findings (default: inferred from --generate-findings extension)",
+    )
+    p.add_argument(
+        "--findings-min-level",
+        dest="findings_min_level",
+        choices=("info", "low", "medium", "high", "critical"),
+        default="low",
+        help="Minimum risk level to include in findings (default: low)",
+    )
+
+    # Findings drift / delta options
+    p.add_argument(
+        "--compare-findings",
+        dest="compare_findings",
+        metavar="PREVIOUS_FINDINGS_JSON",
+        default=None,
+        help=(
+            "Path to a previous-scan findings JSON file. "
+            "Requires --delta-output. "
+            "If --generate-findings is not set, findings are built in-memory from the export."
+        ),
+    )
+    p.add_argument(
+        "--delta-output",
+        dest="delta_output",
+        metavar="PATH",
+        default=None,
+        help="Write the findings delta / drift report to PATH. Required when --compare-findings is set.",
+    )
+    p.add_argument(
+        "--delta-format",
+        dest="delta_format",
+        choices=("json", "csv", "markdown"),
+        default=None,
+        help="Output format for the delta report (default: inferred from --delta-output extension)",
+    )
+
     return p.parse_args()
+
+
+def _findings_detect_format(output_path: str) -> str:
+    """Infer findings/delta output format from a file extension.
+
+    Thin wrapper around :func:`scanner_findings_helper.detect_format` kept
+    here for backwards-compatibility within this module.
+    """
+    from scanner_findings_helper import detect_format
+    return detect_format(output_path)
+
+
+def _write_findings(findings: List[Dict[str, Any]], path: str, fmt: str, export: Dict[str, Any]) -> None:
+    """Write findings list to *path* in the requested format.
+
+    Delegates to :func:`scanner_findings_helper.write_findings`, which in turn
+    uses the shared renderers in finding_builder.
+    """
+    from scanner_findings_helper import write_findings
+    write_findings(findings, path, fmt, export)
+
+
+def _write_delta(delta: List[Dict[str, Any]], path: str, fmt: str, previous_label: str, current_label: str) -> None:
+    """Write delta list to *path* in the requested format.
+
+    Delegates to :func:`scanner_findings_helper.write_delta`, which in turn
+    uses the shared renderers in findings_diff.
+    """
+    from scanner_findings_helper import write_delta
+    write_delta(delta, path, fmt, previous_label, current_label)
 
 
 def main() -> int:
@@ -4310,6 +4394,39 @@ def main() -> int:
     if args.generate_report and args.output_format != "oidsee-graph":
         print("Error: --generate-report is only supported with --output-format oidsee-graph", file=sys.stderr)
         return 1
+
+    # Validate findings / drift flag combinations before doing any collection
+    if args.compare_findings and not args.delta_output:
+        print(
+            "error: --delta-output is required when --compare-findings is set",
+            file=sys.stderr,
+        )
+        return 1
+
+    if args.compare_findings and not os.path.isfile(args.compare_findings):
+        print(
+            f"error: previous findings file not found: {args.compare_findings}",
+            file=sys.stderr,
+        )
+        return 1
+
+    if args.compare_findings:
+        try:
+            with open(args.compare_findings, "r", encoding="utf-8") as fh:
+                previous_findings: List[Dict[str, Any]] = json.load(fh)
+        except json.JSONDecodeError as exc:
+            print(
+                f"error: failed to parse previous findings JSON: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+        if not isinstance(previous_findings, list):
+            print(
+                f"error: expected a JSON array of findings in {args.compare_findings}, "
+                f"got {type(previous_findings).__name__}",
+                file=sys.stderr,
+            )
+            return 1
 
     graph = GraphClient(args.tenant_id)
     # Configure HTTP retry/backoff behavior
@@ -4376,7 +4493,7 @@ def main() -> int:
         edge_count = len(output_data.get("edges", []))
 
     print(f"✓ Wrote {args.out} ({node_count} nodes, {edge_count} edges)", file=sys.stderr)
-    
+
     # Generate HTML report if requested
     if args.generate_report:
         try:
@@ -4394,7 +4511,52 @@ def main() -> int:
             import traceback
             traceback.print_exc()
             # Don't fail the entire scanner if report generation fails
-    
+
+    # -------------------------------------------------------------------------
+    # Optional: build findings from the OID-See graph export
+    # -------------------------------------------------------------------------
+    current_findings: Optional[List[Dict[str, Any]]] = None
+
+    if args.generate_findings or args.compare_findings:
+        from finding_builder import build_findings
+
+        current_findings = build_findings(export, min_risk_level=args.findings_min_level)
+
+        if args.generate_findings:
+            findings_fmt = args.findings_format or _findings_detect_format(args.generate_findings)
+            try:
+                _write_findings(current_findings, args.generate_findings, findings_fmt, export)
+            except OSError as exc:
+                print(f"error: could not write findings file: {exc}", file=sys.stderr)
+                return 1
+            print(
+                f"✓ Wrote {len(current_findings)} finding(s) to {args.generate_findings} "
+                f"[format={findings_fmt}, min_level={args.findings_min_level}]",
+                file=sys.stderr,
+            )
+
+    # -------------------------------------------------------------------------
+    # Optional: compare current findings against a previous scan and write delta
+    # -------------------------------------------------------------------------
+    if args.compare_findings:
+        from findings_diff import compare_findings as _compare_findings
+
+        assert current_findings is not None  # always set above when args.compare_findings is truthy
+        delta = _compare_findings(previous_findings, current_findings)
+        delta_fmt = args.delta_format or _findings_detect_format(args.delta_output)
+        previous_label = os.path.splitext(os.path.basename(args.compare_findings))[0]
+        current_label = os.path.splitext(os.path.basename(args.out))[0]
+        try:
+            _write_delta(delta, args.delta_output, delta_fmt, previous_label, current_label)
+        except OSError as exc:
+            print(f"error: could not write delta file: {exc}", file=sys.stderr)
+            return 1
+        print(
+            f"✓ Wrote {len(delta)} delta entry(ies) to {args.delta_output} "
+            f"[format={delta_fmt}]",
+            file=sys.stderr,
+        )
+
     return 0
 
 

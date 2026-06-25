@@ -156,6 +156,113 @@ The web app documentation covers:
 
 ## Common Workflows
 
+### Scanner Workflow — Graph Only
+
+Run the scanner to collect tenant data and write an OID-See graph export.
+No findings or drift analysis is performed.
+
+```bash
+python oidsee_scanner.py \
+  --tenant-id <TENANT_ID> \
+  --out oidsee-export.json
+```
+
+The resulting `oidsee-export.json` can be loaded into the web app, converted
+to BloodHound OpenGraph format, or used as input for the standalone findings
+and comparison tools.
+
+### Scanner Workflow — Graph + Findings
+
+Run the scanner and automatically produce analyst-ready findings in one step.
+
+```bash
+# JSON findings (default when --findings-format is omitted)
+python oidsee_scanner.py \
+  --tenant-id <TENANT_ID> \
+  --out oidsee-export.json \
+  --generate-findings findings.json
+
+# Markdown findings (format inferred from extension)
+python oidsee_scanner.py \
+  --tenant-id <TENANT_ID> \
+  --out oidsee-export.json \
+  --generate-findings findings.md
+
+# CSV findings — include only medium and above
+python oidsee_scanner.py \
+  --tenant-id <TENANT_ID> \
+  --out oidsee-export.json \
+  --generate-findings findings.csv \
+  --findings-min-level medium
+```
+
+> **Important:** Findings are derived entirely from the OID-See graph export.
+> No independent scoring is performed and no collection logic is changed.
+> The scanner risk scores are not modified by generating findings.
+
+### Scanner Workflow — Graph + Findings + Drift
+
+Run the scanner, produce current findings, and compare against a previous
+scan's findings in one step.
+
+```bash
+python oidsee_scanner.py \
+  --tenant-id <TENANT_ID> \
+  --out oidsee-export.json \
+  --generate-findings findings-current.json \
+  --compare-findings findings-previous.json \
+  --delta-output delta.json
+
+# Markdown delta report
+python oidsee_scanner.py \
+  --tenant-id <TENANT_ID> \
+  --out oidsee-export.json \
+  --generate-findings findings-current.json \
+  --compare-findings findings-previous.json \
+  --delta-output delta.md
+
+# Compare using previous findings without writing current findings to disk
+python oidsee_scanner.py \
+  --tenant-id <TENANT_ID> \
+  --out oidsee-export.json \
+  --compare-findings findings-previous.json \
+  --delta-output delta.json
+```
+
+> **Requirements:**
+> - `--delta-output` is **required** when `--compare-findings` is set.
+> - `--compare-findings` must point to a valid JSON array of findings produced
+>   by a previous run of `generate_findings.py` or an earlier scanner run with
+>   `--generate-findings`.
+> - If `--generate-findings` is omitted, the current findings are built
+>   in-memory from the graph export and used only for the delta comparison.
+
+#### Findings flags reference
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--generate-findings PATH` | *(none)* | Write findings to this path after the scan |
+| `--findings-format json\|csv\|markdown` | inferred from extension | Override findings output format |
+| `--findings-min-level info\|low\|medium\|high\|critical` | `low` | Minimum risk level to include |
+| `--compare-findings PREVIOUS_JSON` | *(none)* | Path to previous-scan findings JSON |
+| `--delta-output PATH` | *(none)* | Write drift report to this path (required with `--compare-findings`) |
+| `--delta-format json\|csv\|markdown` | inferred from extension | Override delta output format |
+
+### When to use scanner flags vs. standalone CLIs
+
+| Use case | Recommended approach |
+|----------|---------------------|
+| Automated pipeline: scan + findings in one command | `--generate-findings` + `--findings-min-level` |
+| Automated pipeline: scan + drift in one command | `--compare-findings` + `--delta-output` |
+| Reprocess an existing export into findings | `python generate_findings.py` (standalone) |
+| Compare two previously saved findings files | `python compare_findings.py` (standalone) |
+| Custom post-processing or scripting | Import `finding_builder` / `findings_diff` as modules |
+
+Both the scanner flags and the standalone CLIs share the same underlying
+rendering logic via `finding_builder.py`, `findings_diff.py`, and
+`scanner_findings_helper.py`.  The standalone tools remain fully functional
+and are unaffected by the scanner integration.
+
 ### Security Audit Workflow
 
 1. **Scan Tenant** → Run `oidsee_scanner.py --tenant-id <ID>`
