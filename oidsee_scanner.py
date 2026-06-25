@@ -4520,8 +4520,7 @@ def main() -> int:
     if args.generate_findings or args.compare_findings:
         from finding_builder import build_findings
 
-        findings_min_level = args.findings_min_level if hasattr(args, "findings_min_level") else "low"
-        current_findings = build_findings(export, min_risk_level=findings_min_level)
+        current_findings = build_findings(export, min_risk_level=args.findings_min_level)
 
         if args.generate_findings:
             findings_fmt = args.findings_format or _findings_detect_format(args.generate_findings)
@@ -4532,7 +4531,7 @@ def main() -> int:
                 return 1
             print(
                 f"✓ Wrote {len(current_findings)} finding(s) to {args.generate_findings} "
-                f"[format={findings_fmt}, min_level={findings_min_level}]",
+                f"[format={findings_fmt}, min_level={args.findings_min_level}]",
                 file=sys.stderr,
             )
 
@@ -4542,7 +4541,8 @@ def main() -> int:
     if args.compare_findings:
         from findings_diff import compare_findings as _compare_findings
 
-        delta = _compare_findings(previous_findings, current_findings)  # type: ignore[arg-type]
+        assert current_findings is not None  # always set above when args.compare_findings is truthy
+        delta = _compare_findings(previous_findings, current_findings)
         delta_fmt = args.delta_format or _findings_detect_format(args.delta_output)
         previous_label = os.path.splitext(os.path.basename(args.compare_findings))[0]
         current_label = os.path.splitext(os.path.basename(args.out))[0]
