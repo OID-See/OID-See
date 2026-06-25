@@ -84,6 +84,10 @@ def _write_markdown(
             f.write("\n")
 
 
+_LEVEL_SORT_ORDER = ["critical", "high", "medium", "low", "info"]
+_UNKNOWN_LEVEL_SORT_KEY = len(_LEVEL_SORT_ORDER)  # places unknown levels after all known ones
+
+
 def main(argv: List[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -156,8 +160,8 @@ def main(argv: List[str] | None = None) -> int:
     summary_parts = ", ".join(
         f"{count} {lvl}" for lvl, count in sorted(
             level_summary.items(),
-            key=lambda item: -["critical", "high", "medium", "low", "info"].index(item[0])
-            if item[0] in ["critical", "high", "medium", "low", "info"] else 99,
+            key=lambda item: _LEVEL_SORT_ORDER.index(item[0])
+            if item[0] in _LEVEL_SORT_ORDER else _UNKNOWN_LEVEL_SORT_KEY,
         )
     )
     print(
