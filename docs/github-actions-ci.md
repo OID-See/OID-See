@@ -182,26 +182,36 @@ fully functional and can be used independently.
 ## Drift Comparison in CI
 
 To compare findings between runs, download the `oidsee-findings.json`
-artefact from the previous workflow run and pass it to the scanner's
-`--compare-findings` flag:
+artefact from the previous workflow run and pass it to the scanner or the
+standalone comparison tool:
 
 ```bash
-# Example: pass previous findings JSON to the current run
+# Option A: scanner produces SARIF + compare findings in one step
 python oidsee_scanner.py \
   --tenant-id "$AZURE_TENANT_ID" \
   --client-id "$AZURE_CLIENT_ID" \
   --client-secret "$AZURE_CLIENT_SECRET" \
   --auth-method client-secret \
   --out oidsee-export.json \
-  --generate-findings oidsee-findings-current.json \
+  --generate-findings oidsee-findings.sarif \
+  --findings-format sarif \
+  --findings-min-level medium \
   --compare-findings oidsee-findings-previous.json \
   --delta-output oidsee-findings-delta.json
+
+# Option B: post-process graph export then compare (no second scan)
+python generate_findings.py oidsee-export.json oidsee-findings-current.json --min-level low
+python compare_findings.py \
+  oidsee-findings-previous.json \
+  oidsee-findings-current.json \
+  oidsee-findings-delta.json
 ```
 
 A full drift-enabled workflow would:
 
 1. Download the previous run's `oidsee-findings.json` artefact at the start.
-2. Run the scanner with `--compare-findings` pointing to the downloaded file.
+2. Run the scanner with `--compare-findings` pointing to the downloaded file,
+   or run `compare_findings.py` after post-processing the graph export.
 3. Upload both the new findings and the delta as artefacts.
 
 ---

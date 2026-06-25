@@ -89,11 +89,11 @@ jobs:
             pip install -r requirements.txt
           fi
 
-      # ── Primary scan: SARIF output (medium risk and above) ──────────────
-      # This step produces the SARIF file that is uploaded to code scanning.
-      # Use --findings-min-level to control which risk levels are included.
+      # ── Scan: graph export + SARIF findings (one scan only) ─────────────
+      # Run the scanner once to produce the graph export and SARIF findings.
+      # Use --findings-min-level to control which risk levels appear in SARIF.
       # The minimum level can be overridden when triggering the workflow manually.
-      - name: Run OID-See scanner (SARIF findings)
+      - name: Run OID-See scanner
         env:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -109,27 +109,22 @@ jobs:
             --findings-format sarif \
             --findings-min-level "${{ github.event.inputs.findings_min_level || 'medium' }}"
 
-      # ── Optional: also emit findings as JSON for drift comparison ────────
+      # ── Post-process: JSON findings for drift comparison ─────────────────
+      # Derive JSON findings from the graph export produced above.
+      # Using generate_findings.py avoids a second full scan and ensures
+      # both outputs reflect the same underlying data.
+      #
       # The JSON findings can be:
       #   • downloaded as a workflow artefact and saved externally
       #   • fed into --compare-findings on the next scheduled run
       # Do not commit findings JSON to the repository — it may contain
       # tenant-sensitive data (app IDs, permission grants, risk details).
-      - name: Run OID-See scanner (JSON findings — low and above)
-        env:
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      - name: Generate JSON findings from graph export
         run: |
-          python oidsee_scanner.py \
-            --tenant-id "$AZURE_TENANT_ID" \
-            --client-id "$AZURE_CLIENT_ID" \
-            --client-secret "$AZURE_CLIENT_SECRET" \
-            --auth-method client-secret \
-            --out oidsee-export.json \
-            --generate-findings oidsee-findings.json \
-            --findings-format json \
-            --findings-min-level low
+          python generate_findings.py \
+            oidsee-export.json \
+            oidsee-findings.json \
+            --min-level low
 
       # ── Upload SARIF to GitHub code scanning ─────────────────────────────
       # Findings appear in Security → Code scanning on the repository.
