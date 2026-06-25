@@ -39,6 +39,11 @@ Welcome to the comprehensive documentation for the OID-See project. This documen
    - Dashboard View for statistical summaries
    - Hybrid approach for subset visualization
 
+6. **[Findings Export](#findings-export)**
+   - Convert scanner output to analyst-ready findings
+   - JSON, CSV, and Markdown output formats
+   - Evidence-first language for tickets and audits
+
 ## Quick Start
 
 ### For Security Analysts
@@ -50,6 +55,7 @@ Start here to analyze your tenant:
 3. **Visualize**: Use the [Web App Guide](./web-app.md) to explore your data at **https://oid-see.netlify.app/**
 4. **Choose View Mode**: For large datasets, see [Visualization Modes](./visualization-modes.md)
 5. **Query**: Learn filter syntax to find specific security issues
+6. **Export Findings**: Use `generate_findings.py` to export analyst-ready findings for tickets or audits
 
 ### For Developers
 
@@ -68,6 +74,7 @@ Start here to audit and report:
 2. **Risk Assessment**: Leverage [Scoring Logic](./scoring-logic.md) for compliance scoring
 3. **Query Examples**: Apply filters from [Web App Guide](./web-app.md)
 4. **Export Schema**: Reference [Schema Documentation](./schema.md) for reporting
+5. **Findings Export**: Use `generate_findings.py` to produce structured audit evidence in JSON, CSV, or Markdown
 
 ## Documentation Overview
 
@@ -150,7 +157,7 @@ The web app documentation covers:
 4. **Filter High Risk** → `n.risk.score>=70`
 5. **Review Details** → Click on nodes to see risk reasons
 6. **Verify Findings** → Check publisher verification and ownership
-7. **Export Findings** → Save filtered results
+7. **Export Findings** → Use `generate_findings.py` to produce structured findings for tickets or audits
 
 ### Permission Review Workflow
 
@@ -261,6 +268,122 @@ The web app documentation covers:
 
 **Problem**: Saved presets lost  
 **Solution**: Enable local storage, avoid private/incognito mode
+
+## Findings Export
+
+`generate_findings.py` converts an OID-See JSON export into analyst-ready finding objects.
+Findings are derived **entirely** from existing scanner output and risk reason codes —
+no independent scoring is performed.
+
+### Quick Start
+
+```bash
+# JSON (default — suitable for ticketing systems and APIs)
+python generate_findings.py scan-results.json findings.json
+
+# CSV (flat rows for spreadsheets and audit evidence)
+python generate_findings.py scan-results.json findings.csv
+
+# Markdown (human-readable for reports and issue trackers)
+python generate_findings.py scan-results.json findings.md
+
+# Only include medium risk and above
+python generate_findings.py scan-results.json findings.json --min-level medium
+
+# Include all apps regardless of risk level
+python generate_findings.py scan-results.json findings.json --min-level info
+```
+
+### Finding Object Fields
+
+| Field | Description |
+| --- | --- |
+| `findingId` | Stable deterministic ID (`oidf-<sha256 prefix>`) |
+| `displayName` | App display name |
+| `appId` | Application (client) ID |
+| `servicePrincipalId` | Service principal object ID |
+| `publisherName` | Publisher display name |
+| `verifiedPublisherId` | Verified publisher ID (null if unverified) |
+| `appOwnerOrganizationId` | Tenant that registered the app |
+| `appOwnership` | `1st Party`, `3rd Party`, or `Internal` |
+| `riskScore` | 0–100 risk score from the scanner |
+| `riskLevel` | `info`, `low`, `medium`, `high`, `critical` |
+| `reasonCodes` | Array of risk reason code strings |
+| `evidence` | Array of evidence blocks (one per reason code) |
+| `confidence` | `high`, `medium`, or `low` |
+| `recommendedAction` | Aggregated analyst guidance |
+| `falsePositiveNotes` | What could make this a false positive |
+| `affectedRelationships` | Inbound and outbound graph edges involving this SP |
+
+### Affected Relationships
+
+`affectedRelationships` collects **both inbound and outbound** graph edges involving the
+service principal.  Each entry contains:
+
+- `direction` — `"outbound"` (SP is the source) or `"inbound"` (SP is the target)
+- `edgeId`, `edgeType`, `fromNodeId`, `toNodeId`
+- `otherNodeId` — the node on the other end of the edge
+- `otherNodeDisplayName` — display name of the other node where available
+- `edgeProperties` — extra properties on the edge, when present
+
+Inbound edges matter because several evidence-bearing relationship types terminate **at** the
+service principal (e.g. `ASSIGNED_TO` for a principal assigned to an app, `OWNS` for an
+owner-to-app relationship, `GOVERNS` depending on graph construction direction).
+
+### Evidence Blocks
+
+Each `evidence` entry contains:
+
+- `reasonCode` — the reason code from the scanner
+- `weight` — how much this reason contributed to the risk score
+- `title` — short evidence title
+- `summary` — what was detected
+- `scannerMessage` — the exact message from the scanner
+- `impact` — why this matters
+- `checkNext` — analyst checklist for this specific reason
+- `falsePositiveNotes` — what could make this a false positive for this specific reason
+
+### Supported Reason Codes
+
+The following reason codes have **explicit** evidence mappings with tailored analyst guidance:
+
+`HAS_APP_ROLE`, `HAS_PRIVILEGED_SCOPES`, `HAS_HIGH_PRIVILEGE_PERMISSION`,
+`OFFLINE_ACCESS_PERSISTENCE`, `ASSIGNED_TO`, `BROAD_REACHABILITY`,
+`PRIVILEGE`, `UNVERIFIED_PUBLISHER`, `DECEPTION`, `IDENTITY_LAUNDERING`,
+`MIXED_REPLYURL_DOMAINS`, `CREDENTIAL_HYGIENE`, `REPLY_URL_ANOMALIES`,
+`PUBLIC_CLIENT_FLOW_RISK`, `CREATED_BEFORE_CONSENT_HARDENING`,
+`CAN_IMPERSONATE`, `HAS_OWNERS_USER`, `HAS_OWNERS_SP`, `GOVERNANCE`,
+`REPLYURL_OUTLIER_DOMAIN`, `CREDENTIALS_PRESENT`, `PASSWORD_CREDENTIALS_PRESENT`,
+`GOVERNANCE_UNKNOWN`, `EXTERNAL_IDENTITY_POSTURE_AMPLIFIER`, `GOVERNS`.
+
+`NO_OWNERS` is intentionally excluded — it is governance context, not a scored security risk.
+
+Any reason code not in the list above is handled by a **fallback evidence block** that
+preserves the scanner's original message (`scannerMessage`) and provides generic analyst
+guidance.  This ensures the findings layer remains forward-compatible with new scanner codes
+without requiring a code change.
+
+### Programmatic Usage
+
+```python
+import json
+from finding_builder import build_findings, findings_to_csv_rows, findings_to_markdown
+
+with open("scan-results.json") as f:
+    export = json.load(f)
+
+# Build findings (default: low and above)
+findings = build_findings(export)
+
+# Medium and above only
+high_findings = build_findings(export, min_risk_level="medium")
+
+# Export as CSV rows
+rows = findings_to_csv_rows(findings)
+
+# Render as Markdown
+md = findings_to_markdown(findings, tenant_display_name="Contoso", generated_at="2025-01-01T00:00:00Z")
+```
 
 ## Support Resources
 
