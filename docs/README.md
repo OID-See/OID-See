@@ -49,6 +49,12 @@ Welcome to the comprehensive documentation for the OID-See project. This documen
    - new, resolved, unchanged, changed, regressed, improved classifications
    - JSON, CSV, and Markdown delta output formats
 
+8. **[GitHub Actions CI and SARIF Upload](./github-actions-ci.md)**
+   - Schedule automated scans against an Entra ID tenant
+   - Upload SARIF findings to GitHub code scanning
+   - Store graph export and findings JSON as workflow artefacts
+   - Required secrets, permissions, and security guidance
+
 ## Quick Start
 
 ### For Security Analysts
