@@ -66,6 +66,27 @@ def _level_order(level: str) -> int:
     return _RISK_LEVEL_ORDER.get((level or "").lower(), -1)
 
 
+def _get_subject_key(finding: Dict[str, Any]) -> str:
+    """Return the stable subject key for a finding, mirroring finding_builder logic.
+
+    Prefers ``subjectKey`` if already present (findings produced by
+    :func:`finding_builder.build_findings`).  Falls back to the same priority
+    chain used there so that hand-crafted findings or older exports still work:
+    servicePrincipalId → appId → findingId.
+    """
+    explicit = finding.get("subjectKey")
+    if explicit:
+        return explicit
+    sp_id = finding.get("servicePrincipalId")
+    if sp_id:
+        return sp_id
+    app_id = finding.get("appId")
+    if app_id:
+        return app_id
+    return finding.get("findingId", "")
+
+
+
 def _classify_paired(prev: Dict[str, Any], curr: Dict[str, Any]) -> str:
     """
     Classify a finding present in both scans.
@@ -139,13 +160,19 @@ def _analyst_action(status: str, curr: Optional[Dict[str, Any]]) -> str:
 
 
 def _build_delta_entry(
-    finding_id: str,
+    subject_key: str,
     status: str,
     prev: Optional[Dict[str, Any]],
     curr: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
     """Build a single delta entry dict."""
     ref = curr if curr is not None else (prev or {})
+
+    prev_finding_id: Optional[str] = prev.get("findingId") if prev else None
+    curr_finding_id: Optional[str] = curr.get("findingId") if curr else None
+
+    # Canonical findingId for the entry: current if available, else previous
+    finding_id: str = curr_finding_id or prev_finding_id or subject_key
 
     prev_codes: List[str] = list(prev.get("reasonCodes") or []) if prev else []
     curr_codes: List[str] = list(curr.get("reasonCodes") or []) if curr else []
@@ -199,7 +226,10 @@ def _build_delta_entry(
         summary = f"Unchanged: {ref.get('displayName') or finding_id}."
 
     return {
+        "subjectKey": subject_key,
         "findingId": finding_id,
+        "previousFindingId": prev_finding_id if prev_finding_id != curr_finding_id else None,
+        "currentFindingId": curr_finding_id if prev_finding_id != curr_finding_id else None,
         "displayName": ref.get("displayName"),
         "appId": ref.get("appId"),
         "servicePrincipalId": ref.get("servicePrincipalId"),
@@ -232,9 +262,20 @@ def compare_findings(
     """
     Compare two lists of OID-See finding objects and return a delta report.
 
-    Uses ``findingId`` as the stable primary key.  Each entry in the returned
-    list is classified as one of: new, resolved, unchanged, changed, regressed,
-    or improved.
+    Uses ``subjectKey`` as the stable primary key for matching findings across
+    scans.  The subject key is derived from ``servicePrincipalId`` → ``appId``
+    → ``findingId`` in priority order, matching the logic in
+    :func:`finding_builder.build_findings`.
+
+    This means that when reason codes change for the same app (causing a
+    different ``findingId``), the comparison correctly classifies the result as
+    changed/regressed/improved rather than resolved + new.
+
+    Each entry in the returned list also includes:
+    - ``subjectKey``: the stable comparison key
+    - ``findingId``: canonical finding ID (current if available, else previous)
+    - ``previousFindingId`` / ``currentFindingId``: set when the finding
+      signature changed (i.e. the IDs differ between scans)
 
     Args:
         previous: Finding objects from the earlier scan (output of build_findings).
@@ -245,20 +286,25 @@ def compare_findings(
         descending.  Status priority: new, regressed, improved, resolved,
         changed, unchanged.
     """
-    prev_by_id: Dict[str, Dict[str, Any]] = {
-        f["findingId"]: f for f in previous if f.get("findingId")
-    }
-    curr_by_id: Dict[str, Dict[str, Any]] = {
-        f["findingId"]: f for f in current if f.get("findingId")
-    }
+    prev_by_key: Dict[str, Dict[str, Any]] = {}
+    for f in previous:
+        key = _get_subject_key(f)
+        if key:
+            prev_by_key[key] = f
 
-    all_ids: Set[str] = set(prev_by_id.keys()) | set(curr_by_id.keys())
+    curr_by_key: Dict[str, Dict[str, Any]] = {}
+    for f in current:
+        key = _get_subject_key(f)
+        if key:
+            curr_by_key[key] = f
+
+    all_keys: Set[str] = set(prev_by_key.keys()) | set(curr_by_key.keys())
 
     delta: List[Dict[str, Any]] = []
 
-    for finding_id in all_ids:
-        prev = prev_by_id.get(finding_id)
-        curr = curr_by_id.get(finding_id)
+    for subject_key in all_keys:
+        prev = prev_by_key.get(subject_key)
+        curr = curr_by_key.get(subject_key)
 
         if curr is not None and prev is None:
             status = "new"
@@ -268,7 +314,7 @@ def compare_findings(
             assert prev is not None and curr is not None
             status = _classify_paired(prev, curr)
 
-        delta.append(_build_delta_entry(finding_id, status, prev, curr))
+        delta.append(_build_delta_entry(subject_key, status, prev, curr))
 
     def _sort_key(entry: Dict[str, Any]) -> tuple:
         score = entry.get("currentRiskScore")
@@ -363,7 +409,13 @@ def delta_to_markdown(
 
         lines.append(f"### {name}")
         lines.append("")
+        if entry.get("subjectKey"):
+            lines.append(f"- **Subject Key**: `{entry['subjectKey']}`")
         lines.append(f"- **Finding ID**: `{entry.get('findingId', '')}`")
+        if entry.get("previousFindingId"):
+            lines.append(f"- **Previous Finding ID**: `{entry['previousFindingId']}`")
+        if entry.get("currentFindingId"):
+            lines.append(f"- **Current Finding ID**: `{entry['currentFindingId']}`")
         if entry.get("appId"):
             lines.append(f"- **App ID**: `{entry['appId']}`")
         if entry.get("servicePrincipalId"):
@@ -450,7 +502,10 @@ def delta_to_markdown(
 # ---------------------------------------------------------------------------
 
 DELTA_CSV_FIELDNAMES = [
+    "subjectKey",
     "findingId",
+    "previousFindingId",
+    "currentFindingId",
     "displayName",
     "appId",
     "servicePrincipalId",
@@ -486,7 +541,10 @@ def delta_to_csv_rows(delta: List[Dict[str, Any]]) -> List[Dict[str, str]]:
     rows: List[Dict[str, str]] = []
     for entry in delta:
         rows.append({
+            "subjectKey": entry.get("subjectKey") or "",
             "findingId": entry.get("findingId") or "",
+            "previousFindingId": entry.get("previousFindingId") or "",
+            "currentFindingId": entry.get("currentFindingId") or "",
             "displayName": entry.get("displayName") or "",
             "appId": entry.get("appId") or "",
             "servicePrincipalId": entry.get("servicePrincipalId") or "",

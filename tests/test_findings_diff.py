@@ -62,7 +62,7 @@ def _finding(
     finding_id: str,
     display_name: str = "Test App",
     app_id: str = "app-001",
-    sp_id: str = "sp-001",
+    sp_id: Optional[str] = None,
     risk_score: int = 50,
     risk_level: str = "medium",
     reason_codes: Optional[List[str]] = None,
@@ -70,14 +70,22 @@ def _finding(
     recommended_action: str = "Review consent.",
     evidence_titles: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    """Return a minimal finding dict for testing."""
+    """Return a minimal finding dict for testing.
+
+    ``sp_id`` defaults to ``finding_id`` so that different findings are keyed
+    to different subjects by default — matching how :func:`compare_findings`
+    groups findings by ``subjectKey`` (derived from ``servicePrincipalId``).
+    Pass an explicit ``sp_id`` when you want two fixtures to represent the same
+    app across scans with identical stable keys.
+    """
     codes = reason_codes or ["HAS_APP_ROLE"]
     titles = evidence_titles or [f"Evidence for {c}" for c in codes]
+    effective_sp_id = sp_id if sp_id is not None else finding_id
     return {
         "findingId": finding_id,
         "displayName": display_name,
         "appId": app_id,
-        "servicePrincipalId": sp_id,
+        "servicePrincipalId": effective_sp_id,
         "riskScore": risk_score,
         "riskLevel": risk_level,
         "reasonCodes": codes,
@@ -602,6 +610,7 @@ def test_markdown_summary_counts():
 
 def test_delta_entry_has_all_required_fields():
     required_fields = [
+        "subjectKey",
         "findingId",
         "displayName",
         "appId",

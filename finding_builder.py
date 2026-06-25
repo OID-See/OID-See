@@ -672,6 +672,24 @@ def _finding_id(sp_id: str, reason_codes: List[str]) -> str:
     return "oidf-" + hashlib.sha256(digest_input.encode()).hexdigest()[:12]
 
 
+def _subject_key(sp_id: Optional[str], app_id: Optional[str], finding_id: str) -> str:
+    """Return the stable subject key used for drift comparison across scans.
+
+    Priority:
+    1. servicePrincipalId  — most stable, direct object identity
+    2. appId              — stable across tenants when SP id is absent
+    3. findingId          — fallback only when neither of the above is present
+
+    The subject key identifies *which app* is being compared, independently of
+    which reason codes contributed to the finding signature (findingId).
+    """
+    if sp_id:
+        return sp_id
+    if app_id:
+        return app_id
+    return finding_id
+
+
 def _derive_confidence(reason_codes: List[str]) -> str:
     """Return the highest confidence level seen across all reason codes."""
     best = "low"
@@ -850,8 +868,14 @@ def build_findings(
         recommended_action = _aggregate_recommended_actions(reason_codes)
         affected_relationships = _build_affected_relationships(node_id_str, edges, node_index)
 
+        fid = _finding_id(sp_fields.get("servicePrincipalId") or node_id_str, reason_codes)
         finding: Dict[str, Any] = {
-            "findingId": _finding_id(sp_fields.get("servicePrincipalId") or node_id_str, reason_codes),
+            "findingId": fid,
+            "subjectKey": _subject_key(
+                sp_fields.get("servicePrincipalId"),
+                sp_fields.get("appId"),
+                fid,
+            ),
             "displayName": sp_fields["displayName"],
             "appId": sp_fields["appId"],
             "servicePrincipalId": sp_fields["servicePrincipalId"],

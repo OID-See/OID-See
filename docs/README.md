@@ -305,7 +305,8 @@ python generate_findings.py scan-results.json findings.json --min-level info
 
 | Field | Description |
 | --- | --- |
-| `findingId` | Stable deterministic ID (`oidf-<sha256 prefix>`) |
+| `findingId` | Stable deterministic ID (`oidf-<sha256 prefix>`) derived from `servicePrincipalId` and sorted reason codes |
+| `subjectKey` | Stable subject identity for drift comparison — prefers `servicePrincipalId`, falls back to `appId`, then `findingId` |
 | `displayName` | App display name |
 | `appId` | Application (client) ID |
 | `servicePrincipalId` | Service principal object ID |
@@ -433,7 +434,17 @@ python compare_findings.py findings-jan.json findings-feb.json findings-delta.md
 
 ### Status Classification
 
-Each delta entry is classified using `findingId` as the stable primary key:
+Each delta entry is classified using `subjectKey` as the stable comparison key.
+The `subjectKey` is derived from `servicePrincipalId` → `appId` → `findingId`
+in priority order.  This is intentionally separate from `findingId`, which
+encodes the finding _signature_ (SP identity + sorted reason codes) and changes
+whenever reason codes change.
+
+**Why the distinction matters**: if the diff tool used `findingId` as the
+comparison key, a ServicePrincipal that changes reason codes between scans would
+appear as one *resolved* finding plus one *new* finding, even though it is the
+same app.  Using `subjectKey` ensures the diff correctly classifies it as
+*changed*, *regressed*, or *improved*.
 
 | Status | Meaning |
 | --- | --- |
@@ -450,7 +461,10 @@ Risk level ordering: `critical > high > medium > low > info`
 
 | Field | Description |
 | --- | --- |
-| `findingId` | Stable finding ID (matches `findingId` in the findings export) |
+| `subjectKey` | Stable subject key used for comparison (`servicePrincipalId` → `appId` → `findingId`) |
+| `findingId` | Canonical finding ID for this entry (current scan's ID if available, else previous) |
+| `previousFindingId` | Finding ID from the previous scan — only set when it differs from `currentFindingId` |
+| `currentFindingId` | Finding ID from the current scan — only set when it differs from `previousFindingId` |
 | `displayName` | App display name |
 | `appId` | Application (client) ID |
 | `servicePrincipalId` | Service principal object ID |
