@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oidsee.dev/schemas/oidsee-findings.schema.json",
+  "title": "OID-See Findings Export Schema",
+  "description": "Schema for the findings export produced by finding_builder.build_findings / generate_findings.py. Findings are derived artefacts — all risk values originate from the OID-See scanner graph export. This schema does not govern scanner scoring.",
+  "type": "array",
+  "items": {
+    "$ref": "#/$defs/finding"
+  },
+  "$defs": {
+    "riskLevel": {
+      "type": "string",
+      "enum": ["info", "low", "medium", "high", "critical"]
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["low", "medium", "high"]
+    },
+    "evidenceEntry": {
+      "type": "object",
+      "required": [
+        "reasonCode",
+        "weight",
+        "title",
+        "summary",
+        "scannerMessage",
+        "impact",
+        "checkNext",
+        "falsePositiveNotes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "reasonCode": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The scanner reason code that produced this evidence entry."
+        },
+        "weight": {
+          "type": "number",
+          "description": "Numeric weight of this reason in the overall risk score."
+        },
+        "title": {
+          "type": "string",
+          "description": "Short human-readable title for this evidence item."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Descriptive summary of what this evidence means."
+        },
+        "scannerMessage": {
+          "type": "string",
+          "description": "The raw message emitted by the scanner for this reason code."
+        },
+        "impact": {
+          "type": "string",
+          "description": "Security impact description if this risk is exploited."
+        },
+        "checkNext": {
+          "type": "string",
+          "description": "Analyst guidance on what to investigate next."
+        },
+        "falsePositiveNotes": {
+          "type": "string",
+          "description": "Notes on common false-positive patterns for this evidence item."
+        }
+      }
+    },
+    "affectedRelationship": {
+      "type": "object",
+      "required": [
+        "direction",
+        "edgeId",
+        "edgeType",
+        "fromNodeId",
+        "toNodeId",
+        "otherNodeId",
+        "otherNodeDisplayName"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "type": "string",
+          "enum": ["inbound", "outbound"],
+          "description": "Whether this edge originates from (outbound) or terminates at (inbound) the finding subject."
+        },
+        "edgeId": {
+          "type": ["string", "null"],
+          "description": "Unique identifier of the graph edge."
+        },
+        "edgeType": {
+          "type": ["string", "null"],
+          "description": "Type label of the graph edge (e.g. HAS_APP_ROLE, ASSIGNED_TO)."
+        },
+        "fromNodeId": {
+          "type": ["string", "null"],
+          "description": "Node ID of the edge source."
+        },
+        "toNodeId": {
+          "type": ["string", "null"],
+          "description": "Node ID of the edge target."
+        },
+        "otherNodeId": {
+          "type": ["string", "null"],
+          "description": "Node ID of the node on the opposite end of the edge from the finding subject."
+        },
+        "otherNodeDisplayName": {
+          "type": ["string", "null"],
+          "description": "Display name of the other node, where available."
+        },
+        "edgeProperties": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Extra edge properties forwarded from the graph export (e.g. scopes, permissionType)."
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": [
+        "findingId",
+        "subjectKey",
+        "displayName",
+        "riskScore",
+        "riskLevel",
+        "reasonCodes",
+        "evidence",
+        "confidence",
+        "recommendedAction",
+        "falsePositiveNotes",
+        "affectedRelationships"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "findingId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable deterministic ID for this finding, derived from the subject and reason codes."
+        },
+        "subjectKey": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable subject key used for drift comparison across scans. Derived from servicePrincipalId → appId → findingId in priority order."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable display name of the app or service principal."
+        },
+        "appId": {
+          "type": ["string", "null"],
+          "description": "Application (client) ID of the app registration, if available."
+        },
+        "servicePrincipalId": {
+          "type": ["string", "null"],
+          "description": "Object ID of the enterprise application (service principal), if available."
+        },
+        "publisherName": {
+          "type": ["string", "null"],
+          "description": "Publisher name as returned by Microsoft Graph, if available."
+        },
+        "verifiedPublisherId": {
+          "type": ["string", "null"],
+          "description": "Verified publisher ID from Microsoft Partner Center, if verified."
+        },
+        "appOwnerOrganizationId": {
+          "type": ["string", "null"],
+          "description": "Tenant ID of the organisation that registered the app, if available."
+        },
+        "appOwnership": {
+          "type": ["string", "null"],
+          "enum": ["1st Party", "3rd Party", "Internal", null],
+          "description": "Ownership classification: '1st Party' (Microsoft), '3rd Party' (external publisher), 'Internal' (tenant-owned), or null when undetermined."
+        },
+        "riskScore": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Risk score from 0 to 100. Sourced verbatim from the scanner graph export — not recomputed here."
+        },
+        "riskLevel": {
+          "$ref": "#/$defs/riskLevel",
+          "description": "Risk level derived from the risk score. Sourced verbatim from the scanner graph export."
+        },
+        "reasonCodes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of reason codes that contributed to this finding."
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceEntry"
+          },
+          "description": "Expanded evidence entries, one per reason code."
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence",
+          "description": "Overall confidence level for this finding, derived from the highest-confidence reason code."
+        },
+        "recommendedAction": {
+          "type": "string",
+          "description": "Aggregated recommended actions for the analyst, one sentence per reason code."
+        },
+        "falsePositiveNotes": {
+          "type": "string",
+          "description": "General false-positive guidance for this finding."
+        },
+        "affectedRelationships": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/affectedRelationship"
+          },
+          "description": "Graph edges that involve the finding subject, providing relationship context."
+        }
+      }
+    }
+  }
+}
