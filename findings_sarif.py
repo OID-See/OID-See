@@ -247,7 +247,9 @@ def findings_to_sarif(
     """
     # Collect the first evidence item for each reason code, preserving
     # insertion order (i.e. the order in which codes first appear across
-    # findings sorted by riskScore, highest first).
+    # the findings list as passed in — callers should pass findings sorted
+    # by riskScore descending so that the highest-risk finding's evidence
+    # is used as the canonical rule template for each reason code).
     rule_evidence: Dict[str, Optional[Dict[str, Any]]] = {}
     for finding in findings:
         for ev in (finding.get("evidence") or []):

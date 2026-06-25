@@ -218,7 +218,9 @@ def test_ruleid_fallback_to_first_reason_code():
     }
     doc = findings_to_sarif([finding])
     result = doc["runs"][0]["results"][0]
-    # Both have weight=0; max() picks the first one in iteration order
+    # Both have weight=0; max() with equal weights returns the first element
+    # encountered in the evidence list (deterministic, but not necessarily
+    # the first reason code).
     assert result["ruleId"] in ("UNVERIFIED_PUBLISHER", "GOVERNANCE")
 
 
