@@ -715,7 +715,7 @@ def test_sorting():
 # ---------------------------------------------------------------------------
 
 def test_affected_relationships():
-    print("\n=== Scenario 17: Affected relationships from edges ===")
+    print("\n=== Scenario 17: Affected relationships — outbound and inbound ===")
     node = _make_sp_node(
         "sp:edges-001",
         "Edges App",
@@ -731,23 +731,38 @@ def test_affected_relationships():
         edges=[
             {"id": "e1", "from": "sp:edges-001", "to": "resource:graph", "type": "HAS_APP_ROLE"},
             {"id": "e2", "from": "sp:edges-001", "to": "role:GlobalAdmin", "type": "ASSIGNED_DIR_ROLE"},
-            {"id": "e3", "from": "sp:other-sp", "to": "sp:edges-001", "type": "OWNS"},  # inbound — excluded
+            {"id": "e3", "from": "sp:other-sp", "to": "sp:edges-001", "type": "OWNS"},  # inbound
         ],
     )
     findings = build_findings(export)
 
     assert len(findings) == 1
     f = findings[0]
-    # Only outbound edges from this SP
-    assert len(f["affectedRelationships"]) == 2
+    # Both outbound and the inbound OWNS edge should be present
+    assert len(f["affectedRelationships"]) == 3
 
     types = {r["edgeType"] for r in f["affectedRelationships"]}
     assert "HAS_APP_ROLE" in types
     assert "ASSIGNED_DIR_ROLE" in types
-    # Inbound edge should not appear
-    assert "OWNS" not in types
+    assert "OWNS" in types, "Inbound OWNS edge must now be included"
 
-    print(f"  ✓ Collected {len(f['affectedRelationships'])} outbound relationships")
+    # Direction field must be set correctly
+    outbound = [r for r in f["affectedRelationships"] if r["direction"] == "outbound"]
+    inbound = [r for r in f["affectedRelationships"] if r["direction"] == "inbound"]
+    assert len(outbound) == 2
+    assert len(inbound) == 1
+    assert inbound[0]["edgeType"] == "OWNS"
+    assert inbound[0]["fromNodeId"] == "sp:other-sp"
+    assert inbound[0]["toNodeId"] == "sp:edges-001"
+    assert inbound[0]["otherNodeId"] == "sp:other-sp"
+
+    # fromNodeId / toNodeId must be present on outbound edges
+    for r in outbound:
+        assert r["fromNodeId"] == "sp:edges-001"
+        assert r["toNodeId"] is not None
+
+    print(f"  ✓ Collected {len(f['affectedRelationships'])} relationships "
+          f"({len(outbound)} outbound, {len(inbound)} inbound)")
     return True
 
 
@@ -818,8 +833,224 @@ def test_consent_hardening_low_confidence():
 
 
 # ---------------------------------------------------------------------------
-# Main
+# Scenario 21: ASSIGNED_TO finding includes inbound principal -> app relationship
 # ---------------------------------------------------------------------------
+
+def test_assigned_to_inbound_relationship():
+    print("\n=== Scenario 21: ASSIGNED_TO — inbound principal -> app relationship ===")
+    sp_node = _make_sp_node(
+        "sp:assigned-inbound-001",
+        "Assigned Target App",
+        score=30,
+        level="low",
+        reasons=[
+            {"code": "ASSIGNED_TO", "weight": 5, "message": "App is assigned to ~5 users"},
+        ],
+    )
+    # ASSIGNED_TO edge is principal -> app (inbound to the SP)
+    export = _make_export(
+        [sp_node],
+        edges=[
+            {
+                "id": "ea1",
+                "from": "user:alice",
+                "to": "sp:assigned-inbound-001",
+                "type": "ASSIGNED_TO",
+            },
+        ],
+    )
+    findings = build_findings(export)
+
+    assert len(findings) == 1
+    f = findings[0]
+    assert "ASSIGNED_TO" in f["reasonCodes"]
+    assert len(f["affectedRelationships"]) == 1
+
+    rel = f["affectedRelationships"][0]
+    assert rel["direction"] == "inbound", f"Expected inbound, got {rel['direction']}"
+    assert rel["edgeType"] == "ASSIGNED_TO"
+    assert rel["fromNodeId"] == "user:alice"
+    assert rel["toNodeId"] == "sp:assigned-inbound-001"
+    assert rel["otherNodeId"] == "user:alice"
+
+    print(f"  ✓ ASSIGNED_TO inbound relationship captured: {rel}")
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Scenario 22: OWNS inbound relationship included
+# ---------------------------------------------------------------------------
+
+def test_owns_inbound_relationship():
+    print("\n=== Scenario 22: OWNS — inbound owner -> app relationship ===")
+    sp_node = _make_sp_node(
+        "sp:owned-001",
+        "Owned App",
+        score=45,
+        level="medium",
+        reasons=[
+            {"code": "HAS_OWNERS_USER", "weight": 8, "message": "User owner present"},
+        ],
+    )
+    # OWNS edge is owner -> app (inbound to the SP)
+    export = _make_export(
+        [sp_node],
+        edges=[
+            {
+                "id": "eo1",
+                "from": "user:bob",
+                "to": "sp:owned-001",
+                "type": "OWNS",
+            },
+        ],
+    )
+    findings = build_findings(export)
+
+    assert len(findings) == 1
+    f = findings[0]
+    assert len(f["affectedRelationships"]) == 1
+
+    rel = f["affectedRelationships"][0]
+    assert rel["direction"] == "inbound"
+    assert rel["edgeType"] == "OWNS"
+    assert rel["fromNodeId"] == "user:bob"
+    assert rel["toNodeId"] == "sp:owned-001"
+    assert rel["otherNodeId"] == "user:bob"
+
+    print(f"  ✓ OWNS inbound relationship captured: {rel}")
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Scenario 23: HAS_APP_ROLE outbound relationship still works
+# ---------------------------------------------------------------------------
+
+def test_has_app_role_outbound_still_works():
+    print("\n=== Scenario 23: HAS_APP_ROLE — outbound app -> resource relationship ===")
+    sp_node = _make_sp_node(
+        "sp:approle-outbound-001",
+        "Daemon App",
+        score=80,
+        level="critical",
+        reasons=[
+            {"code": "HAS_APP_ROLE", "weight": 60, "message": "App role granted"},
+        ],
+    )
+    export = _make_export(
+        [sp_node],
+        edges=[
+            {
+                "id": "er1",
+                "from": "sp:approle-outbound-001",
+                "to": "resource:graph",
+                "type": "HAS_APP_ROLE",
+            },
+        ],
+    )
+    findings = build_findings(export)
+
+    assert len(findings) == 1
+    f = findings[0]
+    assert len(f["affectedRelationships"]) == 1
+
+    rel = f["affectedRelationships"][0]
+    assert rel["direction"] == "outbound", f"Expected outbound, got {rel['direction']}"
+    assert rel["edgeType"] == "HAS_APP_ROLE"
+    assert rel["fromNodeId"] == "sp:approle-outbound-001"
+    assert rel["toNodeId"] == "resource:graph"
+    assert rel["otherNodeId"] == "resource:graph"
+
+    print(f"  ✓ HAS_APP_ROLE outbound relationship still collected: {rel}")
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Scenario 24: Unknown reason code falls back safely preserving scannerMessage
+# ---------------------------------------------------------------------------
+
+def test_unknown_reason_code_fallback():
+    print("\n=== Scenario 24: Unknown reason code falls back safely ===")
+    node = _make_sp_node(
+        "sp:unknown-001",
+        "Future Signal App",
+        score=30,
+        level="low",
+        reasons=[
+            {
+                "code": "FUTURE_UNKNOWN_CODE",
+                "weight": 10,
+                "message": "Some future scanner message with detail",
+            },
+        ],
+    )
+    export = _make_export([node])
+    findings = build_findings(export)
+
+    assert len(findings) == 1, f"Expected 1 finding, got {len(findings)}"
+    f = findings[0]
+    assert "FUTURE_UNKNOWN_CODE" in f["reasonCodes"]
+
+    ev = next(e for e in f["evidence"] if e["reasonCode"] == "FUTURE_UNKNOWN_CODE")
+    # Fallback title is generic but not empty
+    assert ev["title"], "Fallback title must not be empty"
+    # Original scanner message must be preserved
+    assert ev["scannerMessage"] == "Some future scanner message with detail", (
+        "scannerMessage must be preserved for unknown codes"
+    )
+    # Weight preserved
+    assert ev["weight"] == 10
+
+    print(f"  ✓ Unknown code uses fallback evidence, scannerMessage preserved: '{ev['scannerMessage']}'")
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Scenario 25: Explicit evidence mappings for 6 new reason codes
+# ---------------------------------------------------------------------------
+
+def test_explicit_evidence_mappings_new_codes():
+    print("\n=== Scenario 25: Explicit evidence mappings for new reason codes ===")
+    from finding_builder import _REASON_EVIDENCE  # access private dict for verification
+
+    new_codes = [
+        "REPLYURL_OUTLIER_DOMAIN",
+        "CREDENTIALS_PRESENT",
+        "PASSWORD_CREDENTIALS_PRESENT",
+        "GOVERNANCE_UNKNOWN",
+        "EXTERNAL_IDENTITY_POSTURE_AMPLIFIER",
+        "GOVERNS",
+    ]
+
+    for code in new_codes:
+        assert code in _REASON_EVIDENCE, (
+            f"{code} must have an explicit entry in _REASON_EVIDENCE, not fall through to fallback"
+        )
+        template = _REASON_EVIDENCE[code]
+        for field in ("title", "summary", "impact", "checkNext", "falsePositiveNotes", "recommendedAction"):
+            assert template.get(field), f"{code} is missing field: {field}"
+
+    # Also verify each code produces the explicit evidence (not fallback) when built into a finding
+    for code in new_codes:
+        node = _make_sp_node(
+            f"sp:newcode-{code.lower().replace('_', '-')}",
+            f"App for {code}",
+            score=30,
+            level="low",
+            reasons=[{"code": code, "weight": 5, "message": f"Scanner says: {code}"}],
+        )
+        findings = build_findings(_make_export([node]))
+        assert len(findings) == 1, f"Expected 1 finding for {code}"
+        ev = next(e for e in findings[0]["evidence"] if e["reasonCode"] == code)
+        # The title should match the explicit mapping, not the fallback generic text
+        assert ev["title"] != "Risk indicator present", (
+            f"{code} must use explicit evidence title, not fallback"
+        )
+        print(f"  ✓ {code}: '{ev['title']}'")
+
+    return True
+
+
+
 
 def main() -> int:
     print("=" * 60)
@@ -847,6 +1078,11 @@ def main() -> int:
         test_empty_export,
         test_first_party_ownership_preserved,
         test_consent_hardening_low_confidence,
+        test_assigned_to_inbound_relationship,
+        test_owns_inbound_relationship,
+        test_has_app_role_outbound_still_works,
+        test_unknown_reason_code_fallback,
+        test_explicit_evidence_mappings_new_codes,
     ]
 
     passed = 0

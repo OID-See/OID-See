@@ -313,7 +313,22 @@ python generate_findings.py scan-results.json findings.json --min-level info
 | `confidence` | `high`, `medium`, or `low` |
 | `recommendedAction` | Aggregated analyst guidance |
 | `falsePositiveNotes` | What could make this a false positive |
-| `affectedRelationships` | Outbound edges from this SP in the graph |
+| `affectedRelationships` | Inbound and outbound graph edges involving this SP |
+
+### Affected Relationships
+
+`affectedRelationships` collects **both inbound and outbound** graph edges involving the
+service principal.  Each entry contains:
+
+- `direction` — `"outbound"` (SP is the source) or `"inbound"` (SP is the target)
+- `edgeId`, `edgeType`, `fromNodeId`, `toNodeId`
+- `otherNodeId` — the node on the other end of the edge
+- `otherNodeDisplayName` — display name of the other node where available
+- `edgeProperties` — extra properties on the edge, when present
+
+Inbound edges matter because several evidence-bearing relationship types terminate **at** the
+service principal (e.g. `ASSIGNED_TO` for a principal assigned to an app, `OWNS` for an
+owner-to-app relationship, `GOVERNS` depending on graph construction direction).
 
 ### Evidence Blocks
 
@@ -330,15 +345,23 @@ Each `evidence` entry contains:
 
 ### Supported Reason Codes
 
-All existing OID-See risk reason codes are translated into evidence:
+The following reason codes have **explicit** evidence mappings with tailored analyst guidance:
+
 `HAS_APP_ROLE`, `HAS_PRIVILEGED_SCOPES`, `HAS_HIGH_PRIVILEGE_PERMISSION`,
 `OFFLINE_ACCESS_PERSISTENCE`, `ASSIGNED_TO`, `BROAD_REACHABILITY`,
 `PRIVILEGE`, `UNVERIFIED_PUBLISHER`, `DECEPTION`, `IDENTITY_LAUNDERING`,
 `MIXED_REPLYURL_DOMAINS`, `CREDENTIAL_HYGIENE`, `REPLY_URL_ANOMALIES`,
 `PUBLIC_CLIENT_FLOW_RISK`, `CREATED_BEFORE_CONSENT_HARDENING`,
-`CAN_IMPERSONATE`, `HAS_OWNERS_USER`, `GOVERNANCE`.
+`CAN_IMPERSONATE`, `HAS_OWNERS_USER`, `HAS_OWNERS_SP`, `GOVERNANCE`,
+`REPLYURL_OUTLIER_DOMAIN`, `CREDENTIALS_PRESENT`, `PASSWORD_CREDENTIALS_PRESENT`,
+`GOVERNANCE_UNKNOWN`, `EXTERNAL_IDENTITY_POSTURE_AMPLIFIER`, `GOVERNS`.
 
 `NO_OWNERS` is intentionally excluded — it is governance context, not a scored security risk.
+
+Any reason code not in the list above is handled by a **fallback evidence block** that
+preserves the scanner's original message (`scannerMessage`) and provides generic analyst
+guidance.  This ensures the findings layer remains forward-compatible with new scanner codes
+without requiring a code change.
 
 ### Programmatic Usage
 

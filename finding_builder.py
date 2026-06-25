@@ -59,6 +59,12 @@ _REASON_CONFIDENCE: Dict[str, str] = {
     "HAS_OWNERS_SP": "low",
     "GOVERNANCE": "low",
     "CREATED_BEFORE_CONSENT_HARDENING": "low",
+    "REPLYURL_OUTLIER_DOMAIN": "medium",
+    "CREDENTIALS_PRESENT": "medium",
+    "PASSWORD_CREDENTIALS_PRESENT": "medium",
+    "GOVERNANCE_UNKNOWN": "low",
+    "EXTERNAL_IDENTITY_POSTURE_AMPLIFIER": "medium",
+    "GOVERNS": "medium",
 }
 
 _CONFIDENCE_ORDER: Dict[str, int] = {"high": 2, "medium": 1, "low": 0}
@@ -490,6 +496,158 @@ _REASON_EVIDENCE: Dict[str, Dict[str, str]] = {
             "Require assignment or document a governance decision accepting broad tenant reachability."
         ),
     },
+    "REPLYURL_OUTLIER_DOMAIN": {
+        "title": "Reply URL points to outlier domain",
+        "summary": (
+            "One or more reply URLs (OAuth2 redirect URIs) contain domains that are not "
+            "part of the app's primary vendor domain set, as determined by outlier analysis."
+        ),
+        "impact": (
+            "A reply URL on an outlier or unrecognised domain can redirect OAuth2 authorization "
+            "codes or tokens to an attacker-controlled endpoint, enabling account takeover."
+        ),
+        "checkNext": (
+            "Enumerate all reply URLs and confirm domain ownership for each outlier. "
+            "Verify whether the domain belongs to the expected vendor. "
+            "Check DNS and WHOIS records for the outlier domain."
+        ),
+        "falsePositiveNotes": (
+            "CDN endpoints, regional portals, or acquired-company domains may produce outlier "
+            "signals. Confirm with the vendor whether outlier domains are intentional."
+        ),
+        "recommendedAction": (
+            "Remove reply URLs pointing to domains not owned by the app publisher. "
+            "Restrict reply URLs to the minimum set required by the app's functionality."
+        ),
+    },
+    "CREDENTIALS_PRESENT": {
+        "title": "Credentials registered on this app",
+        "summary": (
+            "The app has key credentials (certificates) and/or password credentials (client secrets) "
+            "registered, meaning it can authenticate as itself without user interaction."
+        ),
+        "impact": (
+            "Apps with active credentials can acquire access tokens silently. "
+            "If a credential is compromised, the attacker gains the full access of the app's "
+            "granted permissions until the credential is revoked."
+        ),
+        "checkNext": (
+            "Review the registered credentials in Azure portal. "
+            "Confirm each credential is actively in use and owned by a known team. "
+            "Check for unexpected credential additions in the audit log."
+        ),
+        "falsePositiveNotes": (
+            "Most non-trivial service apps legitimately hold credentials to authenticate. "
+            "Treat this as a credential inventory signal rather than a standalone risk."
+        ),
+        "recommendedAction": (
+            "Audit all registered credentials. "
+            "Remove credentials that are no longer in use. "
+            "Prefer certificate credentials over password credentials."
+        ),
+    },
+    "PASSWORD_CREDENTIALS_PRESENT": {
+        "title": "Password credentials (client secrets) registered on this app",
+        "summary": (
+            "The app has one or more client secrets (password credentials) registered. "
+            "Password credentials are symmetric keys that can be used to authenticate as the app."
+        ),
+        "impact": (
+            "Client secrets are high-value credential material. "
+            "A leaked or guessable secret allows an attacker to impersonate the app and "
+            "exercise all of its granted permissions."
+        ),
+        "checkNext": (
+            "Review each client secret in Azure portal. "
+            "Check creation date, expiry, and responsible team. "
+            "Review the audit log for unexpected secret additions. "
+            "Assess whether secrets can be replaced with certificate credentials."
+        ),
+        "falsePositiveNotes": (
+            "Client secrets are a standard authentication mechanism for service apps. "
+            "Presence alone is not a risk; risk derives from hygiene and distribution."
+        ),
+        "recommendedAction": (
+            "Rotate or remove stale client secrets. "
+            "Prefer certificate credentials or workload identity federation where available. "
+            "Establish a secret rotation policy."
+        ),
+    },
+    "GOVERNANCE_UNKNOWN": {
+        "title": "Governance posture unknown or indeterminate",
+        "summary": (
+            "The scanner was unable to determine the app's governance status — for example, "
+            "whether assignment is required — due to missing or ambiguous data."
+        ),
+        "impact": (
+            "Without a confirmed governance posture, it is unclear whether the app's reachability "
+            "is intentionally broad or inadvertently misconfigured."
+        ),
+        "checkNext": (
+            "Verify the app's appRoleAssignmentRequired setting in Azure portal. "
+            "Confirm whether a governance decision has been documented for this app."
+        ),
+        "falsePositiveNotes": (
+            "Governance data may be unavailable for first-party apps or apps with limited "
+            "Graph API permissions at scan time."
+        ),
+        "recommendedAction": (
+            "Confirm the app's assignment and governance settings. "
+            "Document the governance decision in the app's access review record."
+        ),
+    },
+    "EXTERNAL_IDENTITY_POSTURE_AMPLIFIER": {
+        "title": "External identity posture amplifier detected",
+        "summary": (
+            "The app shows characteristics that amplify external identity risk — for example, "
+            "combining governance ambiguity, credential presence, and broad reachability "
+            "in a way that increases exposure to external identity abuse."
+        ),
+        "impact": (
+            "Amplifier signals indicate the app sits at the intersection of multiple risk "
+            "dimensions. Exploiting one vector may cascade to others, increasing the overall "
+            "impact of a successful attack."
+        ),
+        "checkNext": (
+            "Review this finding alongside all other reason codes for the same app. "
+            "Assess whether the combination of signals represents an elevated composite risk. "
+            "Determine whether the app's external-facing posture is intentional."
+        ),
+        "falsePositiveNotes": (
+            "Amplifier signals are derived from the combination of other conditions. "
+            "If the underlying conditions are individually accepted risks, "
+            "the amplifier may also be acceptable."
+        ),
+        "recommendedAction": (
+            "Address each contributing risk signal individually. "
+            "Review the app's external access posture and confirm governance decisions."
+        ),
+    },
+    "GOVERNS": {
+        "title": "Governance edge: this app governs another service principal",
+        "summary": (
+            "The graph contains a GOVERNS edge from this app's service principal to another "
+            "service principal, indicating a governance or authority relationship in the graph model."
+        ),
+        "impact": (
+            "A GOVERNS relationship means a compromise of this app may allow influence over "
+            "a downstream service principal's configuration, permissions, or credentials."
+        ),
+        "checkNext": (
+            "Review the downstream service principals linked by GOVERNS edges. "
+            "Confirm whether the governance relationship is intentional and documented. "
+            "Assess the risk profile of governed service principals."
+        ),
+        "falsePositiveNotes": (
+            "GOVERNS edges are constructed by the OID-See graph model from owner or role "
+            "relationships. Review the underlying source relationship before treating this "
+            "as a standalone risk."
+        ),
+        "recommendedAction": (
+            "Review the ownership and governance chain for all governed service principals. "
+            "Confirm that governance relationships reflect intended administrative authority."
+        ),
+    },
 }
 
 # Fallback template for unknown or undocumented reason codes
@@ -554,17 +712,55 @@ def _aggregate_recommended_actions(reason_codes: List[str]) -> str:
 
 
 def _build_affected_relationships(
-    node_id: str, edges: List[Dict[str, Any]]
+    node_id: str,
+    edges: List[Dict[str, Any]],
+    node_index: Dict[str, Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
-    """Return edges where this node is the source."""
+    """Return edges where this node is the source (outbound) or target (inbound).
+
+    Each relationship includes:
+    - direction: "outbound" (this node is ``from``) or "inbound" (this node is ``to``)
+    - edgeId, edgeType, fromNodeId, toNodeId
+    - otherNodeId: the node on the other end of the edge
+    - otherNodeDisplayName: display name of the other node where available
+    - Any extra edge properties beyond id/from/to/type are forwarded as-is.
+    """
     result = []
     for edge in edges:
-        if edge.get("from") == node_id:
-            result.append({
-                "edgeId": edge.get("id"),
-                "edgeType": edge.get("type"),
-                "toNodeId": edge.get("to"),
-            })
+        from_id = edge.get("from")
+        to_id = edge.get("to")
+        if from_id == node_id:
+            other_id = to_id
+            direction = "outbound"
+        elif to_id == node_id:
+            other_id = from_id
+            direction = "inbound"
+        else:
+            continue
+
+        other_node = node_index.get(other_id) if other_id else None
+        other_display = None
+        if other_node:
+            other_display = other_node.get("displayName") or (
+                (other_node.get("properties") or {}).get("appDisplayName")
+            )
+
+        rel: Dict[str, Any] = {
+            "direction": direction,
+            "edgeId": edge.get("id"),
+            "edgeType": edge.get("type"),
+            "fromNodeId": from_id,
+            "toNodeId": to_id,
+            "otherNodeId": other_id,
+            "otherNodeDisplayName": other_display,
+        }
+
+        # Forward any extra edge properties (properties key is common in some exports)
+        extra = edge.get("properties")
+        if extra and isinstance(extra, dict):
+            rel["edgeProperties"] = extra
+
+        result.append(rel)
     return result
 
 
@@ -646,7 +842,7 @@ def build_findings(
         evidence = [_build_evidence_block(r) for r in scored_reasons]
         confidence = _derive_confidence(reason_codes)
         recommended_action = _aggregate_recommended_actions(reason_codes)
-        affected_relationships = _build_affected_relationships(node_id_str, edges)
+        affected_relationships = _build_affected_relationships(node_id_str, edges, node_index)
 
         finding: Dict[str, Any] = {
             "findingId": _finding_id(sp_fields.get("servicePrincipalId") or node_id_str, reason_codes),
@@ -697,7 +893,12 @@ def findings_to_csv_rows(findings: List[Dict[str, Any]]) -> List[Dict[str, str]]
             e.get("title", "") for e in (f.get("evidence") or [])
         )
         affected_summary = "; ".join(
-            f"{r.get('edgeType')} -> {r.get('toNodeId')}"
+            "{direction} {edgeType}: {fromNodeId} -> {toNodeId}".format(
+                direction=r.get("direction", ""),
+                edgeType=r.get("edgeType", ""),
+                fromNodeId=r.get("fromNodeId", ""),
+                toNodeId=r.get("toNodeId", ""),
+            )
             for r in (f.get("affectedRelationships") or [])
         )
         rows.append({
@@ -829,14 +1030,21 @@ def findings_to_markdown(
             lines.append(action)
             lines.append("")
 
-        # Affected relationships
         rels = f.get("affectedRelationships") or []
         if rels:
             lines.append("### Affected Relationships")
             lines.append("")
             for r in rels:
+                direction = r.get("direction", "")
+                edge_type = r.get("edgeType", "")
+                from_id = r.get("fromNodeId", "")
+                to_id = r.get("toNodeId", "")
+                other_display = r.get("otherNodeDisplayName")
+                edge_id = r.get("edgeId", "")
+                display_suffix = f" ({other_display})" if other_display else ""
                 lines.append(
-                    f"- `{r.get('edgeType')}` → `{r.get('toNodeId')}` (edge `{r.get('edgeId')}`)"
+                    f"- [{direction}] `{edge_type}`: `{from_id}` → `{to_id}`{display_suffix}"
+                    f" (edge `{edge_id}`)"
                 )
             lines.append("")
 
