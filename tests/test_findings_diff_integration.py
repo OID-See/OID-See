@@ -42,6 +42,11 @@ from findings_diff import compare_findings
 
 
 def _make_export(nodes: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Return a minimal synthetic OID-See graph export containing *nodes*.
+
+    Produces the envelope structure expected by :func:`finding_builder.build_findings`.
+    Edges are omitted — add them explicitly when the test requires relationship data.
+    """
     return {
         "format": {"name": "oidsee-graph", "version": "1.1"},
         "generatedAt": "2025-01-01T00:00:00Z",

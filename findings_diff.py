@@ -73,6 +73,9 @@ def _get_subject_key(finding: Dict[str, Any]) -> str:
     :func:`finding_builder.build_findings`).  Falls back to the same priority
     chain used there so that hand-crafted findings or older exports still work:
     servicePrincipalId → appId → findingId.
+
+    Returns an empty string when all identifiers are absent; the caller is
+    responsible for filtering out keyless findings before indexing.
     """
     explicit = finding.get("subjectKey")
     if explicit:
