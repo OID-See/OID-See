@@ -54,20 +54,20 @@ def _detect_format(output_path: str) -> str:
     return "json"
 
 
-def _load_findings(path: str) -> List[Dict[str, Any]]:
+def _load_findings(path: str, label: str = "file") -> List[Dict[str, Any]]:
     """Load and return a findings list from a JSON file."""
     if not os.path.isfile(path):
-        print(f"error: file not found: {path}", file=sys.stderr)
+        print(f"error: {label} not found: {path}", file=sys.stderr)
         sys.exit(2)
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except json.JSONDecodeError as exc:
-        print(f"error: failed to parse {path}: {exc}", file=sys.stderr)
+        print(f"error: failed to parse {label} {path}: {exc}", file=sys.stderr)
         sys.exit(2)
     if not isinstance(data, list):
         print(
-            f"error: expected a JSON array of findings in {path}, got {type(data).__name__}",
+            f"error: expected a JSON array of findings in {label} {path}, got {type(data).__name__}",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -163,8 +163,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     current_label = args.current_label or os.path.splitext(os.path.basename(args.current))[0]
 
     # Load
-    previous = _load_findings(args.previous)
-    current = _load_findings(args.current)
+    previous = _load_findings(args.previous, label="previous findings file")
+    current = _load_findings(args.current, label="current findings file")
 
     # Compare
     delta = compare_findings(previous, current)

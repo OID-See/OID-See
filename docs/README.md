@@ -80,8 +80,8 @@ Start here to audit and report:
 2. **Risk Assessment**: Leverage [Scoring Logic](./scoring-logic.md) for compliance scoring
 3. **Query Examples**: Apply filters from [Web App Guide](./web-app.md)
 4. **Export Schema**: Reference [Schema Documentation](./schema.md) for reporting
-7. **Export Findings**: Use `generate_findings.py` to produce structured audit evidence in JSON, CSV, or Markdown
-8. **Compare Scans**: Use `compare_findings.py` to detect drift between two findings exports
+5. **Export Findings**: Use `generate_findings.py` to produce structured audit evidence in JSON, CSV, or Markdown
+6. **Compare Scans**: Use `compare_findings.py` to detect drift between two findings exports
 
 ## Documentation Overview
 
