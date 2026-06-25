@@ -44,6 +44,11 @@ Welcome to the comprehensive documentation for the OID-See project. This documen
    - JSON, CSV, and Markdown output formats
    - Evidence-first language for tickets and audits
 
+7. **[Findings Delta / Drift Report](#findings-delta--drift-report)**
+   - Compare two findings exports and detect what changed
+   - new, resolved, unchanged, changed, regressed, improved classifications
+   - JSON, CSV, and Markdown delta output formats
+
 ## Quick Start
 
 ### For Security Analysts
@@ -56,6 +61,7 @@ Start here to analyze your tenant:
 4. **Choose View Mode**: For large datasets, see [Visualization Modes](./visualization-modes.md)
 5. **Query**: Learn filter syntax to find specific security issues
 6. **Export Findings**: Use `generate_findings.py` to export analyst-ready findings for tickets or audits
+7. **Compare Scans**: Use `compare_findings.py` to detect drift between two scan exports
 
 ### For Developers
 
@@ -74,7 +80,8 @@ Start here to audit and report:
 2. **Risk Assessment**: Leverage [Scoring Logic](./scoring-logic.md) for compliance scoring
 3. **Query Examples**: Apply filters from [Web App Guide](./web-app.md)
 4. **Export Schema**: Reference [Schema Documentation](./schema.md) for reporting
-5. **Findings Export**: Use `generate_findings.py` to produce structured audit evidence in JSON, CSV, or Markdown
+5. **Export Findings**: Use `generate_findings.py` to produce structured audit evidence in JSON, CSV, or Markdown
+6. **Compare Scans**: Use `compare_findings.py` to detect drift between two findings exports
 
 ## Documentation Overview
 
@@ -298,7 +305,8 @@ python generate_findings.py scan-results.json findings.json --min-level info
 
 | Field | Description |
 | --- | --- |
-| `findingId` | Stable deterministic ID (`oidf-<sha256 prefix>`) |
+| `findingId` | Stable deterministic ID (`oidf-<sha256 prefix>`) derived from `servicePrincipalId` and sorted reason codes |
+| `subjectKey` | Stable subject identity for drift comparison — prefers `servicePrincipalId`, falls back to `appId`, then `findingId` |
 | `displayName` | App display name |
 | `appId` | Application (client) ID |
 | `servicePrincipalId` | Service principal object ID |
@@ -383,6 +391,153 @@ rows = findings_to_csv_rows(findings)
 
 # Render as Markdown
 md = findings_to_markdown(findings, tenant_display_name="Contoso", generated_at="2025-01-01T00:00:00Z")
+```
+
+## Findings Delta / Drift Report
+
+`compare_findings.py` compares two OID-See findings exports and produces a delta report
+showing what changed between scans.  This is a standalone comparison tool — it does not
+touch scanner collection or scoring.
+
+### Quick Start
+
+```bash
+# Produce a JSON delta report
+python compare_findings.py previous-findings.json current-findings.json findings-delta.json
+
+# Produce a Markdown drift report (human-readable, suitable for reports and issue trackers)
+python compare_findings.py previous-findings.json current-findings.json findings-delta.md
+
+# Produce a CSV delta table
+python compare_findings.py previous-findings.json current-findings.json findings-delta.csv
+
+# Override scan labels shown in the Markdown report header
+python compare_findings.py previous-findings.json current-findings.json findings-delta.md \
+    --previous-label "2025-01-01-scan" \
+    --current-label  "2025-02-01-scan"
+```
+
+### Typical Workflow
+
+```bash
+# 1. Generate findings from scan 1 (earlier)
+python generate_findings.py scan-jan.json findings-jan.json
+
+# 2. Generate findings from scan 2 (later)
+python generate_findings.py scan-feb.json findings-feb.json
+
+# 3. Compare and produce a delta report
+python compare_findings.py findings-jan.json findings-feb.json findings-delta.md \
+    --previous-label "Jan 2025" \
+    --current-label  "Feb 2025"
+```
+
+### Status Classification
+
+Each delta entry is classified using `subjectKey` as the stable comparison key.
+The `subjectKey` is derived from `servicePrincipalId` → `appId` → `findingId`
+in priority order.  This is intentionally separate from `findingId`, which
+encodes the finding _signature_ (SP identity + sorted reason codes) and changes
+whenever reason codes change.
+
+**Why the distinction matters**: if the diff tool used `findingId` as the
+comparison key, a ServicePrincipal that changes reason codes between scans would
+appear as one *resolved* finding plus one *new* finding, even though it is the
+same app.  Using `subjectKey` ensures the diff correctly classifies it as
+*changed*, *regressed*, or *improved*.
+
+| Status | Meaning |
+| --- | --- |
+| `new` | Present in current scan, absent in previous |
+| `resolved` | Present in previous scan, absent in current |
+| `unchanged` | Present in both scans with no material change |
+| `changed` | Present in both but reason codes, score, level, confidence, evidence titles, or recommended action changed |
+| `regressed` | Present in both and risk score or risk level worsened |
+| `improved` | Present in both and risk score or risk level improved |
+
+Risk level ordering: `critical > high > medium > low > info`
+
+### Delta Entry Fields
+
+| Field | Description |
+| --- | --- |
+| `subjectKey` | Stable subject key used for comparison (`servicePrincipalId` → `appId` → `findingId`) |
+| `findingId` | Canonical finding ID for this entry (current scan's ID if available, else previous) |
+| `previousFindingId` | Finding ID from the previous scan — only set when it differs from `currentFindingId` |
+| `currentFindingId` | Finding ID from the current scan — only set when it differs from `previousFindingId` |
+| `displayName` | App display name |
+| `appId` | Application (client) ID |
+| `servicePrincipalId` | Service principal object ID |
+| `status` | Classification: new / resolved / unchanged / changed / regressed / improved |
+| `previousRiskScore` | Risk score from the previous scan (`null` for new findings) |
+| `currentRiskScore` | Risk score from the current scan (`null` for resolved findings) |
+| `previousRiskLevel` | Risk level from the previous scan |
+| `currentRiskLevel` | Risk level from the current scan |
+| `previousReasonCodes` | Reason codes from the previous scan |
+| `currentReasonCodes` | Reason codes from the current scan |
+| `addedReasonCodes` | Codes present in current but not previous (sorted) |
+| `removedReasonCodes` | Codes present in previous but not current (sorted) |
+| `unchangedReasonCodes` | Codes present in both scans (sorted) |
+| `previousConfidence` | Confidence from the previous scan |
+| `currentConfidence` | Confidence from the current scan |
+| `summary` | One-line human-readable change summary |
+| `analystAction` | Suggested analyst action for this status |
+
+### Analyst Actions
+
+| Status | Suggested Action |
+| --- | --- |
+| `new` (critical/high) | Review urgently and confirm whether new consent, credential, assignment, or publisher state changed |
+| `new` (medium/low) | Review new finding and assess whether it requires immediate action |
+| `regressed` | Compare reason code changes and validate what caused the score increase |
+| `improved` | Confirm remediation was intentional and complete |
+| `resolved` | Verify app removal, permission removal, or risk reduction was expected |
+| `changed` | Review changed reason codes and evidence |
+| `unchanged` | No action required |
+
+### Markdown Report Sections
+
+The Markdown report contains the following sections:
+
+1. **Summary** — counts by status and counts by current risk level
+2. **New Findings** — full detail for each new finding
+3. **Regressed Findings** — score/level changes for worsened findings
+4. **Improved Findings** — score/level changes for improved findings
+5. **Resolved Findings** — previous risk detail for resolved findings
+6. **Changed Findings** — added/removed reason codes and confidence changes
+7. **Unchanged Findings** — collapsed summary table (one row per finding)
+
+### Programmatic Usage
+
+```python
+import json
+from findings_diff import compare_findings, delta_to_markdown
+
+# Load two findings exports
+with open("findings-jan.json") as f:
+    previous = json.load(f)
+
+with open("findings-feb.json") as f:
+    current = json.load(f)
+
+# Compare
+delta = compare_findings(previous, current)
+
+# JSON output
+with open("delta.json", "w") as f:
+    json.dump(delta, f, indent=2)
+
+# Markdown output
+with open("delta.md", "w") as f:
+    f.write(delta_to_markdown(delta, "Jan 2025", "Feb 2025"))
+
+# Filter to regressions only
+regressions = [e for e in delta if e["status"] == "regressed"]
+
+# Count by status
+by_status = {}
+for entry in delta:
+    by_status[entry["status"]] = by_status.get(entry["status"], 0) + 1
 ```
 
 ## Support Resources
