@@ -1200,6 +1200,282 @@ The schema uses `additionalProperties: false` at the top level but allows extens
 - **[Scoring Logic Documentation](scoring-logic.md)**: Risk calculation details
 - **[Web App Documentation](webapp.md)**: Visualizing exports
 
+---
+
+# OID-See Findings Schema
+
+## Overview
+
+The findings export schema defines the structure of the JSON array produced by
+`finding_builder.build_findings` (and the `generate_findings.py` CLI wrapper).
+Findings are **derived artefacts** — all risk values originate verbatim from the
+OID-See scanner graph export. No independent scoring is performed by the findings
+layer, and this schema does not govern scanner scoring.
+
+**Schema Location**: `schemas/oidsee-findings.schema.json`
+
+### Distinction from the graph export
+
+| Artefact | Schema | Description |
+|---|---|---|
+| Graph export | `schemas/oidsee-graph-export.schema.json` | Full scanner output: nodes, edges, raw risk reasons |
+| Findings export | `schemas/oidsee-findings.schema.json` | Analyst-ready findings derived from the graph export |
+| Findings delta | `schemas/oidsee-findings-delta.schema.json` | Drift report comparing two findings exports |
+
+### Top-Level Structure
+
+The findings export is a **JSON array** of finding objects.
+
+```json
+[
+  {
+    "findingId": "oidf-a1b2c3d4e5f6",
+    "subjectKey": "00000000-0000-0000-0000-000000000001",
+    "displayName": "Contoso Integration",
+    "appId": "00000000-0000-0000-0000-000000000002",
+    "servicePrincipalId": "00000000-0000-0000-0000-000000000001",
+    "publisherName": "Contoso Ltd",
+    "verifiedPublisherId": null,
+    "appOwnerOrganizationId": "00000000-0000-0000-0000-000000000099",
+    "appOwnership": "3rd Party",
+    "riskScore": 72,
+    "riskLevel": "high",
+    "reasonCodes": ["HAS_APP_ROLE", "UNVERIFIED_PUBLISHER"],
+    "evidence": [
+      {
+        "reasonCode": "HAS_APP_ROLE",
+        "weight": 40,
+        "title": "Application permission (app role) granted",
+        "summary": "This app holds one or more application-level permissions ...",
+        "scannerMessage": "App roles: Mail.ReadWrite",
+        "impact": "App role grants persist indefinitely ...",
+        "checkNext": "Review each granted app role ...",
+        "falsePositiveNotes": "Microsoft first-party service apps ..."
+      }
+    ],
+    "confidence": "high",
+    "recommendedAction": "Review admin consent for each app role ...",
+    "falsePositiveNotes": "Review each evidence item for specific false-positive context ...",
+    "affectedRelationships": [
+      {
+        "direction": "outbound",
+        "edgeId": "edge-001",
+        "edgeType": "HAS_APP_ROLE",
+        "fromNodeId": "sp:001",
+        "toNodeId": "res:graph",
+        "otherNodeId": "res:graph",
+        "otherNodeDisplayName": "Microsoft Graph",
+        "edgeProperties": {
+          "permissionType": "application",
+          "privileged": true
+        }
+      }
+    ]
+  }
+]
+```
+
+### Required Fields
+
+| Field | Type | Description |
+|---|---|---|
+| `findingId` | string | Stable deterministic ID derived from subject + reason codes |
+| `subjectKey` | string | Stable comparison key for drift tracking |
+| `displayName` | string | Human-readable name of the app/service principal |
+| `riskScore` | integer 0–100 | Risk score from the scanner export |
+| `riskLevel` | enum | `info`, `low`, `medium`, `high`, or `critical` |
+| `reasonCodes` | string[] | Scanner reason codes contributing to this finding |
+| `evidence` | object[] | Expanded evidence entries, one per reason code |
+| `confidence` | enum | `low`, `medium`, or `high` |
+| `recommendedAction` | string | Aggregated analyst recommendations |
+| `falsePositiveNotes` | string | General false-positive guidance |
+| `affectedRelationships` | object[] | Graph edges involving the finding subject |
+
+### Nullable Fields
+
+| Field | Type | Description |
+|---|---|---|
+| `appId` | string\|null | Application client ID |
+| `servicePrincipalId` | string\|null | Enterprise app object ID |
+| `publisherName` | string\|null | Publisher name from Graph |
+| `verifiedPublisherId` | string\|null | Microsoft Partner Center verified publisher ID |
+| `appOwnerOrganizationId` | string\|null | Tenant ID of registering org |
+| `appOwnership` | `"1st Party"`\|`"3rd Party"`\|`"Internal"`\|null | Ownership classification |
+
+### Evidence Entry Structure
+
+Each `evidence` object contains:
+
+| Field | Type | Description |
+|---|---|---|
+| `reasonCode` | string | Scanner reason code |
+| `weight` | number | Numeric weight in the risk score |
+| `title` | string | Short title for the evidence item |
+| `summary` | string | Description of what the evidence means |
+| `scannerMessage` | string | Raw scanner message for this reason |
+| `impact` | string | Security impact if exploited |
+| `checkNext` | string | What the analyst should investigate next |
+| `falsePositiveNotes` | string | Common false-positive patterns |
+
+### Affected Relationship Structure
+
+Each `affectedRelationships` object contains:
+
+| Field | Type | Description |
+|---|---|---|
+| `direction` | `"inbound"`\|`"outbound"` | Edge direction relative to the finding subject |
+| `edgeId` | string\|null | Graph edge ID |
+| `edgeType` | string\|null | Edge type label |
+| `fromNodeId` | string\|null | Source node ID |
+| `toNodeId` | string\|null | Target node ID |
+| `otherNodeId` | string\|null | The node on the other end |
+| `otherNodeDisplayName` | string\|null | Display name of the other node |
+| `edgeProperties` | object | Extra edge properties (optional) |
+
+### Validating externally
+
+```bash
+# Using Python's jsonschema (4.x+)
+python - <<'EOF'
+import json
+from jsonschema import validate
+
+with open("schemas/oidsee-findings.schema.json") as f:
+    schema = json.load(f)
+
+with open("findings.json") as f:
+    data = json.load(f)
+
+validate(instance=data, schema=schema)
+print("Valid")
+EOF
+```
+
+---
+
+# OID-See Findings Delta Schema
+
+## Overview
+
+The findings delta schema defines the structure of the JSON array produced by
+`findings_diff.compare_findings` (and the `compare_findings.py` CLI wrapper).
+Delta entries describe how each finding changed between two OID-See scan runs.
+They are **derived artefacts** — no independent scoring or finding semantics are
+introduced by the delta layer.
+
+**Schema Location**: `schemas/oidsee-findings-delta.schema.json`
+
+### Top-Level Structure
+
+The findings delta export is a **JSON array** of delta entry objects, sorted by
+status priority (new → regressed → improved → resolved → changed → unchanged)
+then by current risk score descending.
+
+```json
+[
+  {
+    "subjectKey": "00000000-0000-0000-0000-000000000001",
+    "findingId": "oidf-a1b2c3d4e5f6",
+    "previousFindingId": "oidf-000000000000",
+    "currentFindingId": "oidf-a1b2c3d4e5f6",
+    "displayName": "Contoso Integration",
+    "appId": "00000000-0000-0000-0000-000000000002",
+    "servicePrincipalId": "00000000-0000-0000-0000-000000000001",
+    "status": "regressed",
+    "previousRiskScore": 55,
+    "currentRiskScore": 72,
+    "previousRiskLevel": "medium",
+    "currentRiskLevel": "high",
+    "previousReasonCodes": ["UNVERIFIED_PUBLISHER"],
+    "currentReasonCodes": ["HAS_APP_ROLE", "UNVERIFIED_PUBLISHER"],
+    "addedReasonCodes": ["HAS_APP_ROLE"],
+    "removedReasonCodes": [],
+    "unchangedReasonCodes": ["UNVERIFIED_PUBLISHER"],
+    "previousConfidence": "medium",
+    "currentConfidence": "high",
+    "summary": "Regressed: score 55 → 72, level medium → high.",
+    "analystAction": "Compare reason code changes and validate what caused the score increase."
+  }
+]
+```
+
+### Required Fields
+
+| Field | Type | Description |
+|---|---|---|
+| `subjectKey` | string | Stable key matching the same app across scans |
+| `findingId` | string | Canonical finding ID (current if present, else previous) |
+| `displayName` | string\|null | Human-readable name |
+| `status` | enum | `new`, `resolved`, `unchanged`, `changed`, `regressed`, or `improved` |
+| `previousRiskScore` | integer 0–100\|null | Risk score from the previous scan |
+| `currentRiskScore` | integer 0–100\|null | Risk score from the current scan |
+| `previousRiskLevel` | enum\|null | Risk level from the previous scan |
+| `currentRiskLevel` | enum\|null | Risk level from the current scan |
+| `previousReasonCodes` | string[] | Reason codes from the previous scan |
+| `currentReasonCodes` | string[] | Reason codes from the current scan |
+| `addedReasonCodes` | string[] | Codes added in the current scan |
+| `removedReasonCodes` | string[] | Codes removed in the current scan |
+| `unchangedReasonCodes` | string[] | Codes present in both scans |
+| `summary` | string | Human-readable change summary |
+| `analystAction` | string | Suggested analyst action (empty for unchanged) |
+
+### Nullable Fields
+
+| Field | Type | Description |
+|---|---|---|
+| `previousFindingId` | string\|null | Previous finding ID — set only when the ID changed between scans |
+| `currentFindingId` | string\|null | Current finding ID — set only when the ID changed between scans |
+| `appId` | string\|null | Application client ID |
+| `servicePrincipalId` | string\|null | Enterprise app object ID |
+| `previousRiskScore` | integer\|null | Null for new findings |
+| `currentRiskScore` | integer\|null | Null for resolved findings |
+| `previousRiskLevel` | enum\|null | Null for new findings |
+| `currentRiskLevel` | enum\|null | Null for resolved findings |
+| `previousConfidence` | enum\|null | Null for new findings |
+| `currentConfidence` | enum\|null | Null for resolved findings |
+
+### Status Values
+
+| Status | Meaning |
+|---|---|
+| `new` | Finding present in current scan only |
+| `resolved` | Finding present in previous scan only |
+| `regressed` | Risk score or level worsened |
+| `improved` | Risk score or level improved |
+| `changed` | Material change (reason codes, confidence, recommended action) without score/level change |
+| `unchanged` | No material change between scans |
+
+### Finding ID Changes
+
+When reason codes change between scans, the deterministic `findingId` (derived
+from subject + sorted reason codes) also changes. In this case:
+
+- `findingId` is set to the **current** finding ID
+- `previousFindingId` is set to the **previous** finding ID
+- `currentFindingId` is set to the **current** finding ID
+
+When the finding ID is stable between scans, both `previousFindingId` and
+`currentFindingId` are `null`.
+
+### Validating externally
+
+```bash
+# Using Python's jsonschema (4.x+)
+python - <<'EOF'
+import json
+from jsonschema import validate
+
+with open("schemas/oidsee-findings-delta.schema.json") as f:
+    schema = json.load(f)
+
+with open("delta.json") as f:
+    data = json.load(f)
+
+validate(instance=data, schema=schema)
+print("Valid")
+EOF
+```
+
 ## Schema Version History
 
 ### Version 1.0

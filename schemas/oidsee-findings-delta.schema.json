@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oidsee.dev/schemas/oidsee-findings-delta.schema.json",
+  "title": "OID-See Findings Delta Export Schema",
+  "description": "Schema for the findings delta (drift) report produced by findings_diff.compare_findings / compare_findings.py. Delta entries are derived artefacts computed by comparing two findings exports. This schema does not govern scanner scoring or finding semantics.",
+  "type": "array",
+  "items": {
+    "$ref": "#/$defs/deltaEntry"
+  },
+  "$defs": {
+    "riskLevel": {
+      "type": ["string", "null"],
+      "enum": ["info", "low", "medium", "high", "critical", null]
+    },
+    "riskScore": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Risk score from 0 to 100, or null when the finding did not exist in that scan."
+    },
+    "deltaEntry": {
+      "type": "object",
+      "required": [
+        "subjectKey",
+        "findingId",
+        "displayName",
+        "status",
+        "previousRiskScore",
+        "currentRiskScore",
+        "previousRiskLevel",
+        "currentRiskLevel",
+        "previousReasonCodes",
+        "currentReasonCodes",
+        "addedReasonCodes",
+        "removedReasonCodes",
+        "unchangedReasonCodes",
+        "summary",
+        "analystAction"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "subjectKey": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable subject key used to match the same app across scans. Derived from servicePrincipalId → appId → findingId in priority order."
+        },
+        "findingId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Canonical finding ID for this delta entry: the current findingId if available, otherwise the previous findingId."
+        },
+        "previousFindingId": {
+          "type": ["string", "null"],
+          "description": "Finding ID from the previous scan. Set only when the finding ID changed between scans (i.e. reason codes changed), otherwise null."
+        },
+        "currentFindingId": {
+          "type": ["string", "null"],
+          "description": "Finding ID from the current scan. Set only when the finding ID changed between scans (i.e. reason codes changed), otherwise null."
+        },
+        "displayName": {
+          "type": ["string", "null"],
+          "description": "Human-readable display name of the app or service principal."
+        },
+        "appId": {
+          "type": ["string", "null"],
+          "description": "Application (client) ID, if available."
+        },
+        "servicePrincipalId": {
+          "type": ["string", "null"],
+          "description": "Object ID of the enterprise application (service principal), if available."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["new", "resolved", "unchanged", "changed", "regressed", "improved"],
+          "description": "Classification of how the finding changed between scans."
+        },
+        "previousRiskScore": {
+          "$ref": "#/$defs/riskScore",
+          "description": "Risk score from the previous scan, or null for new findings."
+        },
+        "currentRiskScore": {
+          "$ref": "#/$defs/riskScore",
+          "description": "Risk score from the current scan, or null for resolved findings."
+        },
+        "previousRiskLevel": {
+          "$ref": "#/$defs/riskLevel",
+          "description": "Risk level from the previous scan, or null for new findings."
+        },
+        "currentRiskLevel": {
+          "$ref": "#/$defs/riskLevel",
+          "description": "Risk level from the current scan, or null for resolved findings."
+        },
+        "previousReasonCodes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Reason codes from the previous scan. Empty array for new findings."
+        },
+        "currentReasonCodes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Reason codes from the current scan. Empty array for resolved findings."
+        },
+        "addedReasonCodes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Reason codes present in the current scan but not the previous scan."
+        },
+        "removedReasonCodes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Reason codes present in the previous scan but not the current scan."
+        },
+        "unchangedReasonCodes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Reason codes present in both scans."
+        },
+        "previousConfidence": {
+          "type": ["string", "null"],
+          "enum": ["low", "medium", "high", null],
+          "description": "Confidence level from the previous scan, or null for new findings."
+        },
+        "currentConfidence": {
+          "type": ["string", "null"],
+          "enum": ["low", "medium", "high", null],
+          "description": "Confidence level from the current scan, or null for resolved findings."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Human-readable summary of what changed between scans for this subject."
+        },
+        "analystAction": {
+          "type": "string",
+          "description": "Suggested analyst action for this delta entry. Empty string for unchanged findings."
+        }
+      }
+    }
+  }
+}
