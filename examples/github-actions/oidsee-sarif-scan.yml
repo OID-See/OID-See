@@ -1,0 +1,163 @@
+# OID-See — GitHub Actions SARIF scan example
+#
+# Runs OID-See against an Entra ID tenant on a schedule or manually,
+# generates SARIF findings, uploads them to GitHub code scanning, and
+# stores raw JSON artefacts.
+#
+# Prerequisites
+# ─────────────
+# 1. Create a least-privilege Entra app registration with:
+#      Application.Read.All
+#      AppRoleAssignment.Read.All
+#      DelegatedPermissionGrant.Read.All
+#      Directory.Read.All
+#      RoleManagement.Read.Directory
+#    Grant admin consent for the tenant you want to scan.
+#
+# 2. Store credentials as GitHub Actions secrets (repo or org level):
+#      AZURE_TENANT_ID     — Directory (tenant) ID GUID
+#      AZURE_CLIENT_ID     — Application (client) ID GUID
+#      AZURE_CLIENT_SECRET — Client secret value
+#
+# 3. Enable GitHub code scanning on the repository (requires GitHub Advanced
+#    Security or a public repository).
+#
+# SARIF note
+# ──────────
+# OID-See SARIF findings map tenant/runtime objects (service principals,
+# applications, OAuth grants) to logical OID-See locations rather than
+# source-code files.  They appear in the "Security" → "Code scanning" tab
+# of the repository under the "oidsee" tool name.
+#
+# Findings-delta (drift reports) are not emitted as SARIF.  Use the JSON
+# delta artefact for drift analysis and keep previous findings artefacts
+# to feed into --compare-findings on the next run.
+#
+# Treat all artefacts (graph exports, findings JSON, SARIF) as sensitive
+# security data.  Consider restricting who can download workflow artefacts.
+
+name: OID-See SARIF Scan
+
+on:
+  # Allow manual trigger with optional overrides
+  workflow_dispatch:
+    inputs:
+      findings_min_level:
+        description: "Minimum risk level to include in findings (info/low/medium/high/critical)"
+        required: false
+        default: "medium"
+        type: choice
+        options:
+          - info
+          - low
+          - medium
+          - high
+          - critical
+
+  # Weekly schedule — every Monday at 02:00 UTC
+  # Adjust the cron expression to match your desired cadence.
+  schedule:
+    - cron: "0 2 * * 1"
+
+# Minimum permissions required for SARIF upload and artefact storage.
+# Do not grant write access to contents unless you need to commit scan outputs
+# (which is not recommended — scan outputs may contain tenant-sensitive data).
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  oidsee-scan:
+    name: Scan Entra ID tenant and upload findings
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+
+      # ── Primary scan: SARIF output (medium risk and above) ──────────────
+      # This step produces the SARIF file that is uploaded to code scanning.
+      # Use --findings-min-level to control which risk levels are included.
+      # The minimum level can be overridden when triggering the workflow manually.
+      - name: Run OID-See scanner (SARIF findings)
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          python oidsee_scanner.py \
+            --tenant-id "$AZURE_TENANT_ID" \
+            --client-id "$AZURE_CLIENT_ID" \
+            --client-secret "$AZURE_CLIENT_SECRET" \
+            --auth-method client-secret \
+            --out oidsee-export.json \
+            --generate-findings oidsee-findings.sarif \
+            --findings-format sarif \
+            --findings-min-level "${{ github.event.inputs.findings_min_level || 'medium' }}"
+
+      # ── Optional: also emit findings as JSON for drift comparison ────────
+      # The JSON findings can be:
+      #   • downloaded as a workflow artefact and saved externally
+      #   • fed into --compare-findings on the next scheduled run
+      # Do not commit findings JSON to the repository — it may contain
+      # tenant-sensitive data (app IDs, permission grants, risk details).
+      - name: Run OID-See scanner (JSON findings — low and above)
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          python oidsee_scanner.py \
+            --tenant-id "$AZURE_TENANT_ID" \
+            --client-id "$AZURE_CLIENT_ID" \
+            --client-secret "$AZURE_CLIENT_SECRET" \
+            --auth-method client-secret \
+            --out oidsee-export.json \
+            --generate-findings oidsee-findings.json \
+            --findings-format json \
+            --findings-min-level low
+
+      # ── Upload SARIF to GitHub code scanning ─────────────────────────────
+      # Findings appear in Security → Code scanning on the repository.
+      # Requires security-events: write permission (set above).
+      # If the repository is private, GitHub Advanced Security must be enabled.
+      - name: Upload SARIF to GitHub code scanning
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: oidsee-findings.sarif
+          category: oidsee
+
+      # ── Upload raw artefacts ──────────────────────────────────────────────
+      # Store graph export and findings JSON as workflow artefacts so that:
+      #   • analysts can download and review offline
+      #   • a future run can use oidsee-findings.json as --compare-findings
+      #
+      # Retention is set to 30 days by default.  Adjust as appropriate for
+      # your data-handling and compliance requirements.
+      - name: Upload OID-See artefacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: oidsee-scan-${{ github.run_id }}
+          path: |
+            oidsee-export.json
+            oidsee-findings.json
+            oidsee-findings.sarif
+          retention-days: 30
+          # Consider setting if-no-files-found: error to detect silent failures
+          if-no-files-found: warn
