@@ -718,6 +718,12 @@ def _build_affected_relationships(
 ) -> List[Dict[str, Any]]:
     """Return edges where this node is the source (outbound) or target (inbound).
 
+    Args:
+        node_id:    The graph node ID of the service principal being processed.
+        edges:      All edges from the export.
+        node_index: Mapping from node ID to node object, used to look up display names
+                    for the other node on each edge.
+
     Each relationship includes:
     - direction: "outbound" (this node is ``from``) or "inbound" (this node is ``to``)
     - edgeId, edgeType, fromNodeId, toNodeId
