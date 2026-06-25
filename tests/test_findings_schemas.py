@@ -61,7 +61,7 @@ DELTA_SCHEMA = _load_schema("oidsee-findings-delta.schema.json")
 # ---------------------------------------------------------------------------
 
 
-def _make_export(nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]] | None = None) -> Dict[str, Any]:
+def _make_export(nodes: List[Dict[str, Any]], edges: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
     return {
         "format": {"name": "oidsee-graph", "version": "1.1"},
         "generatedAt": "2025-01-01T00:00:00Z",
