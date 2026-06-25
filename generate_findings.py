@@ -39,7 +39,7 @@ from finding_builder import (
     findings_to_markdown,
 )
 
-_SUPPORTED_EXTENSIONS = {".json", ".csv", ".md", ".markdown"}
+_SUPPORTED_EXTENSIONS = {".json", ".csv", ".md", ".markdown", ".sarif"}
 _RISK_LEVELS = ("info", "low", "medium", "high", "critical")
 
 
@@ -52,6 +52,8 @@ def _detect_format(output_path: str) -> str:
         return "csv"
     if ext in (".md", ".markdown"):
         return "markdown"
+    if ext == ".sarif":
+        return "sarif"
     return "json"
 
 
@@ -84,6 +86,11 @@ def _write_markdown(
             f.write("\n")
 
 
+def _write_sarif(findings: List[Dict[str, Any]], output_path: str) -> None:
+    from findings_sarif import write_sarif
+    write_sarif(findings, output_path)
+
+
 _LEVEL_SORT_ORDER = ["critical", "high", "medium", "low", "info"]
 _UNKNOWN_LEVEL_SORT_KEY = len(_LEVEL_SORT_ORDER)  # places unknown levels after all known ones
 
@@ -101,11 +108,13 @@ def main(argv: List[str] | None = None) -> int:
             "  python generate_findings.py scan-results.json findings.json\n"
             "  python generate_findings.py scan-results.json findings.csv\n"
             "  python generate_findings.py scan-results.json findings.md\n"
+            "  python generate_findings.py scan-results.json findings.sarif\n"
             "  python generate_findings.py scan-results.json findings.json --min-level medium\n"
+            "  python generate_findings.py scan-results.json findings.sarif --format sarif\n"
         ),
     )
     parser.add_argument("input", metavar="INPUT_PATH", help="Path to OID-See JSON export")
-    parser.add_argument("output", metavar="OUTPUT_PATH", help="Output file path (.json / .csv / .md)")
+    parser.add_argument("output", metavar="OUTPUT_PATH", help="Output file path (.json / .csv / .md / .sarif)")
     parser.add_argument(
         "--min-level",
         dest="min_level",
@@ -116,7 +125,7 @@ def main(argv: List[str] | None = None) -> int:
     parser.add_argument(
         "--format",
         dest="fmt",
-        choices=("json", "csv", "markdown"),
+        choices=("json", "csv", "markdown", "sarif"),
         default=None,
         help="Override output format (default: inferred from extension)",
     )
@@ -146,6 +155,8 @@ def main(argv: List[str] | None = None) -> int:
             _write_json(findings, args.output)
         elif fmt == "csv":
             _write_csv(findings, args.output)
+        elif fmt == "sarif":
+            _write_sarif(findings, args.output)
         else:
             _write_markdown(findings, args.output, export)
     except OSError as exc:

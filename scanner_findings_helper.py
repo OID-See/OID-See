@@ -22,7 +22,7 @@ from typing import Any, Dict, List
 def detect_format(output_path: str) -> str:
     """Infer output format from a file extension.
 
-    Returns one of ``"json"``, ``"csv"``, or ``"markdown"``.
+    Returns one of ``"json"``, ``"csv"``, ``"markdown"``, or ``"sarif"``.
     Falls back to ``"json"`` for unrecognised extensions.
     """
     _, ext = os.path.splitext(output_path.lower())
@@ -32,6 +32,8 @@ def detect_format(output_path: str) -> str:
         return "csv"
     if ext in (".md", ".markdown"):
         return "markdown"
+    if ext == ".sarif":
+        return "sarif"
     return "json"
 
 
@@ -50,7 +52,7 @@ def write_findings(
         findings: List of finding dicts as returned by
             :func:`finding_builder.build_findings`.
         path: Destination file path.
-        fmt: One of ``"json"``, ``"csv"``, or ``"markdown"``.
+        fmt: One of ``"json"``, ``"csv"``, ``"markdown"``, or ``"sarif"``.
         export: The original OID-See graph export (used for tenant metadata in
             Markdown output).
 
@@ -69,6 +71,9 @@ def write_findings(
             writer = _csv.DictWriter(fh, fieldnames=CSV_FIELDNAMES, extrasaction="ignore")
             writer.writeheader()
             writer.writerows(rows)
+    elif fmt == "sarif":
+        from findings_sarif import write_sarif
+        write_sarif(findings, path)
     else:
         tenant = export.get("tenant") or {}
         content = findings_to_markdown(
