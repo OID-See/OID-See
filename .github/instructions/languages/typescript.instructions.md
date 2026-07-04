@@ -1,4 +1,4 @@
-<!-- version: 1.0.0 -->
+<!-- version: 1.0.1 -->
 # TypeScript Language Pack
 
 Use this guidance when working with TypeScript code.
@@ -7,9 +7,11 @@ Use this guidance when working with TypeScript code.
 
 Prefer clear, typed, maintainable TypeScript over clever or overly abstract patterns.
 
-Follow existing project conventions before introducing new ones.
+Follow existing project conventions before introducing new ones. If existing project conventions conflict with the type-safety or security rules above, follow this guide for new or changed code, note the divergence, and do not refactor unrelated code unless asked.
 
 Do not weaken type safety to make code compile. Avoid `any` unless there is a clear boundary reason and it is explained.
+
+If the user explicitly requests weakening type safety, push back once with a safer alternative; if the user insists, comply and clearly document the compromise in the final response under type-safety compromises.
 
 Prefer explicit types at public boundaries and allow inference for obvious local values.
 
@@ -28,7 +30,7 @@ Avoid:
 
 - unsafe type assertions
 - broad index signatures
-- non-null assertions unless justified
+- non-null assertions unless a prior runtime check guarantees non-null and a code comment references that check
 - suppressing compiler errors
 - weakening `tsconfig` strictness
 - pretending runtime validation exists because TypeScript types exist
@@ -49,7 +51,7 @@ Validate data from:
 - generated model output
 - webhook payloads
 
-For small validation needs, write native validation. For complex schemas, use the project's existing validation library if one is already present.
+For small validation needs, write native validation. For complex schemas, use the project's existing validation library if one is already present. If none exists, propose adding one per the Dependencies rules before implementing.
 
 Do not add a validation dependency for small, simple validation tasks unless justified.
 
@@ -57,7 +59,7 @@ Do not add a validation dependency for small, simple validation tasks unless jus
 
 Follow the repository dependency discipline.
 
-Do not add dependencies for small functionality that can be implemented in under approximately 300 lines.
+Do not add a dependency if the equivalent functionality can be implemented in roughly 300 lines of production TypeScript, excluding tests and types.
 
 Prefer latest stable package versions that do not have unresolved Critical or High CVEs.
 
@@ -67,6 +69,8 @@ Before adding a package, explain:
 - why native TypeScript is not sufficient
 - whether an existing dependency can do the job
 - security and maintenance considerations
+
+If the user requests `any`, loose strictness, or another type-safety weakening, note the compromise in the final response under type-safety compromises.
 
 ## Async and errors
 
@@ -120,8 +124,14 @@ Do not introduce a test framework unless explicitly requested.
 
 When completing TypeScript work, include:
 
-- files changed
-- type checks run
-- tests run
-- tests not run
-- any type-safety compromises
+## Files changed
+
+## Type checks
+
+## Tests run
+
+## Tests not run
+
+## Type-safety compromises
+
+Write `None` if not applicable.

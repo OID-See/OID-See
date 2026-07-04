@@ -1,4 +1,4 @@
-<!-- version: 1.0.0 -->
+<!-- version: 1.0.1 -->
 # Microsoft Graph Pack
 
 Use this guidance when working with Microsoft Graph APIs, SDKs, PowerShell, automation, app permissions, queries, or Graph-based integrations.
@@ -15,16 +15,21 @@ Do not request broad permissions just because they are convenient.
 
 Prefer v1.0 endpoints unless beta functionality is explicitly required.
 
+If the target tenant is in a sovereign cloud (for example, US Gov or China), use the corresponding Graph endpoint and matching authority, and ask the user which cloud if unclear.
+
 ## Permissions
 
-Before using or adding a Graph permission, identify:
+Before using or adding a Graph permission, identify the minimal required set:
 
 - permission name
 - delegated or application
-- resource/data exposed
 - why it is required
 - whether admin consent is needed
 - whether a narrower permission exists
+
+If the permission is on the caution list or is write/tenant-wide, also identify:
+
+- resource/data exposed
 - whether read-only permission is sufficient
 - whether permission is tenant-wide
 - how it will be audited and reviewed
@@ -46,6 +51,8 @@ Be cautious with:
 - offline_access
 
 Do not add `offline_access` unless refresh tokens are actually required.
+
+If the user requests a cautioned permission, propose the narrowest alternative that satisfies the use case, explain the risk, and proceed only after explicit acknowledgement.
 
 ## Authentication
 
@@ -76,7 +83,9 @@ Always validate:
 
 ## SDK usage
 
-Use the repository's existing SDK style where present.
+Use the repository’s existing SDK style where present.
+
+If no existing style is present, default to the official Microsoft Graph SDK for the repository's primary language.
 
 Do not mix raw REST, SDK, Graph PowerShell, and CLI styles unnecessarily.
 
@@ -88,6 +97,8 @@ When using SDKs:
 - avoid dumping raw objects into logs
 - be explicit about beta vs v1.0 clients
 - avoid over-broad queries
+
+If using a repository primary language SDK, prefer Microsoft.Graph for .NET or @microsoft/microsoft-graph-client for JavaScript and TypeScript.
 
 ## Raw REST usage
 
@@ -101,9 +112,15 @@ When using raw Graph REST calls:
 - avoid logging Authorization headers
 - avoid logging full response bodies containing sensitive data
 
+On 429 or 503 responses, honor the Retry-After header; if absent, use exponential backoff starting at 1 second with jitter, with a maximum of 5 retries. Surface persistent throttling to the caller.
+
 Use `$select` to reduce returned data where practical.
 
 Use `$filter` carefully and validate assumptions.
+
+When using `$filter` with `not`, `endsWith`, `$search`, or `$count` on directory objects, include the `ConsistencyLevel: eventual` header and `$count=true` as required by Graph advanced queries.
+
+When using `$batch`, iterate each sub-response, report per-request status, and do not treat HTTP 200 on the batch envelope as overall success.
 
 ## Pagination and scale
 
@@ -139,12 +156,13 @@ When using beta:
 
 For write operations:
 
-- require explicit approval where possible
+- require explicit user confirmation before any write, update, or delete operation against directory, security, or policy objects listed under Security-sensitive objects
 - support dry-run mode
 - log object IDs and intended changes without secrets
 - avoid tenant-wide changes by default
 - validate target objects before modification
-- handle rollback where practical
+- for reversible operations such as property updates or role assignments, capture prior state before modification and provide a rollback script
+- for irreversible operations such as deletes, state that rollback is not possible and require confirmation
 
 Be cautious with:
 

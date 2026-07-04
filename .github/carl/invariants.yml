@@ -1,0 +1,98 @@
+# version: 1.1.0
+invariants:
+  - id: no-hardcoded-secrets
+    name: No hardcoded secrets
+    rule: Secrets, tokens, and credentials must not be committed to repository files.
+    severity: critical
+
+  - id: no-broad-rewrites
+    name: No broad rewrites
+    rule: Changes must remain scoped to requested outcomes and avoid unrelated rewrites.
+    severity: high
+
+  - id: security-baseline-preserved
+    name: Security baseline preserved
+    rule: Changes must preserve authentication, authorization, validation, and secret handling guarantees.
+    severity: critical
+
+  - id: plan-before-execute
+    name: Plan before execute
+    rule: Significant work requires an explicit plan before implementation.
+    severity: high
+
+  - id: no-unapproved-dependencies
+    name: No unapproved dependencies
+    rule: New dependencies require explicit justification and approval.
+    severity: high
+
+  - id: pr-contract-respected
+    name: PR contract respected
+    rule: Execution must stay inside the current PR contract unless scope is explicitly amended.
+    severity: high
+
+  - id: minimum-sufficient-reasoning-depth
+    name: Minimum sufficient reasoning depth
+    rule: Reasoning depth must be escalated only when risk, uncertainty, or novelty justifies the cost.
+    severity: high
+
+  - id: invariant-amendment-governance
+    name: Invariant amendment governance
+    rule: Agents must preserve invariants unless the user explicitly amends the invariant or opens a separate governance change.
+    severity: high
+
+  - id: durable-artefact-update-on-implementation
+    name: Durable artefact update on implementation
+    rule: Every implementation PR must update durable artefacts (.github/carl/invariants.yml, memory.md, ROADMAP.md, trust-boundaries.md) when behaviour, assumptions, commands, scope, roadmap, or operating model changes.
+    severity: high
+
+  - id: carl-canonical-governance
+    name: cARL canonical governance
+    rule: .github/carl artefacts are the canonical source of durable governance truth; harness-specific files must not be treated as independent authorities.
+    severity: high
+
+  - id: harness-adapters-not-authorities
+    name: Harness adapters are not authorities
+    rule: Harness-specific files such as .github/copilot-instructions.md, CLAUDE.md, AGENTS.md, .cursorrules, and ANTIGRAVITY.md are adapters/loaders that must route agents to canonical cARL artefacts.
+    severity: high
+
+  - id: explicit-carl-lifecycle
+    name: Explicit cARL lifecycle
+    rule: Harness loaders must make hydration, execution, validation, reconciliation, and final cARL/docs update decisions explicit.
+    severity: high
+
+  - id: repository-truth-over-session-memory
+    name: Repository truth over session memory
+    rule: Current repository state and canonical cARL artefacts must outrank stale prompt or session memory when they conflict.
+    severity: high
+
+  - id: scanner-signature-test-sync
+    name: Scanner risk-scoring signature stays in sync with tests
+    rule: >-
+      Any change to the keyword-argument signature of compute_risk_for_sp()
+      (or other public scanning/scoring functions in oidsee_scanner.py) must
+      update every call site in tests/ within the same change. Do not merge
+      a production signature change without a matching test-suite update, and
+      do not reintroduce removed boolean scope-flag parameters
+      (has_privileged_scopes, has_too_many_scopes, has_readwrite_all_scopes,
+      has_action_scopes) — privileged/broad-scope risk must be derived from
+      delegated_scopes_by_resource via classify_scopes().
+    severity: high
+
+  - id: no-tenant-mutating-operations
+    name: No tenant-mutating Microsoft Graph operations
+    rule: >-
+      OID-See is a read-only Entra ID/Microsoft Graph reconnaissance and
+      risk-scoring tool. Do not add code paths that create, update, delete,
+      or otherwise mutate directory objects, app registrations, service
+      principals, role assignments, or credentials in a target tenant
+      without explicit user approval and a dedicated PR contract.
+    severity: critical
+
+  - id: test-dependency-requirements-sync
+    name: Test-only dependencies must be reflected in requirements.txt
+    rule: >-
+      If a module under tests/ imports a third-party package (e.g.
+      jsonschema), that package must be listed in requirements.txt so a
+      fresh environment can install and run the full test suite without
+      manual intervention.
+    severity: medium

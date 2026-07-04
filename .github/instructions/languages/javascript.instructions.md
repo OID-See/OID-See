@@ -1,4 +1,4 @@
-<!-- version: 1.0.0 -->
+<!-- version: 1.0.1 -->
 # JavaScript Language Pack
 
 Use this guidance when working with JavaScript code.
@@ -9,13 +9,17 @@ Prefer clear, maintainable JavaScript over cleverness.
 
 Follow existing project conventions.
 
-Use modern JavaScript where supported by the project runtime, but do not introduce syntax that breaks the configured environment.
+Use modern JavaScript where supported by the project runtime, but do not introduce syntax that breaks the configured environment. Determine supported syntax from `package.json` `engines`, `.nvmrc`, `browserslist`, or `tsconfig` target in that order. If none are present, target Node.js LTS / ES2020.
+
+When existing project conventions conflict with the safety or security guidance in this document, follow the safety/security guidance and call out the deviation in the final response.
 
 Prefer explicit behaviour over implicit magic.
 
 ## Runtime safety
 
 JavaScript has no compile-time type guarantees by default. Validate external input at runtime.
+
+If the project uses JSDoc types or `checkJs` / `allowJs` in `tsconfig`, preserve and extend those annotations. Runtime validation is still required at trust boundaries even when types are present.
 
 Validate data from:
 
@@ -28,7 +32,9 @@ Validate data from:
 - generated model output
 - webhook payloads
 
-Use simple native validation for small cases.
+For inputs with fewer than about 5 fields, use inline checks such as `typeof`, `Array.isArray`, `Number.isFinite`, and explicit allow-lists rather than introducing a schema library.
+
+When validation fails, throw a descriptive error or reject the request with a 4xx response in HTTP contexts. Do not silently coerce or fall back to defaults unless the existing code does so intentionally.
 
 Do not add validation dependencies for small functionality unless justified.
 
@@ -43,13 +49,15 @@ Respect the project's module system:
 
 Do not mix module systems unless the project already does so or there is a clear reason.
 
+For code that runs in both browser and Node.js, avoid runtime-specific globals (`process`, `window`, `document`) without feature detection.
+
 Check package configuration before changing imports or exports.
 
 ## Dependencies
 
 Follow the repository dependency discipline.
 
-Avoid dependencies for functionality that can be implemented natively in under approximately 300 lines.
+Avoid adding a dependency if the equivalent functionality can be implemented in roughly 300 lines or fewer of production code, excluding tests and comments.
 
 Prefer latest stable versions without unresolved Critical or High CVEs.
 
@@ -66,6 +74,8 @@ Handle expected errors deliberately.
 Do not swallow errors silently.
 
 Avoid unhandled promise rejections.
+
+For fire-and-forget async operations, attach a `.catch()` that logs the error with secrets redacted rather than relying on global `unhandledRejection` handlers.
 
 Do not expose secrets, tokens, credentials, or sensitive payloads in logs or error messages.
 

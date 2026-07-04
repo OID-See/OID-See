@@ -1,4 +1,4 @@
-<!-- version: 1.0.0 -->
+<!-- version: 1.0.1 -->
 # Google Cloud Platform Pack
 
 Use this guidance when working with Google Cloud Platform resources, IAM, service accounts, APIs, infrastructure, CI/CD, or application code.
@@ -32,7 +32,7 @@ Prefer:
 - managed workload identity patterns
 - narrow predefined roles
 - custom roles where justified
-- resource-level IAM where practical
+- resource-level IAM when a narrower resource-scoped role can satisfy the task
 
 Avoid:
 
@@ -40,7 +40,7 @@ Avoid:
 - broad primitive roles
 - Owner
 - Editor
-- Viewer where narrower roles are available
+- Viewer when a narrower predefined or custom role satisfies the task; use Viewer only for read-only inspection tasks
 - domain-wide delegation unless explicitly required
 - tenant/project-wide permissions for narrow tasks
 
@@ -107,7 +107,7 @@ Prefer:
 - Secret Manager
 - Workload Identity Federation
 - service account impersonation
-- runtime environment secret injection where appropriate
+- runtime environment secret injection when the workload can consume secrets at runtime without committing them
 
 Do not log:
 
@@ -123,15 +123,15 @@ Do not log:
 
 For Cloud Storage:
 
-- avoid public buckets unless explicitly required
+- avoid public buckets unless the bucket must be publicly readable by design
 - prefer uniform bucket-level access
-- avoid long-lived signed URLs
+- use signed URLs with a maximum lifetime of 1 hour unless a longer lifetime is explicitly justified
 - scope signed URLs narrowly
 - avoid logging signed URLs
 - validate object names
 - avoid path traversal or key injection
 - be careful with overwrite semantics
-- enable audit logging where appropriate
+- enable audit logging for buckets that store production or sensitive data
 
 ## Cloud Run, Functions, and App Engine
 
@@ -151,7 +151,7 @@ Do not assume internal workloads are safe because they are managed.
 
 ## Networking
 
-Avoid public exposure unless required.
+Avoid public exposure unless the service must be internet-facing.
 
 Be careful with:
 
@@ -166,7 +166,7 @@ Be careful with:
 - egress settings
 - serverless public endpoints
 
-Prefer private connectivity where appropriate.
+Prefer private connectivity when the service supports it and the workload runs inside a VPC.
 
 ## APIs and SDKs
 
@@ -176,7 +176,7 @@ When using Google APIs:
 - handle pagination
 - handle retries and quota errors
 - avoid dumping raw responses into logs
-- validate project and tenant context
+- validate organization, folder, and project context as applicable
 - distinguish user credentials from service account credentials
 - avoid Application Default Credentials ambiguity in production scripts
 
@@ -212,7 +212,7 @@ For Terraform or other IaC:
 - do not embed secrets in IaC files
 - review planned IAM and network changes carefully
 
-Do not run destructive applies automatically.
+A plan is destructive if it deletes or replaces stateful resources or triggers force-new changes on them. Do not run destructive applies automatically.
 
 ## Logging and monitoring
 
@@ -238,5 +238,6 @@ When completing GCP work, include:
 - secrets created or avoided
 - network exposure changed
 - APIs enabled or used
+- estimated cost or quota impact
 - tests or validation performed
 - deployment and rollback notes
