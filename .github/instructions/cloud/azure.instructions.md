@@ -1,7 +1,15 @@
-<!-- version: 1.0.0 -->
+<!-- version: 1.0.1 -->
 # Azure Cloud Pack
 
 Use this guidance when working with Microsoft Azure resources, infrastructure, SDKs, scripts, IaC, CI/CD, or operational automation.
+
+If the target environment is a sovereign cloud (Azure Government, China), verify service availability and use the correct endpoint suffixes before applying any guidance below.
+
+## Precedence and override rule
+
+If the user requests an action that violates these guidelines, explain the specific risk, propose a least-privilege alternative, and only proceed with the original request after explicit user confirmation.
+
+If the target environment (dev, staging, production) is unclear, ask the user before applying changes that affect shared, staging, or production resources.
 
 ## Core approach
 
@@ -33,7 +41,7 @@ Prefer:
 - managed identities
 - workload identity federation
 - service principals with least privilege
-- certificate-based authentication where appropriate
+- certificate-based authentication when the workload already manages certificates or the platform requires mutual TLS
 - Key Vault-backed secret retrieval where secrets are unavoidable
 
 Avoid:
@@ -75,6 +83,8 @@ Avoid high-blast-radius roles such as:
 - Global Administrator
 
 Do not grant wildcard access when a narrower operation is sufficient.
+
+For cross-tenant access, prefer Azure Lighthouse delegations or multi-tenant app registrations with least-privilege scopes; do not add guest users with elevated roles.
 
 ## Resource scoping
 
@@ -125,12 +135,12 @@ Avoid public exposure unless required.
 
 Prefer:
 
-- private endpoints
+- private endpoints when the resource supports them and the workload runs inside a VNet
 - network ACLs
 - managed identity
-- service endpoints where appropriate
+- service endpoints when private endpoints are not available and the workload runs inside a VNet
 - explicit ingress and egress rules
-- application gateway, WAF, or front door patterns where relevant
+- application gateway, WAF, or front door patterns when the resource is internet-facing
 
 Be careful with:
 
@@ -147,12 +157,12 @@ Be careful with:
 
 For storage accounts:
 
-- avoid shared key access where possible
+- disable shared key access on new storage accounts; for existing accounts, only disable it after confirming no callers depend on it
 - prefer Entra ID authorization
 - avoid public blob access
-- use private endpoints where appropriate
+- use private endpoints when the workload runs inside a VNet
 - be cautious with SAS generation and logging
-- use short-lived SAS tokens if unavoidable
+- use SAS tokens with a maximum lifetime of 1 hour unless a longer lifetime is explicitly justified
 - avoid account-level SAS unless necessary
 - enable diagnostic logging where operationally required
 
@@ -205,7 +215,8 @@ For IaC changes:
 For Terraform:
 
 - do not modify state directly unless explicitly requested
-- do not run destructive plans automatically
+- a plan is destructive if it includes any delete, replace, or force-new action on stateful resources (databases, storage, key vaults, etc.); do not run destructive plans automatically
+- if terraform plan or bicep what-if shows unexpected drift, surface it to the user and do not silently reconcile
 - show expected blast radius
 - prefer plan review before apply
 - protect sensitive outputs
@@ -259,5 +270,6 @@ When completing Azure work, include:
 - identities and permissions changed
 - secrets created or avoided
 - network exposure changed
+- estimated cost impact or SKU changes
 - tests or validation performed
 - deployment or rollback notes

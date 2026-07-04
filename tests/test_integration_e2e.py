@@ -47,8 +47,6 @@ def test_wildcard_url_scoring():
         has_impersonation=False,
         has_offline_access=False,
         app_role_max_weight=0,
-        has_privileged_scopes=False,
-        has_too_many_scopes=False,
         delegated_scopes_by_resource={},
         assignments=[],
         owners=[{'id': 'owner1'}],
@@ -112,8 +110,6 @@ def test_public_client_scoring():
         has_impersonation=False,
         has_offline_access=False,
         app_role_max_weight=0,
-        has_privileged_scopes=False,
-        has_too_many_scopes=False,
         delegated_scopes_by_resource={},
         assignments=[],
         owners=[{'id': 'owner1'}],
@@ -193,9 +189,11 @@ def test_combined_scenario():
         has_impersonation=False,
         has_offline_access=True,  # Add offline access
         app_role_max_weight=0,
-        has_privileged_scopes=True,  # Add privileged scopes
-        has_too_many_scopes=False,
-        delegated_scopes_by_resource={},
+        # Privileged scope risk is now derived from delegated_scopes_by_resource
+        # (see classify_scopes) rather than an explicit boolean flag.
+        delegated_scopes_by_resource={
+            "00000003-0000-0000-c000-000000000000": {"Mail.ReadWrite"}
+        },
         assignments=[],
         owners=[],  # No owners
         requires_assignment=False,  # Broad reachability

@@ -1,0 +1,49 @@
+# version: 1.1.0
+tool_tiers:
+  - tier: 0
+    name: Read-only
+    description: Observe state without modifying repository, local, or remote resources.
+    examples:
+      - Read files and directories
+      - Search code and metadata
+      - Read PRs, issues, and CI status
+      - Inspect cache and contract artefacts
+      - Inspect instruction packs
+      - Inspect harness adapter files
+      - Inspect test output
+      - Inspect generated repo maps
+    escalation_required: false
+    escalation_rule: No escalation required when the action is genuinely read-only.
+
+  - tier: 1
+    name: Scoped write
+    description: Modify specific, bounded targets inside approved PR scope.
+    examples:
+      - Edit a specific file listed in approved scope
+      - Create a new file at an approved path
+      - Update tests listed in approved scope
+      - Update documentation listed in approved scope
+      - Update cARL artefacts when durable truth changes
+      - Update harness adapter files when explicitly covered by the PR contract
+      - Update embedded asset copies when required to keep canonical runtime assets in sync
+      - Update PR description or non-destructive metadata
+    escalation_required: true
+    escalation_rule: Declare intent and confirm target is within approved scope before acting.
+
+  - tier: 2
+    name: Destructive, broad, or governance-sensitive
+    description: Delete resources, perform broad actions, or modify high-authority governance/runtime surfaces with significant blast radius.
+    examples:
+      - Delete files or directories
+      - Bulk search and replace across multiple files
+      - Modify CI workflows or release pipelines
+      - Modify root-level governance configuration
+      - Change harness adapter authority semantics
+      - Change runtime state semantics
+      - Modify .github/carl/runtime.json
+      - Change security policy or dependency policy
+      - Merge PRs or force-push branches
+      - Run destructive infrastructure commands
+      - Mutate external resources through remote APIs
+    escalation_required: true
+    escalation_rule: Require explicit user approval and PR contract coverage before acting.

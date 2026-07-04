@@ -1,4 +1,4 @@
-<!-- version: 1.0.0 -->
+<!-- version: 1.0.1 -->
 # Terraform Language Pack
 
 Use this guidance when working with Terraform configurations.
@@ -13,13 +13,17 @@ Follow existing project structure, module usage, naming, and variable patterns.
 
 Do not introduce new module structures or patterns unless explicitly requested.
 
+For new modules, mirror the existing package layout. For new standalone files, place them alongside the existing Terraform root or in the project's established module folders.
+
 ## Plan before apply
 
 Always reason about the expected plan before applying changes.
 
-Prefer showing or describing the plan before making changes.
+Run `terraform plan` and present its output before any apply. If plan cannot be executed, explicitly state that and provide a written description of expected changes.
 
 Never assume a change is safe without understanding its impact.
+
+If `terraform validate` or `terraform fmt` is unavailable or fails, report the failure and do not proceed with apply.
 
 Highlight:
 
@@ -41,12 +45,16 @@ Do not:
 
 Respect remote state configuration.
 
+Before any plan or apply, confirm the active workspace and target environment with the user. Never assume the default workspace is the intended one.
+
+If a state lock error occurs, do not force-unlock automatically; report the lock ID and owner to the user and wait for guidance.
+
 ## Dependencies and modules
 
 Follow dependency discipline:
 
 - prefer existing modules
-- avoid introducing new modules for small functionality
+- do not create a new module unless it encapsulates 3 or more related resources reused in 2 or more places
 - avoid overly generic modules that obscure intent
 - pin provider versions
 - avoid unbounded version constraints
@@ -120,11 +128,13 @@ Use lifecycle rules deliberately:
 
 Do not suppress drift without understanding why.
 
+For importing existing resources, write the resource block first, run `terraform import`, then run `terraform plan` to verify zero diff before any apply.
+
 ## Destructive changes
 
 For destructive changes:
 
-- require explicit approval
+- before proceeding with destructive changes, ask the user to confirm with an explicit "yes, proceed" message and do not act until received
 - highlight impact clearly
 - suggest safer alternatives
 - recommend backups or snapshots where relevant
@@ -136,15 +146,19 @@ Run:
 - terraform fmt
 - terraform validate
 
+If these commands fail or are unavailable, report the failure and do not proceed with apply.
+
 Do not introduce formatting churn unrelated to the change.
 
 ## Testing and validation
 
 Where possible:
 
-- run terraform plan
+- run `terraform plan` whenever a terraform binary is available in the environment; otherwise, state that plan was skipped and why
 - describe expected outcomes
 - validate assumptions
+
+If plan output contains destroys not explicitly requested by the user, halt and surface each one before continuing.
 
 Do not claim apply success unless actually executed.
 

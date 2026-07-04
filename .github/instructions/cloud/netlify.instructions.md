@@ -1,4 +1,4 @@
-<!-- version: 1.0.0 -->
+<!-- version: 1.0.1 -->
 # Netlify Pack
 
 Use this guidance when working with Netlify-hosted sites, Netlify Functions, Netlify Blobs, builds, redirects, environment variables, or deployment configuration.
@@ -17,6 +17,13 @@ Be explicit about what runs:
 - via scheduled/background functions where used
 
 Do not leak server-side secrets into frontend bundles.
+
+## Function type selection
+
+- Use Edge Functions for latency-sensitive request/response rewriting and geo logic.
+- Use standard Functions for typical API endpoints.
+- Use Background Functions for work that may exceed 10 seconds.
+- Use Scheduled Functions for cron-style tasks.
 
 ## Project structure
 
@@ -37,6 +44,8 @@ Check:
 
 Do not change publish directories or build commands without understanding deployment impact.
 
+If `netlify.toml` is missing, infer settings from the framework adapter and confirm with the user before generating one. If it conflicts with framework defaults, surface the conflict rather than silently overriding.
+
 ## Environment variables and secrets
 
 Never expose secrets to browser-side code.
@@ -54,7 +63,9 @@ Do not put secrets in:
 - build logs
 - error pages
 
-Prefer Netlify environment variables or external secret stores as appropriate.
+Use Netlify environment variables for build/runtime config and non-rotating secrets. Use an external secret store for secrets that require rotation, audit logging, or cross-system sharing.
+
+Scope environment variables to the correct deploy context (production, deploy-preview, branch-deploy). Do not expose production secrets to deploy previews.
 
 ## Functions
 
@@ -68,8 +79,9 @@ When writing Netlify Functions:
 - handle CORS deliberately
 - validate authentication and authorization
 - avoid trusting client-provided identity claims
-- include timeouts where relevant
-- handle cold start assumptions
+- set explicit timeouts on all outbound network calls: default 5 seconds for internal services and 10 seconds for external APIs, and keep them below the function's max duration
+- if estimated execution time may exceed 10 seconds for a synchronous function, recommend a Background Function instead
+- avoid expensive initialization at module top level; lazily initialize clients and assume the first invocation may be slow
 
 Do not assume a function is private because it is server-side.
 
@@ -101,7 +113,11 @@ For OAuth flows:
 - do not trust frontend-only verification for privileged actions
 - enforce admin or role checks server-side
 
-Be careful with GitHub, Microsoft, Google, Eventbrite, LinkedIn, or other federated identity providers.
+For GitHub, Microsoft, Google, Eventbrite, LinkedIn, or other federated identity providers:
+
+- verify issuer and audience claims
+- pin to documented OAuth endpoints
+- confirm scope minimization
 
 ## Redirects and headers
 
@@ -145,6 +161,8 @@ Consider build-time secret exposure.
 
 Do not print environment variables during builds.
 
+If no existing SDK or runtime style is present, default to the framework's recommended adapter or runtime for the repository's primary language.
+
 ## Caching
 
 Be explicit about cache behaviour.
@@ -170,6 +188,10 @@ When adding diagnostics:
 - include correlation IDs where useful
 - avoid logging OAuth tokens or headers
 
+## Local development
+
+Recommend `netlify dev` for local testing; verify env vars are loaded via `netlify env:list`; test functions locally before deploying.
+
 ## Final response
 
 When completing Netlify work, include:
@@ -179,4 +201,5 @@ When completing Netlify work, include:
 - environment variables required
 - redirects/headers changed
 - client/server boundary risks
+- estimated cost or quota impact
 - deployment validation steps

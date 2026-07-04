@@ -1,0 +1,111 @@
+{
+  "_note": "Repository map derived by `carl map`. Re-run to update after structural changes.",
+  "generated_by": "carl map",
+  "last_updated": "2026-07-04",
+  "languages": [
+    "Python",
+    "TypeScript"
+  ],
+  "entry_points": [
+    {
+      "path": "package.json",
+      "purpose": "Node.js project"
+    }
+  ],
+  "directories": {
+    ".agents": "",
+    ".agents/rules": "",
+    ".cursor": "",
+    ".cursor/rules": "",
+    ".github": "GitHub configuration and Copilot instruction root",
+    ".github/ISSUE_TEMPLATE": "",
+    ".github/carl": "cARLv2 governance artefacts and templates",
+    ".github/carl/plans": "Prompt-as-code planning artefacts",
+    ".github/instructions": "Copilot instruction packs",
+    ".github/instructions/cloud": "Cloud guidance packs",
+    ".github/instructions/core": "Core governance packs",
+    ".github/instructions/languages": "Language-specific guidance packs",
+    ".github/instructions/platform": "Platform guidance packs",
+    ".pytest_cache": "",
+    ".pytest_cache/v": "",
+    ".pytest_cache/v/cache": "",
+    "__pycache__": "",
+    "data": "",
+    "docs": "Documentation",
+    "docs/images": "",
+    "examples": "",
+    "examples/github-actions": "",
+    "public": "",
+    "public/icons": "",
+    "schemas": "",
+    "src": "",
+    "src/adapters": "",
+    "src/components": "",
+    "src/filters": "",
+    "src/samples": "",
+    "src/types": "",
+    "src/workers": "",
+    "tests": ""
+  },
+  "workflows": null,
+  "governance": [
+    {
+      "path": ".github/carl/current-pr-contract.template.md",
+      "purpose": "PR contract template"
+    },
+    {
+      "path": ".github/carl/invariants.yml",
+      "purpose": "Runtime invariants enforced by all implementation PRs"
+    },
+    {
+      "path": ".github/carl/memory.md",
+      "purpose": "Durable architectural truth cache"
+    },
+    {
+      "path": ".github/carl/repo-map.example.json",
+      "purpose": "Repo map template example"
+    },
+    {
+      "path": ".github/carl/runtime.json"
+    },
+    {
+      "path": ".github/carl/tool-policy.yml",
+      "purpose": "Tool permission tier definitions"
+    },
+    {
+      "path": ".github/carl/trust-boundaries.md",
+      "purpose": "Trust boundary documentation"
+    }
+  ],
+  "documentation": [
+    {
+      "path": "AGENTS.md"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "purpose": "Version changelog"
+    },
+    {
+      "path": "CLAUDE.md"
+    },
+    {
+      "path": "README.md",
+      "purpose": "Repository overview and pack catalogue"
+    },
+    {
+      "path": "RELEASE_NOTES.md"
+    },
+    {
+      "path": "RELEASE_NOTES_v1.0.1.md"
+    },
+    {
+      "path": "RELEASE_NOTES_v1.0.md"
+    },
+    {
+      "path": "RELEASE_NOTES_v1.1.1.md"
+    },
+    {
+      "path": "RELEASE_NOTES_v1.1.md"
+    }
+  ]
+}

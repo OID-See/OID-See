@@ -178,8 +178,6 @@ def test_tier_based_risk_scoring():
         has_impersonation=False,
         has_offline_access=False,
         app_role_max_weight=0,
-        has_privileged_scopes=False,
-        has_too_many_scopes=False,
         delegated_scopes_by_resource={},
         assignments=[],
         owners=[{"id": "owner1"}],
@@ -188,8 +186,6 @@ def test_tier_based_risk_scoring():
         sp_display="Test SP",
         dir_cache=MockCache(),
         role_defs=role_defs,
-        has_readwrite_all_scopes=False,
-        has_action_scopes=False,
     )
     
     # Check that PRIVILEGE reason exists
@@ -212,8 +208,6 @@ def test_tier_based_risk_scoring():
         has_impersonation=False,
         has_offline_access=False,
         app_role_max_weight=0,
-        has_privileged_scopes=False,
-        has_too_many_scopes=False,
         delegated_scopes_by_resource={},
         assignments=[],
         owners=[{"id": "owner1"}],
@@ -222,8 +216,6 @@ def test_tier_based_risk_scoring():
         sp_display="Test SP",
         dir_cache=MockCache(),
         role_defs=role_defs,
-        has_readwrite_all_scopes=False,
-        has_action_scopes=False,
     )
     
     privilege_reason = next((r for r in risk["reasons"] if r["code"] == "PRIVILEGE"), None)

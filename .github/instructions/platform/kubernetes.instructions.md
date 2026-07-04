@@ -1,4 +1,4 @@
-<!-- version: 1.0.0 -->
+<!-- version: 1.0.1 -->
 # Kubernetes Pack
 
 Use this guidance when working with Kubernetes manifests, Helm charts, Kustomize overlays, operators, controllers, admission policies, or cluster automation.
@@ -8,6 +8,10 @@ Use this guidance when working with Kubernetes manifests, Helm charts, Kustomize
 Treat Kubernetes changes as security-sensitive by default.
 
 Prefer small, explicit, reviewable changes.
+
+Precedence: Security > Least privilege > Project conventions > Style.
+
+If existing project conventions violate these guidelines, surface the violation but do not fix unrelated issues unless the user requests a broader cleanup. Scope changes to the requested task.
 
 Follow existing project conventions for:
 
@@ -42,6 +46,8 @@ Do not run destructive `kubectl` commands automatically.
 
 Do not delete resources without explicit approval.
 
+Before running any `kubectl` command, confirm the active context and cluster. Never assume the current kubeconfig context is the intended target.
+
 ## Least privilege and RBAC
 
 Use least privilege.
@@ -61,6 +67,8 @@ Be careful with:
 Prefer Role and RoleBinding scoped to a namespace where possible.
 
 Avoid cluster-wide permissions unless required and justified.
+
+When a user explicitly requests a flagged pattern such as privileged, wildcard RBAC, or hostNetwork, state the risk, ask for confirmation, and document the justification in a comment in the manifest before proceeding.
 
 ## Service accounts
 
@@ -106,17 +114,19 @@ Prefer:
 - non-root users
 - explicit securityContext settings
 
+StatefulSets: identify ordering implications, PVC retention policy, and headless service dependencies before modifying. Avoid changes that trigger full re-creation of stateful pods.
+
 ## Images
 
-Use trusted images.
+Use images from Docker Official Images, Verified Publishers, distroless/chainguard, or the project's internal registry. Flag any other source.
 
 Avoid `latest` tags.
 
-Prefer pinned, immutable image tags or digests where practical.
+Pin images to a specific semver tag at minimum; prefer image digests (sha256) for production workloads.
 
 Be aware of image provenance and vulnerability posture.
 
-Do not introduce images with unresolved Critical or High CVEs unless explicitly approved with mitigation.
+Do not introduce images with unresolved Critical or High CVEs unless CVE scan results are available or provided by the user and the user confirms acceptance with a documented mitigation before proceeding. Recommend trivy or grype if no scan is available.
 
 ## Secrets and config
 
@@ -134,6 +144,8 @@ Be careful with:
 - logs exposing secrets
 - Helm values files containing secrets
 - generated manifests that include secret material
+
+If a user requests a secret in a manifest, refuse the unsafe approach, explain why, and propose runtime secret injection or an external secret store instead.
 
 ## Networking
 
@@ -156,7 +168,7 @@ Do not expose admin endpoints publicly.
 
 ## Resource management
 
-Set resource requests and limits where appropriate.
+Always set CPU and memory requests, and memory limits. Do not set CPU limits unless the workload requires deterministic throttling.
 
 Consider:
 
@@ -186,6 +198,8 @@ Be careful with:
 
 Do not delete PVCs or PVs without explicit approval and backup consideration.
 
+For importing or adopting existing resources, write the resource definition first, then import, then run a plan or diff to verify zero unexpected change before any apply.
+
 ## Helm
 
 When working with Helm:
@@ -199,6 +213,8 @@ When working with Helm:
 - be careful with upgrade hooks and CRDs
 
 Do not assume chart defaults are secure.
+
+CRDs: treat CRD installation and upgrade as cluster-wide changes requiring explicit approval. Never delete CRDs without confirming no custom resources depend on them. Preserve existing CRD versions during upgrades.
 
 ## Kustomize
 
@@ -247,3 +263,5 @@ When completing Kubernetes work, include:
 - secret handling
 - apply/validation steps
 - rollback considerations
+
+If an apply or upgrade fails partway, report which resources were applied versus failed, and propose rollback or remediation steps before re-running.

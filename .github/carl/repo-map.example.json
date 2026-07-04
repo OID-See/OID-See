@@ -1,0 +1,72 @@
+{
+  "_note": "Cognitive repository map for cARL. Populate and version-control for your repository.",
+  "last_updated": "YYYY-MM-DD",
+  "directories": {
+    ".github": "Root Copilot instruction architecture",
+    ".github/carl": "cARLv2 governance artefacts and templates",
+    ".github/instructions/core": "Core operating model and governance packs",
+    ".github/instructions/languages": "Language-specific guidance packs",
+    ".github/instructions/platform": "Platform guidance packs",
+    ".github/instructions/cloud": "Cloud guidance packs",
+    ".github/carl/plans": "Version-controlled prompt-as-code planning artefacts"
+  },
+  "key_files": [
+    {
+      "path": ".github/copilot-instructions.md",
+      "purpose": "Root constitution and operating model"
+    },
+    {
+      "path": "README.md",
+      "purpose": "Repository overview and instruction-pack catalogue"
+    },
+    {
+      "path": ".github/carl/memory.md",
+      "purpose": "Durable architectural truth cache"
+    },
+    {
+      "path": ".github/carl/current-pr-contract.md",
+      "purpose": "Current PR scope and constraints"
+    },
+    {
+      "path": ".github/carl/plans/README.md",
+      "purpose": "Prompt-as-code usage guidance"
+    },
+    {
+      "path": ".github/carl/plans/plan-template.md",
+      "purpose": "Reusable cARL planning contract template"
+    }
+  ],
+  "pack_registry": {
+    "core": [
+      "baseline.instructions.md",
+      "security.instructions.md",
+      "dependency.instructions.md",
+      "identity.instructions.md",
+      "carl.instructions.md",
+      "cognition-governance.instructions.md",
+      "tool-permission-tiers.instructions.md",
+      "memory-cache.instructions.md",
+      "pr-contract.instructions.md"
+    ],
+    "languages": [
+      "python.instructions.md",
+      "typescript.instructions.md",
+      "javascript.instructions.md",
+      "terraform.instructions.md",
+      "powershell.instructions.md",
+      "html.instructions.md"
+    ],
+    "platform": [
+      "cicd.instructions.md",
+      "docker.instructions.md",
+      "kubernetes.instructions.md"
+    ],
+    "cloud": [
+      "azure.instructions.md",
+      "entra.instructions.md",
+      "microsoft-graph.instructions.md",
+      "gcp.instructions.md",
+      "netlify.instructions.md"
+    ]
+  }
+}

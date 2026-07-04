@@ -1,4 +1,4 @@
-<!-- version: 1.0.0 -->
+<!-- version: 1.0.1 -->
 # CI/CD Pack
 
 Use this guidance when working with CI/CD pipelines, GitHub Actions, Azure DevOps, GitLab CI, build scripts, release workflows, deployment automation, or repository automation.
@@ -12,6 +12,14 @@ Pipeline changes are security-sensitive by default.
 Prefer small, reviewable, least-privilege changes.
 
 Do not trade security for convenience.
+
+If existing project conventions conflict with the security guidance in this pack, follow the security guidance for new code and note the inconsistency with existing conventions in the final response.
+
+If a requested change requires elevated permissions or weakened controls, implement the least-privileged version and explicitly call out the trade-off and any safer alternatives in the final response.
+
+If you discover pre-existing security issues outside the scope of the requested change, flag them in the final response rather than silently fixing them, unless the user asks for a broader cleanup.
+
+If the user requests an action that violates these guidelines, refuse the unsafe approach, explain the risk, and propose a compliant alternative.
 
 Respect existing project conventions for:
 
@@ -42,13 +50,25 @@ Always distinguish:
 
 Do not expose privileged secrets to untrusted code.
 
+## GitLab CI
+
+For GitLab CI:
+
+- use protected branches and tags for sensitive pipelines
+- mask and protect CI/CD variables that contain secrets
+- prefer `rules:` over `only/except`
+- keep `CI_JOB_TOKEN` scope as narrow as possible
+- use runner tags deliberately
+- prefer OIDC `id_tokens` for cloud federation where available
+- do not expose protected variables to untrusted merge requests
+
 ## GitHub Actions
 
 For GitHub Actions:
 
 - minimise `GITHUB_TOKEN` permissions
 - set explicit `permissions`
-- pin third-party actions to commit SHA where practical
+- pin all third-party actions to a full commit SHA; actions published by GitHub in the `actions/*` org may be pinned to a major version tag
 - avoid untrusted pull request access to secrets
 - be careful with `pull_request_target`
 - avoid running untrusted code with privileged token context
@@ -73,7 +93,7 @@ For Azure DevOps:
 
 - avoid storing service account JSON, client secrets, or certificates in plain variables
 - understand that secret variables can still be exfiltrated by pipeline code with access
-- prefer Key Vault-backed variable groups where appropriate
+- store any secret, certificate, or credential in a Key Vault-backed variable group rather than as a pipeline variable
 - secure service connections
 - restrict pipeline permissions
 - avoid broad project collection permissions
@@ -128,7 +148,7 @@ For CI dependencies:
 
 - pin versions
 - avoid curl-pipe-shell patterns
-- verify downloads where practical
+- verify downloaded binaries with a published checksum or signature when one is available; otherwise note the absence in the PR description
 - prefer official package sources
 - avoid untrusted setup scripts
 - avoid implicit latest tags
@@ -156,7 +176,7 @@ Set retention deliberately.
 For deployments:
 
 - use environments
-- require approvals for production where appropriate
+- require at least one manual approval for any deployment to a production environment
 - separate build and deploy permissions
 - promote immutable artifacts rather than rebuilding for production
 - avoid deploying from untrusted branches
