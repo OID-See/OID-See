@@ -6,8 +6,13 @@
 # OID-See
 
 [![Version](https://img.shields.io/badge/version-1.1.1-blue.svg)](https://github.com/OID-See/OID-See)
+[![Status](https://img.shields.io/badge/status-stable-brightgreen.svg)](RELEASE_NOTES_v1.1.1.md)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-stable-brightgreen.svg)](RELEASE_NOTES_v1.0.md)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB.svg?logo=react&logoColor=black)](https://react.dev/)
+[![Microsoft Graph](https://img.shields.io/badge/Microsoft%20Graph-read--only-00A4EF.svg?logo=microsoft&logoColor=white)](docs/scanner.md#security-considerations)
+[![SARIF](https://img.shields.io/badge/SARIF-2.1.0-5C2D91.svg)](docs/scanner.md#sarif-210-output)
+[![BloodHound](https://img.shields.io/badge/BloodHound-OpenGraph-CC0000.svg)](RELEASE_NOTES_v1.1.1.md)
 
 **Visualize and assess security risks in your Microsoft Entra ID tenant's third-party and multi-tenant applications.**
 
